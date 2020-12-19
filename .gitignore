@@ -1,3 +1,4 @@
 jcc
+tmp*
 /src/*.o
 /src/*/*.o
