@@ -17,7 +17,10 @@ compile:
 	./jcc tmp.c > tmp.s
 	$(CC) -static -o tmp tmp.s
 
+test: jcc
+	./test.sh
+
 clean:
 	rm -f jcc ./src/*.o tmp* ./src/*/*.o
 
-.PHONY: clean
+.PHONY: test clean

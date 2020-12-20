@@ -20,6 +20,12 @@ void compile_node(Node *node) {
     case ND_SUB:
         printf("  sub rax, rdi\n");
         break;
+    case ND_MUL:
+        printf("  imul rax, rdi\n");
+        break;
+    case ND_DIV:
+        printf("  cqo\n");
+        printf("  idiv rax, rdi\n");
     }
 
     printf("  push rax\n");
