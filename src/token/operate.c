@@ -1,9 +1,8 @@
-#include "read.h"
-#include "../write/write.h"
+#include "token.h"
 
 int use_expect_int() {
     if (source_token->kind != TK_NUM_INT) {
-        errorf(ER_COMPILE, "Not a number");
+        errorf_at(ER_COMPILE, source_token, "Not a number");
     }
     int val = source_token->val;
     source_token = source_token->next;
@@ -26,7 +25,7 @@ void use_expect_symbol(char *op) {
         source_token->str_len != strlen(op) || 
         memcmp(source_token->str, op, source_token->str_len)) 
     {
-        errorf(ER_COMPILE, "Invalid operator");
+        errorf_at(ER_COMPILE, source_token, "Need \"%s\" operator", op);
     }
     source_token = source_token->next;
 }

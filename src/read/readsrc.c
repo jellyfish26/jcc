@@ -6,7 +6,8 @@ SourceLine *source_code;
 void readfile(char *file_path) {
     FILE *fp;
     if ((fp = fopen(file_path, "r")) == NULL) {
-        errorf(ER_OTHER, "Failed to open the file");
+        fprintf(stderr, "Failed to open the file\n");
+        exit(1);
     }
 
     SourceLine *now_line = NULL;
@@ -37,7 +38,7 @@ void readfile(char *file_path) {
     fp = fopen(file_path, "r");
     now_line = source_code;
     while (now_line) {
-        now_line->str = calloc(now_line->len, sizeof(char));
+        now_line->str = calloc(now_line->len + 2, sizeof(char));
         fgets(now_line->str, now_line->len, fp);
         now_line = now_line->next;
     }

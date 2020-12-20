@@ -1,5 +1,5 @@
-#include "read.h"
-#include "../write/write.h"
+#include "token.h"
+#include "../read/read.h"
 
 Token *new_token(TokenKind kind, Token *target, char *str, int len) {
     Token *ret = calloc(1, sizeof(Token));
@@ -25,8 +25,9 @@ void *tokenize() {
         "+", "-", "*", "/", "(", ")"
     };
 
+    char *now_str;
     while (now_line) {
-        char *now_str = now_line->str;
+        now_str = now_line->str;
         while (*now_str) {
             if (isspace(*now_str)) {
                 now_str++;
@@ -60,6 +61,6 @@ void *tokenize() {
         }
         now_line = now_line->next;
     }
-    new_token(TK_EOF, ret, NULL, 0);
+    new_token(TK_EOF, ret, NULL, 1);
     source_token =  head.next;
 }

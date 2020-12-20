@@ -19,34 +19,3 @@ struct SourceLine {
 
 extern SourceLine *source_code;
 void readfile(char *file_path);
-
-//
-// tokenize.c
-//
-
-typedef enum {
-    TK_NUM_INT,   // Number (Int)
-    TK_SYMBOL,    // Symbol
-    TK_EOF,       // End of File
-} TokenKind;
-
-typedef struct Token Token;
-
-struct Token {
-    TokenKind kind; // Type of Token
-    Token *next;     // Next token
-    char *str;       // Token String
-    int str_len;     // Token length
-    int val;         // Value if kind is TK_NUM_INT
-};
-
-extern Token *source_token;  // Warn: Don't operate it directly.
-void *tokenize();
-
-//
-// operate.c
-//
-
-int use_expect_int();
-bool use_symbol(char *op);
-void use_expect_symbol(char *op);
