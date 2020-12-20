@@ -15,11 +15,15 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
 Node *add();
 Node *num();
 
-// add = num + num
+// add = num (+ | -) num
 Node *add() {
     Node *ret = new_node(ND_ADD, NULL, NULL);
     ret->lhs = num();
-    use_expect_operator("+");
+    if (use_operator("-")) {
+        ret->kind = ND_SUB;
+    } else {
+        use_expect_operator("+");
+    }
     ret->rhs = num();
     return ret;
 }

@@ -6,6 +6,7 @@
 
 typedef enum {
     ND_ADD,  // +
+    ND_SUB,  // -
     ND_VAR,  // Variable
 } NodeKind;
 

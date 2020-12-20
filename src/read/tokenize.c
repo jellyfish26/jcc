@@ -28,7 +28,7 @@ void *tokenize() {
                 continue;
             }
 
-            if (*now_str == '+') {
+            if (*now_str == '+' || *now_str == '-') {
                 ret = new_token(TK_OPERATOR, ret, now_str++, 1);
                 continue;
             }

@@ -12,8 +12,14 @@ void compile_node(Node *node) {
     printf("  pop rdi\n");
     printf("  pop rax\n");
 
-    if (node->kind == ND_ADD) {
+    // calculation
+    switch (node->kind) {
+    case ND_ADD:
         printf("  add rax, rdi\n");
+        break;
+    case ND_SUB:
+        printf("  sub rax, rdi\n");
+        break;
     }
 
     printf("  push rax\n");
