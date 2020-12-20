@@ -26,7 +26,7 @@ void readfile(char *file_path);
 
 typedef enum {
     TK_NUM_INT,   // Number (Int)
-    TK_OPERATOR,  // Operator
+    TK_SYMBOL,    // Symbol
     TK_EOF,       // End of File
 } TokenKind;
 
@@ -48,5 +48,5 @@ void *tokenize();
 //
 
 int use_expect_int();
-bool use_operator(char *op);
-void use_expect_operator(char *op);
+bool use_symbol(char *op);
+void use_expect_symbol(char *op);

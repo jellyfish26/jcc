@@ -21,8 +21,8 @@ void *tokenize() {
     SourceLine *now_line = source_code;
     Token *ret = &head;
 
-    char *permit_operator[] = {
-        "+", "-", "*", "/"
+    char *permit_symbol[] = {
+        "+", "-", "*", "/", "(", ")"
     };
 
     while (now_line) {
@@ -34,10 +34,10 @@ void *tokenize() {
             }
 
             bool check = false;
-            for (int i = 0; i < 4; i++) {
-                int len = strlen(permit_operator[i]);
-                if (memcmp(now_str, permit_operator[i], len) == 0) {
-                    ret = new_token(TK_OPERATOR, ret, now_str, len);
+            for (int i = 0; i < 6; i++) {
+                int len = strlen(permit_symbol[i]);
+                if (memcmp(now_str, permit_symbol[i], len) == 0) {
+                    ret = new_token(TK_SYMBOL, ret, now_str, len);
                     now_str += len;
                     check = true;
                     break;

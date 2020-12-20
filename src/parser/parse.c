@@ -14,15 +14,16 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
 // Prototype
 Node *add();
 Node *mul();
+Node *priority();
 Node *num();
 
 // add = mul ("+" mul | "-" mul)*
 Node *add() {
     Node *ret = mul();
     while (true) {
-        if (use_operator("+")) {
+        if (use_symbol("+")) {
             ret = new_node(ND_ADD, ret, mul());
-        } else if (use_operator("-")) {
+        } else if (use_symbol("-")) {
             ret = new_node(ND_SUB, ret, mul());
         } else {
             return ret;
@@ -31,20 +32,31 @@ Node *add() {
     return ret;
 }
 
-// mul = num ("*" num | "/" num)*
+// mul = priority ("*" priority | "/" priority)*
 Node *mul() {
-    Node *ret = num();
+    Node *ret = priority();
     while (true) {
-        if (use_operator("*")) {
-            ret = new_node(ND_MUL, ret, num());
-        } else if (use_operator("/")) {
-            ret = new_node(ND_DIV, ret, num());
+        if (use_symbol("*")) {
+            ret = new_node(ND_MUL, ret, priority());
+        } else if (use_symbol("/")) {
+            ret = new_node(ND_DIV, ret, priority());
         } else {
             return ret;
         }
     }
     return ret;
 }
+
+// priority = num | "(" add ")"
+Node *priority() {
+    if (use_symbol("(")) {
+        Node *ret = add();
+        use_expect_symbol(")");
+        return ret;
+    }
+    return num();
+}
+
 
 Node *num() {
     Node *ret = new_node(ND_VAR, NULL, NULL);

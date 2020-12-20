@@ -10,8 +10,8 @@ int use_expect_int() {
     return val;
 }
 
-bool use_operator(char *op) {
-    if (source_token->kind != TK_OPERATOR || 
+bool use_symbol(char *op) {
+    if (source_token->kind != TK_SYMBOL || 
         source_token->str_len != strlen(op) || 
         memcmp(source_token->str, op, source_token->str_len)) 
     {
@@ -21,8 +21,8 @@ bool use_operator(char *op) {
     return true;
 }
 
-void use_expect_operator(char *op) {
-    if (source_token->kind != TK_OPERATOR || 
+void use_expect_symbol(char *op) {
+    if (source_token->kind != TK_SYMBOL || 
         source_token->str_len != strlen(op) || 
         memcmp(source_token->str, op, source_token->str_len)) 
     {
