@@ -2,7 +2,7 @@
 #include "../parser/parser.h"
 
 void compile_node(Node *node) {
-    if (node->kind == ND_VAR) {
+    if (node->kind == ND_INT) {
         printf("  push %d\n", node->val);
         return;
     }

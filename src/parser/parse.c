@@ -11,9 +11,17 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     return ret;
 }
 
+Node *new_node_int(int val) {
+    Node *ret = calloc(1, sizeof(Node));
+    ret->kind = ND_INT;
+    ret->val = val;
+    return ret;
+}
+
 // Prototype
 Node *add();
 Node *mul();
+Node *unary();
 Node *priority();
 Node *num();
 
@@ -32,19 +40,31 @@ Node *add() {
     return ret;
 }
 
-// mul = priority ("*" priority | "/" priority)*
+// mul = unary ("*" unary | "/" unary)*
 Node *mul() {
-    Node *ret = priority();
+    Node *ret = unary();
     while (true) {
         if (use_symbol("*")) {
-            ret = new_node(ND_MUL, ret, priority());
+            ret = new_node(ND_MUL, ret, unary());
         } else if (use_symbol("/")) {
-            ret = new_node(ND_DIV, ret, priority());
+            ret = new_node(ND_DIV, ret, unary());
         } else {
             return ret;
         }
     }
     return ret;
+}
+
+// unary = ("+" | "-")? primariy
+Node *unary() {
+    if (use_symbol("+")) {
+        Node *ret = new_node(ND_ADD, new_node_int(0), priority());
+        return ret;
+    } else if (use_symbol("-")) {
+        Node *ret = new_node(ND_SUB, new_node_int(0), priority());
+        return ret;
+    }
+    return priority();
 }
 
 // priority = num | "(" add ")"
@@ -59,7 +79,7 @@ Node *priority() {
 
 
 Node *num() {
-    Node *ret = new_node(ND_VAR, NULL, NULL);
+    Node *ret = new_node(ND_INT, NULL, NULL);
     ret->val = use_expect_int();
     return ret;
 }

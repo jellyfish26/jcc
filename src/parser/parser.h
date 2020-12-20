@@ -9,7 +9,7 @@ typedef enum {
     ND_SUB,  // -
     ND_MUL,  // *
     ND_DIV,  // /
-    ND_VAR,  // Variable
+    ND_INT,  // Number (int)
 } NodeKind;
 
 typedef struct Node Node;
