@@ -7,3 +7,9 @@
 //
 
 void codegen();
+
+//
+// assembly.c
+//
+
+void gen_compare(char *comp);

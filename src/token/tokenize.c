@@ -22,7 +22,8 @@ void *tokenize() {
     Token *ret = &head;
 
     char *permit_symbol[] = {
-        "+", "-", "*", "/", "(", ")"
+        "+", "-", "*", "/", "(", ")",
+        "<=", ">=", "==", "!=", "<", ">", 
     };
 
     char *now_str;
@@ -35,7 +36,7 @@ void *tokenize() {
             }
 
             bool check = false;
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < sizeof(permit_symbol) / sizeof(char*); i++) {
                 int len = strlen(permit_symbol[i]);
                 if (memcmp(now_str, permit_symbol[i], len) == 0) {
                     ret = new_token(TK_SYMBOL, ret, now_str, len);
@@ -57,7 +58,7 @@ void *tokenize() {
                 continue;
             }
 
-            errorf(ER_TOKENIZE, "Not defined");
+            errorf(ER_TOKENIZE, "Unexpected tokenize");
         }
         now_line = now_line->next;
     }

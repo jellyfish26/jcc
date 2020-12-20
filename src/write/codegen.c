@@ -26,6 +26,25 @@ void compile_node(Node *node) {
     case ND_DIV:
         printf("  cqo\n");
         printf("  idiv rax, rdi\n");
+        break;
+    case ND_EQ:
+        gen_compare("sete");
+        break;
+    case ND_NEQ:
+        gen_compare("setne");
+        break;
+    case ND_LC:
+        gen_compare("setl");
+        break;
+    case ND_LEC:
+        gen_compare("setle");
+        break;
+    case ND_RC:
+        gen_compare("setg");
+        break;
+    case ND_REC:
+        gen_compare("setge");
+        break;
     }
 
     printf("  push rax\n");

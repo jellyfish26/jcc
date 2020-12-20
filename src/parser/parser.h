@@ -9,6 +9,12 @@ typedef enum {
     ND_SUB,  // -
     ND_MUL,  // *
     ND_DIV,  // /
+    ND_EQ,   // ==
+    ND_NEQ,  // !=
+    ND_LC,   // <  (Left Compare)
+    ND_LEC,  // <= (Left Equal Compare)
+    ND_RC,   // >  (Right Compare)
+    ND_REC,  // >= (Right Equal Compare)
     ND_INT,  // Number (int)
 } NodeKind;
 

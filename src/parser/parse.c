@@ -19,11 +19,53 @@ Node *new_node_int(int val) {
 }
 
 // Prototype
+Node *formula();
+Node *same_comp();
+Node *size_comp();
 Node *add();
 Node *mul();
 Node *unary();
 Node *priority();
 Node *num();
+
+// formula = same_comp
+Node *formula() {
+    return same_comp();
+}
+
+// same_comp = size_comp ("==" size_comp | "!=" size_comp)*
+Node *same_comp() {
+    Node *ret = size_comp();
+    while (true) {
+        if (use_symbol("==")) {
+            ret = new_node(ND_EQ, ret, size_comp());
+        } else if (use_symbol("!=")) {
+            ret = new_node(ND_NEQ, ret, size_comp());
+        } else {
+            break;
+        }
+    }
+    return ret;
+}
+
+// size_comp = add ("<" add | ">" add | "<=" add | ">=" add)*
+Node *size_comp() {
+    Node *ret = add();
+    while (true) {
+        if (use_symbol("<")) {
+            ret = new_node(ND_LC, ret, add());
+        } else if (use_symbol(">")) {
+            ret = new_node(ND_RC, ret, add());
+        } else if (use_symbol("<=")) {
+            ret = new_node(ND_LEC, ret, add());
+        } else if (use_symbol(">=")) {
+            ret = new_node(ND_REC, ret, add());
+        } else {
+            break;
+        }
+    }
+    return ret;
+}
 
 // add = mul ("+" mul | "-" mul)*
 Node *add() {
@@ -67,10 +109,10 @@ Node *unary() {
     return priority();
 }
 
-// priority = num | "(" add ")"
+// priority = num | "(" formula ")"
 Node *priority() {
     if (use_symbol("(")) {
-        Node *ret = add();
+        Node *ret = formula();
         use_expect_symbol(")");
         return ret;
     }
@@ -85,5 +127,5 @@ Node *num() {
 }
 
 void parse() {
-    head_node = add();
+    head_node = formula();
 }
