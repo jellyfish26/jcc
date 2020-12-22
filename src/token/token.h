@@ -9,9 +9,10 @@
 //
 
 typedef enum {
-    TK_NUM_INT,   // Number (Int)
-    TK_SYMBOL,    // Symbol
-    TK_EOF,       // End of File
+    TK_NUM_INT, // Number (Int)
+    TK_SYMBOL,  // Symbol
+    TK_IDENT,   // Ident (etc. variable)
+    TK_EOF,     // End of File
 } TokenKind;
 
 typedef struct Token Token;
@@ -47,3 +48,6 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...);
 int use_expect_int();
 bool use_symbol(char *op);
 void use_expect_symbol(char *op);
+Token *use_ident();
+
+bool is_eof();

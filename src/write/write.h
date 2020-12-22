@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+#include "../parser/parser.h"
+
 //
 // codegen.c
 //
@@ -13,3 +15,4 @@ void codegen();
 //
 
 void gen_compare(char *comp);
+void gen_var(Node *node);

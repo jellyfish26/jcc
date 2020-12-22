@@ -3,6 +3,9 @@
 int main(int argc, char **argv) {
     readfile(argv[1]);
     tokenize();
-    parse();
+
+    program();
+    init_offset();
+
     codegen();
 }

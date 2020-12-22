@@ -13,6 +13,18 @@ Token *new_token(TokenKind kind, Token *target, char *str, int len) {
     return ret;
 }
 
+bool is_useable_char(char c) {
+    bool ret = false;
+    ret |= ('a' <= c && c <= 'z');
+    ret |= ('A' <= c && c <= 'Z');
+    ret |= (c == '_');
+    return ret;
+}
+
+bool is_ident_char(char c) {
+    return is_useable_char(c) || ('0' <= c && c <= '9');
+}
+
 Token *source_token;
 
 // Update source token
@@ -22,8 +34,8 @@ void *tokenize() {
     Token *ret = &head;
 
     char *permit_symbol[] = {
-        "+", "-", "*", "/", "(", ")",
-        "<=", ">=", "==", "!=", "<", ">", 
+        "+", "-", "*", "/", "(", ")", ";",
+        "<=", ">=", "==", "!=", "<", ">", "=" 
     };
 
     char *now_str;
@@ -55,6 +67,16 @@ void *tokenize() {
                 char *tmp = now_str;
                 ret->val = strtol(now_str, &now_str, 10);
                 ret->str_len = now_str - tmp;
+                continue;
+            }
+
+            if (is_useable_char(*now_str)) {
+                char *start = now_str;
+                while (is_ident_char(*now_str)) {
+                    now_str++;
+                }
+                int len = now_str - start;
+                ret = new_token(TK_IDENT, ret, start, len);
                 continue;
             }
 

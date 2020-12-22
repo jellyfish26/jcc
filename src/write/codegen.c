@@ -1,11 +1,30 @@
 #include "write.h"
-#include "../parser/parser.h"
 
 void compile_node(Node *node) {
     if (node->kind == ND_INT) {
         printf("  push %d\n", node->val);
         return;
     }
+
+    switch (node->kind) {
+    case ND_VAR:
+        gen_var(node);
+        printf("  pop rax\n");
+        printf("  mov rax, [rax]\n");
+        printf("  push rax\n");
+        return;
+    case ND_ASSIGN:
+        gen_var(node->lhs);
+        compile_node(node->rhs);
+
+        printf("  pop rdi\n");
+        printf("  pop rax\n");
+        printf("  mov [rax], rdi\n");
+        printf("  push rdi\n");
+        return;
+    }
+
+
     compile_node(node->lhs);
     compile_node(node->rhs);
 
@@ -54,7 +73,21 @@ void codegen() {
     printf(".intel_syntax noprefix\n");
     printf(".global main\n");
     printf("main:\n");
-    compile_node(head_node);
-    printf("  pop rax\n");
-    printf("  ret\n");
+
+    // Prologue
+    // Allocate variable size.
+    printf("  push rbp\n");
+    printf("  mov rbp, rsp\n");
+    printf("  sub rsp, %d\n", vars_size);
+
+    for (int i = 0; code[i]; i++) {
+        compile_node(code[i]);
+
+        // Pop result value 
+        printf("  pop rax\n");
+    }
+
+    printf("  mov rsp, rbp\n");
+    printf("  pop rbp\n");
+    printf("  ret \n");
 }

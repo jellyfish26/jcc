@@ -1,7 +1,4 @@
 #include "parser.h"
-#include "../token/token.h"
-
-Node *head_node;
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *ret = calloc(1, sizeof(Node));
@@ -19,7 +16,9 @@ Node *new_node_int(int val) {
 }
 
 // Prototype
-Node *formula();
+void program();
+Node *statement();
+Node *assign();
 Node *same_comp();
 Node *size_comp();
 Node *add();
@@ -28,9 +27,32 @@ Node *unary();
 Node *priority();
 Node *num();
 
-// formula = same_comp
-Node *formula() {
-    return same_comp();
+Node *code[100];
+
+void program() {
+    int i = 0;
+    while (!is_eof()) {
+        code[i++] = statement();
+    }
+    code[i] = NULL;
+}
+
+// statement = assign ";";
+Node *statement() {
+    Node *ret = assign();
+    use_expect_symbol(";");
+    return ret;
+}
+
+// assign = same_comp | 
+//          ident "=" same_comp
+Node *assign() {
+    Node *ret = same_comp();
+
+    if (use_symbol("=")) {
+        ret = new_node(ND_ASSIGN, ret, same_comp());
+    }
+    return ret;
 }
 
 // same_comp = size_comp ("==" size_comp | "!=" size_comp)*
@@ -109,23 +131,34 @@ Node *unary() {
     return priority();
 }
 
-// priority = num | "(" formula ")"
+// priority = num | 
+//            "(" assign ")" |
+//            ident 
 Node *priority() {
     if (use_symbol("(")) {
-        Node *ret = formula();
+        Node *ret = assign();
         use_expect_symbol(")");
         return ret;
     }
+
+    Token *tmp = use_ident();
+
+    if (tmp) {
+        Node *ret = new_node(ND_VAR, NULL, NULL);
+        Var *result = find_var(tmp);
+        if (result) {
+            ret->var = result;
+        } else {
+            ret->var = add_var(VR_INT, vars, tmp->str, tmp->str_len);
+            vars = ret->var;
+        }
+        return ret;
+    }
+
     return num();
 }
 
 
 Node *num() {
-    Node *ret = new_node(ND_INT, NULL, NULL);
-    ret->val = use_expect_int();
-    return ret;
-}
-
-void parse() {
-    head_node = formula();
+    return new_node_int(use_expect_int());
 }
