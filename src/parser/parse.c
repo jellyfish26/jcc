@@ -37,9 +37,14 @@ void program() {
     code[i] = NULL;
 }
 
-// statement = assign ";";
+// statement = ("return")? assign ";"
 Node *statement() {
-    Node *ret = assign();
+    Node *ret;
+    if (use_any_kind(TK_RETURN)) {
+        ret = new_node(ND_RETURN, assign(), NULL);
+    } else {
+        ret = assign();
+    }
     use_expect_symbol(";");
     return ret;
 }
@@ -141,7 +146,7 @@ Node *priority() {
         return ret;
     }
 
-    Token *tmp = use_ident();
+    Token *tmp = use_any_kind(TK_IDENT);
 
     if (tmp) {
         Node *ret = new_node(ND_VAR, NULL, NULL);

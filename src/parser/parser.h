@@ -46,6 +46,7 @@ typedef enum {
     ND_REC,    // >= (Right Equal Compare)
     ND_ASSIGN, // =
     ND_VAR,    // Variable
+    ND_RETURN, // "return" statement
     ND_INT,    // Number (int)
 } NodeKind;
 

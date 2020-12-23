@@ -30,9 +30,9 @@ void use_expect_symbol(char *op) {
     source_token = source_token->next;
 }
 
-
-Token *use_ident() {
-    if (source_token->kind != TK_IDENT) {
+// Warn: This function only checks the TokenKind.
+Token *use_any_kind(TokenKind kind) {
+    if (source_token->kind != kind) {
         return NULL;
     }
     Token *ret = source_token;
