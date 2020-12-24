@@ -13,6 +13,7 @@ typedef enum {
     TK_SYMBOL,  // Symbol
     TK_IDENT,   // Ident (etc. variable)
     TK_RETURN,  // "return" statement
+    TK_IF,      // "if" statement
     TK_EOF,     // End of File
 } TokenKind;
 

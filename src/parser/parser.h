@@ -47,6 +47,7 @@ typedef enum {
     ND_ASSIGN, // =
     ND_VAR,    // Variable
     ND_RETURN, // "return" statement
+    ND_IF,     // "if" statement
     ND_INT,    // Number (int)
 } NodeKind;
 
@@ -58,6 +59,9 @@ struct Node {
     Node *rhs;      // right side node
 
     Var *var;  // Variable type if kind is ND_VAR
+
+    Node *judge; // judge ("if" statement)
+    Node *exec;  // exec ("if" statement)
 
     int val;  // value if kind is ND_INT
 };

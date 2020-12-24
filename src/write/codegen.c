@@ -1,5 +1,7 @@
 #include "write.h"
 
+int label = 0;
+
 void compile_node(Node *node) {
     if (node->kind == ND_INT) {
         printf("  push %d\n", node->val);
@@ -29,6 +31,21 @@ void compile_node(Node *node) {
         printf("  pop rbp\n");
         printf("  ret\n");
         return;
+    case ND_IF:
+        {
+            int now_label = label++;
+            compile_node(node->judge);
+            printf("  pop rax\n");
+            printf("  cmp rax, 0\n");
+            printf("  je .Lend%d\n", now_label);
+
+            // "true"
+            compile_node(node->exec);
+
+            // continue
+            printf(".Lend%d:\n", now_label);       
+            return;
+        }
     }
 
 

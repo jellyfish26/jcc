@@ -37,15 +37,29 @@ void program() {
     code[i] = NULL;
 }
 
-// statement = ("return")? assign ";"
+// statement = ("return")? assign ";" |
+//           "if" "(" assign ")" statement 
 Node *statement() {
     Node *ret;
+
+    if (use_any_kind(TK_IF)) {
+        ret = new_node(ND_IF, NULL, NULL);
+        use_expect_symbol("(");
+        ret->judge = assign();
+        use_expect_symbol(")");
+        ret->exec = statement();
+        return ret;
+    }
+
     if (use_any_kind(TK_RETURN)) {
         ret = new_node(ND_RETURN, assign(), NULL);
-    } else {
-        ret = assign();
+        use_expect_symbol(";");
+        return ret;
     }
+
+    ret = assign();
     use_expect_symbol(";");
+
     return ret;
 }
 

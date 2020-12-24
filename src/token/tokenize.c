@@ -69,6 +69,13 @@ void *tokenize() {
                 continue;
             }
 
+            // "if" statement
+            if (strncmp(now_str, "if", 2) == 0 && !is_ident_char(*(now_str + 2))) {
+                ret = new_token(TK_IF, ret, now_str, 2);
+                now_str += 2;
+                continue;
+            }
+
             if (isdigit(*now_str)) {
                 ret = new_token(TK_NUM_INT, ret, now_str, 0);
                 char *tmp = now_str;
