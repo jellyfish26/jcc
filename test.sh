@@ -55,3 +55,6 @@ assert 3 "if (2 == 3) return 2; return 3;"
 assert 4 "hoge = 2; fuga = 4; if (hoge == fuga) return hoge; return fuga;"
 assert 5 "foo = 2; bar = 3; if (foo < bar) foo = foo + bar; return foo;"
 assert 2 "foo = 2; bar = 3; if (foo > bar) foo = foo + bar; return foo;"
+
+assert 2 "foo = 0; if (foo == 0) foo = 2; else foo = 3; return foo;"
+assert 3 "foo = 0; if (foo != 0) foo = 2; else foo = 3; return foo;"

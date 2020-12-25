@@ -37,13 +37,20 @@ void compile_node(Node *node) {
             compile_node(node->judge);
             printf("  pop rax\n");
             printf("  cmp rax, 0\n");
-            printf("  je .Lend%d\n", now_label);
+            printf("  je .Lelse%d\n", now_label);
 
             // "true"
-            compile_node(node->exec);
+            compile_node(node->exec_if);
+            printf("  jmp .Lend%d\n", now_label);
+
+            printf(".Lelse%d:\n", now_label);
+            // "else" statement
+            if (node->exec_else) {
+                compile_node(node->exec_else);
+            }
 
             // continue
-            printf(".Lend%d:\n", now_label);       
+            printf(".Lend%d:\n", now_label);
             return;
         }
     }

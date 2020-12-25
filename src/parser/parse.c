@@ -38,7 +38,7 @@ void program() {
 }
 
 // statement = ("return")? assign ";" |
-//           "if" "(" assign ")" statement 
+//           "if" "(" assign ")" statement ("else" statement)?
 Node *statement() {
     Node *ret;
 
@@ -47,7 +47,10 @@ Node *statement() {
         use_expect_symbol("(");
         ret->judge = assign();
         use_expect_symbol(")");
-        ret->exec = statement();
+        ret->exec_if = statement();
+        if (use_any_kind(TK_ELSE)) {
+            ret->exec_else = statement();
+        }
         return ret;
     }
 
