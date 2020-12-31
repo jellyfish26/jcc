@@ -58,3 +58,6 @@ assert 2 "foo = 2; bar = 3; if (foo > bar) foo = foo + bar; return foo;"
 
 assert 2 "foo = 0; if (foo == 0) foo = 2; else foo = 3; return foo;"
 assert 3 "foo = 0; if (foo != 0) foo = 2; else foo = 3; return foo;"
+
+assert 4 "hoge = 2; fuga = 3; if (hoge == 2) { fuga = 2; hoge = hoge * fuga; } else { fuga = 5; hoge = fuga - hoge; } return hoge;"
+assert 3 "hoge = 2; fuga = 3; if (hoge == 1) { fuga = 2; hoge = hoge * fuga; } else { fuga = 5; hoge = fuga - hoge; } return hoge;"

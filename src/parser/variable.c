@@ -30,10 +30,10 @@ Var *find_var(Token *target) {
 }
 
 void init_offset() {
-    int now_address = vars_size;
+    int now_address = 0;
     Var *now_var = vars;
     while (now_var) {
-        now_address -= now_var->size;
+        now_address += now_var->size;
         now_var->offset = now_address;
 
         now_var = now_var->next;

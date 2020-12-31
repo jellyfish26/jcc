@@ -49,6 +49,7 @@ typedef enum {
     ND_RETURN, // "return" statement
     ND_IF,     // "if" statement
     ND_ELSE,   // "else" statement
+    ND_BLOCK,  // Block statement
     ND_INT,    // Number (int)
 } NodeKind;
 
@@ -64,6 +65,8 @@ struct Node {
     Node *judge;     // judge ("if" statement)
     Node *exec_if;   // exec ("if" statement)
     Node *exec_else; // exec ("else" statement)
+
+    Node *next_stmt; // Block statement
 
     int val;  // value if kind is ND_INT
 };

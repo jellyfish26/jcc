@@ -8,6 +8,13 @@ void compile_node(Node *node) {
         return;
     }
 
+    if (node->kind == ND_BLOCK) {
+        for (Node *now_stmt = node->next_stmt; now_stmt; now_stmt = now_stmt->next_stmt) {
+            compile_node(now_stmt);
+        }
+        return;
+    }
+
     switch (node->kind) {
     case ND_VAR:
         gen_var(node);
@@ -113,9 +120,6 @@ void codegen() {
 
     for (int i = 0; code[i]; i++) {
         compile_node(code[i]);
-
-        // Pop result value 
-        printf("  pop rax\n");
     }
 
     printf("  mov rsp, rbp\n");

@@ -37,10 +37,27 @@ void program() {
     code[i] = NULL;
 }
 
-// statement = ("return")? assign ";" |
-//           "if" "(" assign ")" statement ("else" statement)?
+// statement = { statement* } |
+//             ("return")? assign ";" |
+//             "if" "(" assign ")" statement ("else" statement)?
 Node *statement() {
     Node *ret;
+
+    // Block statement
+    if (use_symbol("{")) {
+        ret = new_node(ND_BLOCK, NULL, NULL);
+        Node *now = NULL;
+        while (!use_symbol("}")) {
+            if (now) {
+                now->next_stmt = statement();
+                now = now->next_stmt;
+            } else {
+                now = statement();
+                ret->next_stmt = now;
+            }
+        }
+        return ret;
+    }
 
     if (use_any_kind(TK_IF)) {
         ret = new_node(ND_IF, NULL, NULL);
