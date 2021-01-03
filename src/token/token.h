@@ -15,6 +15,7 @@ typedef enum {
     TK_RETURN,  // "return" statement
     TK_IF,      // "if" statement
     TK_ELSE,    // "else" statement
+    TK_FOR,     // "for" statement
     TK_EOF,     // End of File
 } TokenKind;
 

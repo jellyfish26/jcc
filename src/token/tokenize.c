@@ -83,6 +83,13 @@ void *tokenize() {
                 continue;
             }
 
+            // "for" statement
+            if (strncmp(now_str, "for", 3) == 0 && !is_ident_char(*(now_str + 3))) {
+                ret = new_token(TK_FOR, ret, now_str, 3);
+                now_str += 3;
+                continue;
+            }
+
             if (isdigit(*now_str)) {
                 ret = new_token(TK_NUM_INT, ret, now_str, 0);
                 char *tmp = now_str;

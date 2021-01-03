@@ -60,6 +60,37 @@ void compile_node(Node *node) {
             printf(".Lend%d:\n", now_label);
             return;
         }
+    case ND_FOR:
+        {
+            int now_label = label++;
+            compile_node(node->judge);
+
+            if (node->init_for) {
+                compile_node(node->init_for);
+            }
+
+            printf(".Lbegin%d:\n", now_label);
+
+            // judege expr
+            if (node->judge) {
+                compile_node(node->judge);
+                printf("  pop rax\n");
+                printf("  cmp rax, 0\n");
+                printf("  je .Lend%d\n", now_label);
+            }
+
+            compile_node(node->stmt_for);
+
+            // repeat expr
+            if (node->repeat_for) {
+                compile_node(node->repeat_for);
+            }
+
+            // finally
+            printf("  jmp .Lbegin%d\n", now_label);
+            printf(".Lend%d:\n", now_label);
+            return;
+        }
     }
 
 

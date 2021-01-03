@@ -40,6 +40,7 @@ void program() {
 // statement = { statement* } |
 //             ("return")? assign ";" |
 //             "if" "(" assign ")" statement ("else" statement)?
+//             "for" "("assign?; assign?; assign?")" statement
 Node *statement() {
     Node *ret;
 
@@ -68,6 +69,27 @@ Node *statement() {
         if (use_any_kind(TK_ELSE)) {
             ret->exec_else = statement();
         }
+        return ret;
+    }
+
+    if (use_any_kind(TK_FOR)) {
+        ret = new_node(ND_FOR, NULL, NULL);
+        use_expect_symbol("(");
+        if (!use_symbol(";")) {
+            ret->init_for = assign();
+            use_expect_symbol(";");
+        }
+
+        if (!use_symbol(";")) {
+            ret->judge = assign();
+            use_expect_symbol(";");
+        }
+
+        if (!use_symbol(")")) {
+            ret->repeat_for = assign();
+            use_expect_symbol(")");
+        }
+        ret->stmt_for = statement();
         return ret;
     }
 
