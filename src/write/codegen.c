@@ -60,11 +60,10 @@ void compile_node(Node *node) {
             printf(".Lend%d:\n", now_label);
             return;
         }
+    case ND_WHILE:
     case ND_FOR:
         {
             int now_label = label++;
-            compile_node(node->judge);
-
             if (node->init_for) {
                 compile_node(node->init_for);
             }

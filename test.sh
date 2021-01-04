@@ -65,7 +65,11 @@ assert 3 "hoge = 2; fuga = 3; if (hoge == 1) { fuga = 2; hoge = hoge * fuga; } e
 assert 2 "hoge = 3; if (hoge == 2) hoge = 1; else if (hoge == 3) hoge = 2; else hoge = 3; return hoge;"
 
 assert 20 "i; hoge = 0; for (i = 0; i < 10; i = i + 1) { hoge = hoge + 2; } return hoge;"
+assert 20 "i; hoge = 0; for (i = 0; i < 10; i = i + 1) hoge = hoge + 2; return hoge;"
 assert 2  "i = 10; hoge = 22; for (; i > 0; i = i - 1) { hoge = hoge - 2; } return hoge;"
 assert 10 "hoge = 0; for (i = 0; i < 10;) { hoge = hoge + 1; i = i + 1; } return hoge;"
 assert 55 "hoge = 0; for (i = 1; i <= 10; i = i + 1) { hoge = hoge + i; } return hoge;"
 assert 25 "hoge = 0; for (i = 0; i < 5; i = i + 1) { for (j = 0; j < 5; j = j + 1) { hoge = hoge + 1; }} return hoge;"
+
+assert 6 "i = 0; while (i < 5) i = i + 2; return i;"
+assert 10 "i = 4; hoge = 0; while (i >= 0) { i = i - 1; hoge = hoge + 2; } return hoge;"

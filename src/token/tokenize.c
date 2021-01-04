@@ -90,6 +90,13 @@ void *tokenize() {
                 continue;
             }
 
+            // "while" statement
+            if (strncmp(now_str, "while", 5) == 0 && !is_ident_char(*(now_str + 5))) {
+                ret = new_token(TK_WHILE, ret, now_str, 5);
+                now_str += 5;
+                continue;
+            }
+
             if (isdigit(*now_str)) {
                 ret = new_token(TK_NUM_INT, ret, now_str, 0);
                 char *tmp = now_str;

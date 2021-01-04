@@ -41,6 +41,7 @@ void program() {
 //             ("return")? assign ";" |
 //             "if" "(" assign ")" statement ("else" statement)?
 //             "for" "("assign?; assign?; assign?")" statement
+//             "while" "(" assign ")" statement
 Node *statement() {
     Node *ret;
 
@@ -89,6 +90,15 @@ Node *statement() {
             ret->repeat_for = assign();
             use_expect_symbol(")");
         }
+        ret->stmt_for = statement();
+        return ret;
+    }
+
+    if (use_any_kind(TK_WHILE)) {
+        ret = new_node(ND_WHILE, NULL, NULL);
+        use_expect_symbol("(");
+        ret->judge = assign();
+        use_expect_symbol(")");
         ret->stmt_for = statement();
         return ret;
     }

@@ -50,6 +50,7 @@ typedef enum {
     ND_IF,     // "if" statement
     ND_ELSE,   // "else" statement
     ND_FOR,    // "for" statement
+    ND_WHILE,  // "while" statement
     ND_BLOCK,  // Block statement
     ND_INT,    // Number (int)
 } NodeKind;
@@ -63,7 +64,7 @@ struct Node {
 
     Var *var;  // Variable type if kind is ND_VAR
 
-    Node *judge;     // judge ("if" statement, "for" statement)
+    Node *judge;     // judge ("if" statement, "for" statement, "while" statement)
     Node *exec_if;   // exec ("if" statement)
     Node *exec_else; // exec ("else" statement)
 
