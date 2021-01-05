@@ -4,6 +4,7 @@ int use_expect_int() {
     if (source_token->kind != TK_NUM_INT) {
         errorf_at(ER_COMPILE, source_token, "Not a number");
     }
+    before_token = source_token;
     int val = source_token->val;
     source_token = source_token->next;
     return val;
@@ -16,6 +17,7 @@ bool use_symbol(char *op) {
     {
         return false;
     }
+    before_token = source_token;
     source_token = source_token->next;
     return true;
 }
@@ -27,6 +29,7 @@ void use_expect_symbol(char *op) {
     {
         errorf_at(ER_COMPILE, source_token, "Need \"%s\" operator", op);
     }
+    before_token = source_token;
     source_token = source_token->next;
 }
 
@@ -36,6 +39,7 @@ Token *use_any_kind(TokenKind kind) {
         return NULL;
     }
     Token *ret = source_token;
+    before_token = source_token;
     source_token = source_token->next;
     return ret;
 }

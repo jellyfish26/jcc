@@ -37,11 +37,16 @@ void program() {
     code[i] = NULL;
 }
 
+Node* inside_roop;  // inside for or while
+
 // statement = { statement* } |
 //             ("return")? assign ";" |
-//             "if" "(" assign ")" statement ("else" statement)?
-//             "for" "("assign?; assign?; assign?")" statement
-//             "while" "(" assign ")" statement
+//             "if" "(" assign ")" statement ("else" statement)? |
+//             "for" "("assign?; assign?; assign?")" statement |
+//             "while" "(" assign ")" statement |
+//             "break;" |
+//             "continue;" |
+//             assign ";"
 Node *statement() {
     Node *ret;
 
@@ -74,7 +79,10 @@ Node *statement() {
     }
 
     if (use_any_kind(TK_FOR)) {
+        Node* roop_state = inside_roop;
         ret = new_node(ND_FOR, NULL, NULL);
+        inside_roop = ret;
+
         use_expect_symbol("(");
         if (!use_symbol(";")) {
             ret->init_for = assign();
@@ -91,20 +99,48 @@ Node *statement() {
             use_expect_symbol(")");
         }
         ret->stmt_for = statement();
+
+        inside_roop = roop_state;
         return ret;
     }
 
     if (use_any_kind(TK_WHILE)) {
+        Node* roop_state = inside_roop;
         ret = new_node(ND_WHILE, NULL, NULL);
+        inside_roop = ret;
+
         use_expect_symbol("(");
         ret->judge = assign();
         use_expect_symbol(")");
         ret->stmt_for = statement();
+
+        inside_roop = roop_state;
         return ret;
     }
 
     if (use_any_kind(TK_RETURN)) {
         ret = new_node(ND_RETURN, assign(), NULL);
+        use_expect_symbol(";");
+        return ret;
+    }
+
+
+    if (use_any_kind(TK_BREAK)) {
+        if (!inside_roop) {
+            errorf_at(ER_COMPILE, before_token, "%s", "break statement not whithin loop");
+        }
+        ret = new_node(ND_LOOPBREAK, NULL, NULL);
+        ret->lhs = inside_roop;
+        use_expect_symbol(";");
+        return ret;
+    }
+
+    if (use_any_kind(TK_CONTINUE)) {
+        if (!inside_roop) {
+            errorf_at(ER_COMPILE, before_token, "%s", "continue statement not within loop");
+        }
+        ret = new_node(ND_CONTINUE, NULL, NULL);
+        ret->lhs = inside_roop;
         use_expect_symbol(";");
         return ret;
     }

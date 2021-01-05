@@ -73,3 +73,7 @@ assert 25 "hoge = 0; for (i = 0; i < 5; i = i + 1) { for (j = 0; j < 5; j = j + 
 
 assert 6 "i = 0; while (i < 5) i = i + 2; return i;"
 assert 10 "i = 4; hoge = 0; while (i >= 0) { i = i - 1; hoge = hoge + 2; } return hoge;"
+
+assert 3 "hoge = 0; while (1) { hoge = hoge + 1; if (hoge == 3) break; } return hoge;"
+assert 8 "hoge = 0; while (1) { hoge = hoge + 1; if (hoge <= 5) continue; hoge = hoge + 2; break; } return hoge;"
+assert 6 "hoge = 0; for (i = 0; i < 5; i = i + 1) { hoge = hoge + 2; if (i >= 2) break; } return hoge;"

@@ -64,6 +64,7 @@ void compile_node(Node *node) {
     case ND_FOR:
         {
             int now_label = label++;
+            node->label = now_label;
             if (node->init_for) {
                 compile_node(node->init_for);
             }
@@ -88,6 +89,18 @@ void compile_node(Node *node) {
             // finally
             printf("  jmp .Lbegin%d\n", now_label);
             printf(".Lend%d:\n", now_label);
+            return;
+        }
+    case ND_LOOPBREAK:
+        {
+            int now_label = node->lhs->label;
+            printf("  jmp .Lend%d\n", now_label);
+            return;
+        }
+    case ND_CONTINUE:
+        {
+            int now_label = node->lhs->label;
+            printf("  jmp .Lbegin%d\n", now_label);
             return;
         }
     }

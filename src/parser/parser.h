@@ -34,25 +34,27 @@ void init_offset();
 //
 
 typedef enum {
-    ND_ADD,    // +
-    ND_SUB,    // -
-    ND_MUL,    // *
-    ND_DIV,    // /
-    ND_EQ,     // ==
-    ND_NEQ,    // !=
-    ND_LC,     // <  (Left Compare)
-    ND_LEC,    // <= (Left Equal Compare)
-    ND_RC,     // >  (Right Compare)
-    ND_REC,    // >= (Right Equal Compare)
-    ND_ASSIGN, // =
-    ND_VAR,    // Variable
-    ND_RETURN, // "return" statement
-    ND_IF,     // "if" statement
-    ND_ELSE,   // "else" statement
-    ND_FOR,    // "for" statement
-    ND_WHILE,  // "while" statement
-    ND_BLOCK,  // Block statement
-    ND_INT,    // Number (int)
+    ND_ADD,       // +
+    ND_SUB,       // -
+    ND_MUL,       // *
+    ND_DIV,       // /
+    ND_EQ,        // ==
+    ND_NEQ,       // !=
+    ND_LC,        // <  (Left Compare)
+    ND_LEC,       // <= (Left Equal Compare)
+    ND_RC,        // >  (Right Compare)
+    ND_REC,       // >= (Right Equal Compare)
+    ND_ASSIGN,    // =
+    ND_VAR,       // Variable
+    ND_RETURN,    // "return" statement
+    ND_IF,        // "if" statement
+    ND_ELSE,      // "else" statement
+    ND_FOR,       // "for" statement
+    ND_WHILE,     // "while" statement
+    ND_BLOCK,     // Block statement
+    ND_LOOPBREAK, // "break" statement (only for and while)
+    ND_CONTINUE,  // "continue" statement
+    ND_INT,       // Number (int)
 } NodeKind;
 
 typedef struct Node Node;
@@ -75,6 +77,7 @@ struct Node {
     Node *next_stmt;  // Block statement
 
     int val;  // value if kind is ND_INT
+    int label; // label (only "for" or "while" statement)
 };
 
 extern Node *code[100];

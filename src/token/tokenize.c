@@ -25,6 +25,7 @@ bool is_ident_char(char c) {
     return is_useable_char(c) || ('0' <= c && c <= '9');
 }
 
+Token *before_token;
 Token *source_token;
 
 // Update source token
@@ -94,6 +95,20 @@ void *tokenize() {
             if (strncmp(now_str, "while", 5) == 0 && !is_ident_char(*(now_str + 5))) {
                 ret = new_token(TK_WHILE, ret, now_str, 5);
                 now_str += 5;
+                continue;
+            }
+
+            // "break" statement
+            if (strncmp(now_str, "break", 5) == 0 && !is_ident_char(*(now_str + 5))) {
+                ret = new_token(TK_BREAK, ret, now_str, 5);
+                now_str += 5;
+                continue;
+            }
+
+            // "continue" statement
+            if (strncmp(now_str, "continue", 8) == 0 && !is_ident_char(*(now_str + 8))) {
+                ret = new_token(TK_CONTINUE, ret, now_str, 8);
+                now_str += 8;
                 continue;
             }
 
