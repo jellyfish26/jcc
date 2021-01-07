@@ -54,6 +54,7 @@ typedef enum {
     ND_BLOCK,     // Block statement
     ND_LOOPBREAK, // "break" statement (only for and while)
     ND_CONTINUE,  // "continue" statement
+    ND_FUNCCALL,  // Function call
     ND_INT,       // Number (int)
 } NodeKind;
 
@@ -62,7 +63,7 @@ typedef struct Node Node;
 struct Node {
     NodeKind kind;  // Type of Node
     Node *lhs;      // Left side node
-    Node *rhs;      // right side node
+    Node *rhs;      // Right side node
 
     Var *var;  // Variable type if kind is ND_VAR
 
@@ -78,6 +79,9 @@ struct Node {
 
     int val;  // value if kind is ND_INT
     int label; // label (only "for" or "while" statement)
+
+    char *func_name;    // Function name
+    int func_name_len;  // Function name length
 };
 
 extern Node *code[100];

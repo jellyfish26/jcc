@@ -1,3 +1,5 @@
+gcc -std=c11 -static -c -o ./test/print.o ./test/print.c
+
 assert() {
   expected="$1"
   input="$2"
@@ -5,7 +7,7 @@ assert() {
   echo "$input" > tmp.c
 
   ./jcc tmp.c > tmp.s
-  cc -static -o tmp tmp.s
+  gcc -static -o tmp tmp.s ./test/print.o
   ./tmp
   actual="$?"
 

@@ -105,6 +105,12 @@ void compile_node(Node *node) {
         }
     }
 
+    if (node->kind == ND_FUNCCALL) {
+        char *name = calloc(node->func_name_len + 1, sizeof(char));
+        memcpy(name, node->func_name, node->func_name_len);
+        printf("  call %s\n", name);
+        return;
+    }
 
     compile_node(node->lhs);
     compile_node(node->rhs);

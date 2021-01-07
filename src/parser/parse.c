@@ -152,7 +152,7 @@ Node *statement() {
 }
 
 // assign = same_comp | 
-//          ident "=" same_comp
+//          same_comp "=" same_comp
 Node *assign() {
     Node *ret = same_comp();
 
@@ -226,7 +226,7 @@ Node *mul() {
     return ret;
 }
 
-// unary = ("+" | "-")? primariy
+// unary = ("+" | "-")? priority
 Node *unary() {
     if (use_symbol("+")) {
         Node *ret = new_node(ND_ADD, new_node_int(0), priority());
@@ -240,7 +240,8 @@ Node *unary() {
 
 // priority = num | 
 //            "(" assign ")" |
-//            ident 
+//            ident "()"? |
+//            ident
 Node *priority() {
     if (use_symbol("(")) {
         Node *ret = assign();
@@ -248,15 +249,24 @@ Node *priority() {
         return ret;
     }
 
-    Token *tmp = use_any_kind(TK_IDENT);
+    Token *tkn = use_any_kind(TK_IDENT);
 
-    if (tmp) {
+    if (tkn) {
+        // function call
+        if (use_symbol("(")) {
+            Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
+            ret->func_name = tkn->str;
+            ret->func_name_len = tkn->str_len;
+            use_expect_symbol(")");
+            return ret;
+        }
+
         Node *ret = new_node(ND_VAR, NULL, NULL);
-        Var *result = find_var(tmp);
+        Var *result = find_var(tkn);
         if (result) {
             ret->var = result;
         } else {
-            ret->var = add_var(VR_INT, vars, tmp->str, tmp->str_len);
+            ret->var = add_var(VR_INT, vars, tkn->str, tkn->str_len);
             vars = ret->var;
         }
         return ret;
