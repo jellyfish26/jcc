@@ -240,8 +240,9 @@ Node *unary() {
 
 // priority = num | 
 //            "(" assign ")" |
-//            ident "()"? |
+//            ident "(" params? ")"
 //            ident
+// params = assign ("," assign)?
 Node *priority() {
     if (use_symbol("(")) {
         Node *ret = assign();
@@ -257,7 +258,26 @@ Node *priority() {
             Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
             ret->func_name = tkn->str;
             ret->func_name_len = tkn->str_len;
-            use_expect_symbol(")");
+
+            if (use_symbol(")")) {
+                return ret;
+            }
+
+            int argc = 1;
+            Node *now_arg = ret;
+            while (true) {
+                now_arg->func_arg = assign();
+                now_arg = now_arg->func_arg;
+                now_arg->func_args_idx = argc++;
+                
+                if (use_symbol(",")) {
+                    continue;
+                }
+
+                if (use_symbol(")")) {
+                    break;
+                }
+            }
             return ret;
         }
 

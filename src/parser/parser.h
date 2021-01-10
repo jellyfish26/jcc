@@ -80,8 +80,10 @@ struct Node {
     int val;  // value if kind is ND_INT
     int label; // label (only "for" or "while" statement)
 
-    char *func_name;    // Function name
-    int func_name_len;  // Function name length
+    char *func_name;   // Function name
+    int func_name_len; // Function name length
+    Node *func_arg;   // Function arguments
+    int func_args_idx; // Index of argument
 };
 
 extern Node *code[100];

@@ -1,6 +1,7 @@
 #include "write.h"
 
 int label = 0;
+char *args_reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 void compile_node(Node *node) {
     if (node->kind == ND_INT) {
@@ -108,6 +109,16 @@ void compile_node(Node *node) {
     if (node->kind == ND_FUNCCALL) {
         char *name = calloc(node->func_name_len + 1, sizeof(char));
         memcpy(name, node->func_name, node->func_name_len);
+        int arg_count = 0;
+        for (Node *now_arg = node->func_arg; now_arg; now_arg = now_arg->func_arg) {
+            compile_node(now_arg);
+            arg_count++;
+        }
+
+        for (int arg_idx = arg_count - 1; arg_idx >= 0; arg_idx--) {
+            printf("  pop %s\n", args_reg[arg_idx]);
+        }
+        
         printf("  call %s\n", name);
         return;
     }

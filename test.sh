@@ -19,6 +19,25 @@ assert() {
   fi
 }
 
+stdio_test() {
+  expected="$1"
+  input="$2"
+
+  echo "$input" > tmp.c
+
+  ./jcc tmp.c > tmp.s
+  gcc -static -o tmp tmp.s ./test/print.o
+  
+  actual=$(./tmp)
+  
+  if [ "$actual" = "$expected" ]; then
+    echo -e "\e[32m[ OK ]\e[m $input => $actual"
+  else
+    echo -e "\e[31m[ NG ]\e[m $input => $expected expected, but got $actual"
+    exit 1
+  fi
+}
+
 assert 5  "return 2 + 3;"
 assert 3  "return 5 - 2;"
 assert 4  "return 2 * 2;"
@@ -79,3 +98,6 @@ assert 10 "i = 4; hoge = 0; while (i >= 0) { i = i - 1; hoge = hoge + 2; } retur
 assert 3 "hoge = 0; while (1) { hoge = hoge + 1; if (hoge == 3) break; } return hoge;"
 assert 8 "hoge = 0; while (1) { hoge = hoge + 1; if (hoge <= 5) continue; hoge = hoge + 2; break; } return hoge;"
 assert 6 "hoge = 0; for (i = 0; i < 5; i = i + 1) { hoge = hoge + 2; if (i >= 2) break; } return hoge;"
+
+stdio_test "foo" "foo(); return 0;"
+stdio_test "1, 2, 3, -1, 2, 0" "i = 1; j = 2; hoge(i, j, i + j, i - j, i * j, i / j); return 0;"
