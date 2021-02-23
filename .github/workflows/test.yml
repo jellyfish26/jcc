@@ -1,0 +1,22 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    pull_request:
+      - master
+      - develop
+
+jobs:
+  test:
+    name: Test on CI
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+      - name: Running test
+        run: |
+          make test
