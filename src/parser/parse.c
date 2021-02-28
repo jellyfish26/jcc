@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "parser.h"
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -27,14 +29,38 @@ Node *unary();
 Node *priority();
 Node *num();
 
-Node *code[100];
+void *function();
+
+Function *top_func;
+Function *exp_func;
 
 void program() {
     int i = 0;
     while (!is_eof()) {
-        code[i++] = statement();
+        if (exp_func) {
+            exp_func->next = calloc(1, sizeof(Function));
+            exp_func = exp_func->next;
+            function(exp_func);
+        } else {
+            exp_func = calloc(1, sizeof(Function));
+            top_func = exp_func;
+            function(exp_func);
+        }
     }
-    code[i] = NULL;
+}
+
+// function = ident "(" ")" statement
+void *function(Function *target) {
+    Token *tkn = use_any_kind(TK_IDENT);
+    if (tkn) {
+        use_expect_symbol("(");
+        use_expect_symbol(")");
+        target->func_name = tkn->str;
+        target->func_name_len = tkn->str_len;
+        target->stmt = statement();
+    } else {
+        errorf_at(ER_COMPILE, source_token, "%s", "Start the function with an identifier.");
+    }
 }
 
 Node* inside_roop;  // inside for or while
@@ -286,8 +312,7 @@ Node *priority() {
         if (result) {
             ret->var = result;
         } else {
-            ret->var = add_var(VR_INT, vars, tkn->str, tkn->str_len);
-            vars = ret->var;
+            ret->var = add_var(VR_INT, tkn->str, tkn->str_len);
         }
         return ret;
     }

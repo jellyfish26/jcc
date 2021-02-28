@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <stdbool.h>
 
 #include "../token/token.h"
@@ -22,12 +21,9 @@ struct Var {
     int offset; // Offset
 };
 
-extern Var *vars;
-extern int vars_size;
-
-Var *add_var(VarKind kind, Var *target, char *str, int len);
+Var *add_var(VarKind kind, char *str, int len);
 Var *find_var(Token *target);
-void init_offset();
+void init_offset(Var *now_var);
 
 //
 // parse.c
@@ -86,6 +82,20 @@ struct Node {
     int func_args_idx; // Index of argument
 };
 
-extern Node *code[100];
-
 void program();
+
+typedef struct Function Function;
+
+struct Function {
+    char *func_name;   // Function name
+    int func_name_len; // Function name length
+
+    Node *stmt; // Node of statement
+    Function *next;  // Next function
+
+    Var *vars;
+    int vars_size;
+};
+
+extern Function *top_func; // parse.c
+extern Function *exp_func;

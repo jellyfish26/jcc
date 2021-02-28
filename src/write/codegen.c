@@ -169,20 +169,24 @@ void compile_node(Node *node) {
 
 void codegen() {
     printf(".intel_syntax noprefix\n");
-    printf(".global main\n");
-    printf("main:\n");
 
-    // Prologue
-    // Allocate variable size.
-    printf("  push rbp\n");
-    printf("  mov rbp, rsp\n");
-    printf("  sub rsp, %d\n", vars_size);
+    for (Function *now_func = top_func; now_func; now_func = now_func->next) {
+        init_offset(now_func->vars);
+        char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
+        memcpy(func_name, now_func->func_name, now_func->func_name_len);
+        printf(".global %s\n", func_name);
+        printf("%s:\n", func_name);
 
-    for (int i = 0; code[i]; i++) {
-        compile_node(code[i]);
+        // Prologue
+        // Allocate variable size.
+        printf("  push rbp\n");
+        printf("  mov rbp, rsp\n");
+        printf("  sub rsp, %d\n", now_func->vars_size);
+
+        compile_node(now_func->stmt);
+
+        printf("  mov rsp, rbp\n");
+        printf("  pop rbp\n");
+        printf("  ret \n");
     }
-
-    printf("  mov rsp, rbp\n");
-    printf("  pop rbp\n");
-    printf("  ret \n");
 }

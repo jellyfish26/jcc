@@ -10,7 +10,8 @@ void readfile(char *file_path) {
     }
 
     SourceLine *now_line = NULL;
-    char now_c, cnt = 0;;
+    char now_c;
+    int cnt;
     while (true) {
         now_c = fgetc(fp);
         if (now_c == '\n' || now_c == EOF) {
