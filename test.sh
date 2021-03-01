@@ -103,3 +103,25 @@ stdio_test "foo" "main() { foo(); return 0; }"
 stdio_test "1, 2, 3, -1, 2, 0" "main() { i = 1; j = 2; hoge(i, j, i + j, i - j, i * j, i / j); return 0; }"
 
 stdio_test "foo" "fuga() { foo(); } main() { fuga(); return 0; }"
+
+stdio_test "3, -1, 2, 4, -3, -3" "
+test(a, b) {
+  hoge(a, b, a + b, a - b, a * b, a / b); 
+}
+
+main() {
+  i = 1; j = 2;
+  test(i + j, i - j);
+}
+"
+
+stdio_test "6, 5, 4, 3, 2, 1" "
+test(a, b, c, d, e, f) {
+  hoge(f, e, d, c, b, a); 
+}
+
+main() {
+  a = 1; b = 2; c = 3; d = 4; e = 5; f = 6;
+  test(a, b, c, d, e, f);
+}
+"

@@ -49,17 +49,46 @@ void program() {
     }
 }
 
-// function = ident "(" ")" statement
+// function = ident "(" params?")" statement
+// params = ident ("," ident)*
 void *function(Function *target) {
     Token *tkn = use_any_kind(TK_IDENT);
     if (tkn) {
         use_expect_symbol("(");
-        use_expect_symbol(")");
+        if (!use_symbol(")")) {
+            // Set arguments
+            while (true) {
+                Token *tkn = use_any_kind(TK_IDENT);
+                if (tkn) {
+                    Var *local_var = find_var(tkn);
+                    if (local_var) {
+                        errorf_at(ER_COMPILE, source_token, "This variable is redefinition.");
+                    }
+                    local_var = add_var(VR_INT, tkn->str, tkn->str_len);
+                    if (target->func_args) {
+                        target->func_args = new_node(ND_VAR, target->func_args, NULL);
+                        target->func_args->var = local_var;
+                    } else {
+                        target->func_args = new_node(ND_VAR, NULL, NULL);
+                        target->func_args->var = local_var;
+                    }
+                    target->func_argc++;
+                    
+                    if (use_symbol(",")) {
+                        continue;
+                    }
+                    use_expect_symbol(")");
+                    break;
+                } else {
+                    errorf_at(ER_COMPILE, source_token, "Declare variable.");
+                }
+            }
+        }
         target->func_name = tkn->str;
         target->func_name_len = tkn->str_len;
         target->stmt = statement();
     } else {
-        errorf_at(ER_COMPILE, source_token, "%s", "Start the function with an identifier.");
+        errorf_at(ER_COMPILE, source_token, "Start the function with an identifier.");
     }
 }
 

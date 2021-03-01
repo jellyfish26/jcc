@@ -183,6 +183,14 @@ void codegen() {
         printf("  mov rbp, rsp\n");
         printf("  sub rsp, %d\n", now_func->vars_size);
 
+        // Set arguments
+        int arg_count = now_func->func_argc - 1;
+        for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
+            gen_var(arg);
+            printf("  pop rax\n");
+            printf("  mov [rax], %s\n", args_reg[arg_count--]);
+        }
+
         compile_node(now_func->stmt);
 
         printf("  mov rsp, rbp\n");

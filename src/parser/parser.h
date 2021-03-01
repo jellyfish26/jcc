@@ -94,6 +94,9 @@ struct Function {
     Function *next;  // Next function
 
     Var *vars;
+    
+    Node *func_args; // Function arguments
+    int func_argc; // Count of function arguments
     int vars_size;
 };
 
