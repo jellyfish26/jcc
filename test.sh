@@ -125,3 +125,15 @@ main() {
   test(a, b, c, d, e, f);
 }
 "
+
+stdio_test "6, 5, 4, 3, 2, 1" "
+test(a, b, c, d, e, f) {
+  g = 3;
+  hoge(f, e, d, c, b, a); 
+}
+
+main() {
+  a = 1; b = 2; c = 3; d = 4; e = 5; f = 6;
+  test(a, b, c, d, e, f);
+}
+"

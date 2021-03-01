@@ -115,7 +115,7 @@ void compile_node(Node *node) {
             arg_count++;
         }
 
-        for (int arg_idx = arg_count - 1; arg_idx >= 0; arg_idx--) {
+        for (int arg_idx = 0; arg_idx < arg_count; arg_idx++) {
             printf("  pop %s\n", args_reg[arg_idx]);
         }
         

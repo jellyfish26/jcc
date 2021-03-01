@@ -318,21 +318,21 @@ Node *priority() {
                 return ret;
             }
 
-            int argc = 1;
-            Node *now_arg = ret;
+            int argc = 0;
+            Node *now_arg = NULL;
             while (true) {
-                now_arg->func_arg = assign();
-                now_arg = now_arg->func_arg;
-                now_arg->func_args_idx = argc++;
+                Node *tmp = assign();
+                tmp->func_arg = now_arg;
+                now_arg = tmp;
                 
                 if (use_symbol(",")) {
                     continue;
                 }
 
-                if (use_symbol(")")) {
-                    break;
-                }
+                use_expect_symbol(")");
+                break;
             }
+            ret->func_arg = now_arg;
             return ret;
         }
 
