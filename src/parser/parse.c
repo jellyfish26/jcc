@@ -65,15 +65,10 @@ void *function(Function *target) {
                         errorf_at(ER_COMPILE, source_token, "This variable is redefinition.");
                     }
                     local_var = add_var(VR_INT, tkn->str, tkn->str_len);
-                    if (target->func_args) {
-                        target->func_args = new_node(ND_VAR, target->func_args, NULL);
-                        target->func_args->var = local_var;
-                    } else {
-                        target->func_args = new_node(ND_VAR, NULL, NULL);
-                        target->func_args->var = local_var;
-                    }
+
+                    target->func_args = new_node(ND_VAR, target->func_args, NULL);
+                    target->func_args->var = local_var;
                     target->func_argc++;
-                    
                     if (use_symbol(",")) {
                         continue;
                     }

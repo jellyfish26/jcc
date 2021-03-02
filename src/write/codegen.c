@@ -183,12 +183,27 @@ void codegen() {
         printf("  mov rbp, rsp\n");
         printf("  sub rsp, %d\n", now_func->vars_size);
 
-        // Set arguments
+        // Set arguments (use register)
         int arg_count = now_func->func_argc - 1;
         for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
-            gen_var(arg);
-            printf("  pop rax\n");
-            printf("  mov [rax], %s\n", args_reg[arg_count--]);
+            if (arg_count < 6) {
+                gen_var(arg);
+                printf("  pop rax\n");
+                printf("  mov [rax], %s\n", args_reg[arg_count]);
+            }
+            arg_count--;
+        }
+
+        // Set arguements (use stack due more than 7 arguments)
+        arg_count = now_func->func_argc - 1;
+        for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
+            if (arg_count >= 6) {
+                gen_var(arg);
+                printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
+                printf("  pop rsi\n");
+                printf("  mov [rsi], rax\n");
+            }
+            arg_count--;
         }
 
         compile_node(now_func->stmt);
