@@ -155,3 +155,16 @@ main() {
 }
 "
 
+assert 55 "
+test(a) {
+  if (a == 0) {
+    return 0;
+  }
+  return test(a - 1) + a;
+}
+
+main() {
+  a = 10;
+  return test(a);
+}
+"

@@ -120,6 +120,7 @@ void compile_node(Node *node) {
         }
         
         printf("  call %s\n", name);
+        printf("  push rax\n");
         return;
     }
 
