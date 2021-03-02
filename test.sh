@@ -137,3 +137,11 @@ main() {
   test(a, b, c, d, e, f);
 }
 "
+
+stdio_test "1, 2, 3, 4, 5, 6, 7, 8" "
+main() {
+  a = 1; b = 2; c = 3; d = 4; e = 5; f = 6; g = 7; h = 8;
+  eight_print(a, b, c, d, e, f, g, h);
+}
+"
+
