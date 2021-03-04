@@ -1,6 +1,8 @@
 #include "token.h"
 #include "../read/read.h"
 
+#include <string.h>
+
 Token *new_token(TokenKind kind, Token *target, char *str, int len) {
     Token *ret = calloc(1, sizeof(Token));
     // printf("%d\n", kind);
@@ -27,6 +29,11 @@ bool is_ident_char(char c) {
 
 Token *before_token;
 Token *source_token;
+
+bool str_check(char *top_str, char *comp_str) {
+    int comp_len = strlen(comp_str);
+    return (strncmp(top_str, comp_str, comp_len) == 0 && !is_ident_char(*(top_str + comp_len)));
+}
 
 // Update source token
 void *tokenize() {
@@ -64,49 +71,49 @@ void *tokenize() {
             }
 
             // "return" statement
-            if (strncmp(now_str, "return", 6) == 0 && !is_ident_char(*(now_str + 6))) {
+            if (str_check(now_str, "return")) {
                 ret = new_token(TK_RETURN, ret, now_str, 6);
                 now_str += 6;
                 continue;
             }
 
             // "if" statement
-            if (strncmp(now_str, "if", 2) == 0 && !is_ident_char(*(now_str + 2))) {
+            if (str_check(now_str, "if")) {
                 ret = new_token(TK_IF, ret, now_str, 2);
                 now_str += 2;
                 continue;
             }
 
             // "else" statement
-            if (strncmp(now_str, "else", 4) == 0 && !is_ident_char(*(now_str + 4))) {
+            if (str_check(now_str, "else")) {
                 ret = new_token(TK_ELSE, ret, now_str, 4);
                 now_str += 4;
                 continue;
             }
 
             // "for" statement
-            if (strncmp(now_str, "for", 3) == 0 && !is_ident_char(*(now_str + 3))) {
+            if (str_check(now_str, "for")) {
                 ret = new_token(TK_FOR, ret, now_str, 3);
                 now_str += 3;
                 continue;
             }
 
             // "while" statement
-            if (strncmp(now_str, "while", 5) == 0 && !is_ident_char(*(now_str + 5))) {
+            if (str_check(now_str, "while")) {
                 ret = new_token(TK_WHILE, ret, now_str, 5);
                 now_str += 5;
                 continue;
             }
 
             // "break" statement
-            if (strncmp(now_str, "break", 5) == 0 && !is_ident_char(*(now_str + 5))) {
+            if (str_check(now_str, "break")) {
                 ret = new_token(TK_BREAK, ret, now_str, 5);
                 now_str += 5;
                 continue;
             }
 
             // "continue" statement
-            if (strncmp(now_str, "continue", 8) == 0 && !is_ident_char(*(now_str + 8))) {
+            if (str_check(now_str, "continue")) {
                 ret = new_token(TK_CONTINUE, ret, now_str, 8);
                 now_str += 8;
                 continue;

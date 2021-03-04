@@ -1,3 +1,4 @@
+#pragma once
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +21,7 @@ typedef enum {
     TK_BREAK,     // "break" statement
     TK_CONTINUE,  // "continue" statement
     TK_EOF,       // End of File
+    TK_INT,       // "int" type
 } TokenKind;
 
 typedef struct Token Token;

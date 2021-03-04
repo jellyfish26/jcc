@@ -1,6 +1,6 @@
-#include <stdlib.h>
-
 #include "parser.h"
+
+#include <stdlib.h>
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *ret = calloc(1, sizeof(Node));

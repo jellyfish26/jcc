@@ -1,8 +1,9 @@
+#pragma once
+#include "../parser/parser.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-
-#include "../parser/parser.h"
 
 //
 // codegen.c

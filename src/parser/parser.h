@@ -1,6 +1,7 @@
-#include <stdbool.h>
-
+#pragma once
 #include "../token/token.h"
+
+#include <stdbool.h>
 
 //
 // variable.c
