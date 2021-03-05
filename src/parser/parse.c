@@ -1,5 +1,7 @@
 #include "parser.h"
 
+#include <stdlib.h>
+
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *ret = calloc(1, sizeof(Node));
     ret->kind = kind;
@@ -27,14 +29,76 @@ Node *unary();
 Node *priority();
 Node *num();
 
-Node *code[100];
+void *function();
+
+Function *top_func;
+Function *exp_func;
 
 void program() {
     int i = 0;
     while (!is_eof()) {
-        code[i++] = statement();
+        if (exp_func) {
+            exp_func->next = calloc(1, sizeof(Function));
+            exp_func = exp_func->next;
+            function(exp_func);
+        } else {
+            exp_func = calloc(1, sizeof(Function));
+            top_func = exp_func;
+            function(exp_func);
+        }
     }
-    code[i] = NULL;
+}
+
+// function = base_type ident "(" params?")" statement
+// params = base_type ident ("," base_type ident)*
+// base_type is gen_type()
+void *function(Function *target) {
+    Type *ret_type = gen_type();
+
+    if (ret_type) {
+        target->ret_type = ret_type;
+    } else {
+        errorf_at(ER_COMPILE, source_token, "Undefined type.");
+    }
+    
+    Token *tkn = use_any_kind(TK_IDENT);
+    if (tkn) {
+        use_expect_symbol("(");
+        if (!use_symbol(")")) {
+            // Set arguments
+            while (true) {
+                Type *arg_type = gen_type();
+                if (!arg_type) {
+                    errorf_at(ER_COMPILE, source_token, "Undefined type.");
+                }
+
+                Token *tkn = use_any_kind(TK_IDENT);
+                if (tkn) {
+                    Var *local_var = find_var(tkn);
+                    if (local_var) {
+                        errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
+                    }
+                    local_var = add_var(arg_type, tkn->str, tkn->str_len);
+
+                    target->func_args = new_node(ND_VAR, target->func_args, NULL);
+                    target->func_args->var = local_var;
+                    target->func_argc++;
+                    if (use_symbol(",")) {
+                        continue;
+                    }
+                    use_expect_symbol(")");
+                    break;
+                } else {
+                    errorf_at(ER_COMPILE, source_token, "Declare variable.");
+                }
+            }
+        }
+        target->func_name = tkn->str;
+        target->func_name_len = tkn->str_len;
+        target->stmt = statement();
+    } else {
+        errorf_at(ER_COMPILE, source_token, "Start the function with an identifier.");
+    }
 }
 
 Node* inside_roop;  // inside for or while
@@ -241,8 +305,9 @@ Node *unary() {
 // priority = num | 
 //            "(" assign ")" |
 //            ident "(" params? ")"
-//            ident
+//            base_type ident
 // params = assign ("," assign)?
+// base_type is gen_type()
 Node *priority() {
     if (use_symbol("(")) {
         Node *ret = assign();
@@ -250,10 +315,11 @@ Node *priority() {
         return ret;
     }
 
+    Type *var_type = gen_type();
     Token *tkn = use_any_kind(TK_IDENT);
 
-    if (tkn) {
-        // function call
+    // function call
+    if (!var_type && tkn) {
         if (use_symbol("(")) {
             Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
             ret->func_name = tkn->str;
@@ -263,32 +329,44 @@ Node *priority() {
                 return ret;
             }
 
-            int argc = 1;
-            Node *now_arg = ret;
+            int argc = 0;
+            Node *now_arg = NULL;
             while (true) {
-                now_arg->func_arg = assign();
-                now_arg = now_arg->func_arg;
-                now_arg->func_args_idx = argc++;
+                Node *tmp = assign();
+                tmp->func_arg = now_arg;
+                now_arg = tmp;
                 
                 if (use_symbol(",")) {
                     continue;
                 }
 
-                if (use_symbol(")")) {
-                    break;
-                }
+                use_expect_symbol(")");
+                break;
             }
+            ret->func_arg = now_arg;
             return ret;
         }
+    };
 
+    // used variable
+    if (!var_type && tkn) {
+        Node *ret = new_node(ND_VAR, NULL, NULL);
+        Var *result = find_var(tkn);
+        if (!result) {
+            errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
+        }
+        ret->var = result;
+        return ret;
+    }
+
+    // define variable
+    if (var_type && tkn) {
         Node *ret = new_node(ND_VAR, NULL, NULL);
         Var *result = find_var(tkn);
         if (result) {
-            ret->var = result;
-        } else {
-            ret->var = add_var(VR_INT, vars, tkn->str, tkn->str_len);
-            vars = ret->var;
+            errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
         }
+        ret->var = add_var(var_type, tkn->str, tkn->str_len);
         return ret;
     }
 

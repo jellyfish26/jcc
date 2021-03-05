@@ -1,33 +1,44 @@
-#include <stdlib.h>
+#pragma once
+#include "../token/token.h"
+
 #include <stdbool.h>
 
-#include "../token/token.h"
+//
+// type.c
+//
+
+typedef enum {
+    TY_INT   // "int" type
+} TypeKind;
+
+typedef struct Type Type;
+
+struct Type {
+    TypeKind kind;
+    int type_size;
+};
+
+Type *gen_type();
 
 //
 // variable.c
 // 
 
-typedef enum {
-    VR_INT  // int
-} VarKind;
-
 typedef struct Var Var;
 
 struct Var {
-    VarKind kind;
+    Type *var_type;
     Var *next;  // Next Var
+
     char *str;  // Variable name
     int len;    // Length of naem
     int size;   // Variable size
     int offset; // Offset
 };
 
-extern Var *vars;
-extern int vars_size;
-
-Var *add_var(VarKind kind, Var *target, char *str, int len);
+Var *add_var(Type *var_type, char *str, int len);
 Var *find_var(Token *target);
-void init_offset();
+void init_offset(Var *now_var);
 
 //
 // parse.c
@@ -86,6 +97,24 @@ struct Node {
     int func_args_idx; // Index of argument
 };
 
-extern Node *code[100];
-
 void program();
+
+typedef struct Function Function;
+
+struct Function {
+    char *func_name;   // Function name
+    int func_name_len; // Function name length
+
+    Node *stmt; // Node of statement
+    Function *next;  // Next function
+    Type *ret_type;  // Type of function return
+
+    Var *vars;
+    
+    Node *func_args; // Function arguments
+    int func_argc; // Count of function arguments
+    int vars_size;
+};
+
+extern Function *top_func; // parse.c
+extern Function *exp_func;

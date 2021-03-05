@@ -115,11 +115,12 @@ void compile_node(Node *node) {
             arg_count++;
         }
 
-        for (int arg_idx = arg_count - 1; arg_idx >= 0; arg_idx--) {
+        for (int arg_idx = 0; arg_idx < arg_count && arg_idx < 6; arg_idx++) {
             printf("  pop %s\n", args_reg[arg_idx]);
         }
         
         printf("  call %s\n", name);
+        printf("  push rax\n");
         return;
     }
 
@@ -169,20 +170,47 @@ void compile_node(Node *node) {
 
 void codegen() {
     printf(".intel_syntax noprefix\n");
-    printf(".global main\n");
-    printf("main:\n");
 
-    // Prologue
-    // Allocate variable size.
-    printf("  push rbp\n");
-    printf("  mov rbp, rsp\n");
-    printf("  sub rsp, %d\n", vars_size);
+    for (Function *now_func = top_func; now_func; now_func = now_func->next) {
+        init_offset(now_func->vars);
+        char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
+        memcpy(func_name, now_func->func_name, now_func->func_name_len);
+        printf(".global %s\n", func_name);
+        printf("%s:\n", func_name);
 
-    for (int i = 0; code[i]; i++) {
-        compile_node(code[i]);
+        // Prologue
+        // Allocate variable size.
+        printf("  push rbp\n");
+        printf("  mov rbp, rsp\n");
+        printf("  sub rsp, %d\n", now_func->vars_size);
+
+        // Set arguments (use register)
+        int arg_count = now_func->func_argc - 1;
+        for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
+            if (arg_count < 6) {
+                gen_var(arg);
+                printf("  pop rax\n");
+                printf("  mov [rax], %s\n", args_reg[arg_count]);
+            }
+            arg_count--;
+        }
+
+        // Set arguements (use stack due more than 7 arguments)
+        arg_count = now_func->func_argc - 1;
+        for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
+            if (arg_count >= 6) {
+                gen_var(arg);
+                printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
+                printf("  pop rsi\n");
+                printf("  mov [rsi], rax\n");
+            }
+            arg_count--;
+        }
+
+        compile_node(now_func->stmt);
+
+        printf("  mov rsp, rbp\n");
+        printf("  pop rbp\n");
+        printf("  ret \n");
     }
-
-    printf("  mov rsp, rbp\n");
-    printf("  pop rbp\n");
-    printf("  ret \n");
 }
