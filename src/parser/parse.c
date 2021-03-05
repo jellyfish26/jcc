@@ -49,22 +49,36 @@ void program() {
     }
 }
 
-// function = ident "(" params?")" statement
-// params = ident ("," ident)*
+// function = base_type ident "(" params?")" statement
+// params = base_type ident ("," base_type ident)*
+// base_type is gen_type()
 void *function(Function *target) {
+    Type *ret_type = gen_type();
+
+    if (ret_type) {
+        target->ret_type = ret_type;
+    } else {
+        errorf_at(ER_COMPILE, source_token, "Undefined type.");
+    }
+    
     Token *tkn = use_any_kind(TK_IDENT);
     if (tkn) {
         use_expect_symbol("(");
         if (!use_symbol(")")) {
             // Set arguments
             while (true) {
+                Type *arg_type = gen_type();
+                if (!arg_type) {
+                    errorf_at(ER_COMPILE, source_token, "Undefined type.");
+                }
+
                 Token *tkn = use_any_kind(TK_IDENT);
                 if (tkn) {
                     Var *local_var = find_var(tkn);
                     if (local_var) {
-                        errorf_at(ER_COMPILE, source_token, "This variable is redefinition.");
+                        errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
                     }
-                    local_var = add_var(VR_INT, tkn->str, tkn->str_len);
+                    local_var = add_var(arg_type, tkn->str, tkn->str_len);
 
                     target->func_args = new_node(ND_VAR, target->func_args, NULL);
                     target->func_args->var = local_var;
@@ -291,8 +305,9 @@ Node *unary() {
 // priority = num | 
 //            "(" assign ")" |
 //            ident "(" params? ")"
-//            ident
+//            base_type ident
 // params = assign ("," assign)?
+// base_type is gen_type()
 Node *priority() {
     if (use_symbol("(")) {
         Node *ret = assign();
@@ -300,10 +315,11 @@ Node *priority() {
         return ret;
     }
 
+    Type *var_type = gen_type();
     Token *tkn = use_any_kind(TK_IDENT);
 
-    if (tkn) {
-        // function call
+    // function call
+    if (!var_type && tkn) {
         if (use_symbol("(")) {
             Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
             ret->func_name = tkn->str;
@@ -330,14 +346,27 @@ Node *priority() {
             ret->func_arg = now_arg;
             return ret;
         }
+    };
 
+    // used variable
+    if (!var_type && tkn) {
+        Node *ret = new_node(ND_VAR, NULL, NULL);
+        Var *result = find_var(tkn);
+        if (!result) {
+            errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
+        }
+        ret->var = result;
+        return ret;
+    }
+
+    // define variable
+    if (var_type && tkn) {
         Node *ret = new_node(ND_VAR, NULL, NULL);
         Var *result = find_var(tkn);
         if (result) {
-            ret->var = result;
-        } else {
-            ret->var = add_var(VR_INT, tkn->str, tkn->str_len);
+            errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
         }
+        ret->var = add_var(var_type, tkn->str, tkn->str_len);
         return ret;
     }
 

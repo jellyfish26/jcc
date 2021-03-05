@@ -1,8 +1,8 @@
 #include "parser.h"
 
-Var *add_var(VarKind kind, char *str, int len) {
+Var *add_var(Type *var_type, char *str, int len) {
     Var *ret = calloc(1, sizeof(Var));
-    ret->kind = kind;
+    ret->var_type = var_type;
     ret->str = str;
     ret->len = len;
 

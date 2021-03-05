@@ -119,6 +119,13 @@ void *tokenize() {
                 continue;
             }
 
+            // "int" type
+            if (str_check(now_str, "int")) {
+                ret = new_token(TK_INT, ret, now_str, 3);
+                now_str += 3;
+                continue;
+            }
+
             if (isdigit(*now_str)) {
                 ret = new_token(TK_NUM_INT, ret, now_str, 0);
                 char *tmp = now_str;

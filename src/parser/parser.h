@@ -4,25 +4,39 @@
 #include <stdbool.h>
 
 //
-// variable.c
-// 
+// type.c
+//
 
 typedef enum {
-    VR_INT  // int
-} VarKind;
+    TY_INT   // "int" type
+} TypeKind;
+
+typedef struct Type Type;
+
+struct Type {
+    TypeKind kind;
+    int type_size;
+};
+
+Type *gen_type();
+
+//
+// variable.c
+// 
 
 typedef struct Var Var;
 
 struct Var {
-    VarKind kind;
+    Type *var_type;
     Var *next;  // Next Var
+
     char *str;  // Variable name
     int len;    // Length of naem
     int size;   // Variable size
     int offset; // Offset
 };
 
-Var *add_var(VarKind kind, char *str, int len);
+Var *add_var(Type *var_type, char *str, int len);
 Var *find_var(Token *target);
 void init_offset(Var *now_var);
 
@@ -93,6 +107,7 @@ struct Function {
 
     Node *stmt; // Node of statement
     Function *next;  // Next function
+    Type *ret_type;  // Type of function return
 
     Var *vars;
     
