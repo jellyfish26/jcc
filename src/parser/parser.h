@@ -8,14 +8,18 @@
 //
 
 typedef enum {
-    TY_INT   // "int" type
+    TY_INT,   // "int" type
+    TY_LONG   // "long" type
 } TypeKind;
 
 typedef struct Type Type;
+typedef struct Var Var;
+typedef struct Node Node;
+typedef struct Function Function;
 
 struct Type {
     TypeKind kind;
-    int type_size;
+    int type_size; // Variable size
 };
 
 Type *gen_type();
@@ -24,21 +28,18 @@ Type *gen_type();
 // variable.c
 // 
 
-typedef struct Var Var;
-
 struct Var {
     Type *var_type;
     Var *next;  // Next Var
 
     char *str;  // Variable name
     int len;    // Length of naem
-    int size;   // Variable size
     int offset; // Offset
 };
 
 Var *add_var(Type *var_type, char *str, int len);
 Var *find_var(Token *target);
-void init_offset(Var *now_var);
+void init_offset(Function *target);
 
 //
 // parse.c
@@ -69,8 +70,6 @@ typedef enum {
     ND_INT,       // Number (int)
 } NodeKind;
 
-typedef struct Node Node;
-
 struct Node {
     NodeKind kind;  // Type of Node
     Node *lhs;      // Left side node
@@ -98,8 +97,6 @@ struct Node {
 };
 
 void program();
-
-typedef struct Function Function;
 
 struct Function {
     char *func_name;   // Function name

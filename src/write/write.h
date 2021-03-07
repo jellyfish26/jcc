@@ -15,5 +15,5 @@ void codegen();
 // assembly.c
 //
 
-void gen_compare(char *comp);
+void gen_compare(char *comp, TypeKind var_type_kind);
 void gen_var(Node *node);

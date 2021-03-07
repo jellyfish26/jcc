@@ -22,6 +22,7 @@ typedef enum {
     TK_CONTINUE,  // "continue" statement
     TK_EOF,       // End of File
     TK_INT,       // "int" type
+    TK_LONG       // "long" type
 } TokenKind;
 
 typedef struct Token Token;

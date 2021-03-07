@@ -92,7 +92,7 @@ assert 10 "int main() { int hoge = 0; for (int i = 0; i < 10;) { hoge = hoge + 1
 assert 55 "int main() { int hoge = 0; for (int i = 1; i <= 10; i = i + 1) { hoge = hoge + i; } return hoge; }"
 assert 25 "int main() { int hoge = 0; for (int i = 0; i < 5; i = i + 1) { for (int j = 0; j < 5; j = j + 1) { hoge = hoge + 1; }} return hoge; }"
 
-assert 6  "int main() { int i = 0; while (i < 5) i = i + 2; return i; }"
+assert 6  "int main() { int i = 0; int j; while (i < 5) i = i + 2; return i; }"
 assert 10 "int main() { int i = 4; int hoge = 0; while (i >= 0) { i = i - 1; hoge = hoge + 2; } return hoge; }"
 
 assert 3 "int main() { int hoge = 0; while (1) { hoge = hoge + 1; if (hoge == 3) break; } return hoge; }"
@@ -167,5 +167,19 @@ int test(int a) {
 int main() {
   int a = 10;
   return test(a);
+}
+"
+
+assert 10 "
+long test(long a, long b, int c) {
+  a = a + c;
+  return a + b;
+}
+
+int main() {
+  long a = 3;
+  long b = 5;
+  int c = 2;
+  return test(a, b, c);
 }
 "

@@ -6,9 +6,6 @@ Var *add_var(Type *var_type, char *str, int len) {
     ret->str = str;
     ret->len = len;
 
-    ret->size = 8;
-    exp_func->vars_size += 8;
-
     ret->next = exp_func->vars;
     exp_func->vars = ret;
     return ret;
@@ -27,12 +24,18 @@ Var *find_var(Token *target) {
     return ret;
 }
 
-void init_offset(Var *now_var) {
+void init_offset(Function *target) {
     int now_address = 0;
+    Var *now_var = target->vars;
     while (now_var) {
-        now_address += now_var->size;
+        now_address += now_var->var_type->type_size;
         now_var->offset = now_address;
 
         now_var = now_var->next;
     }
+
+    // set 16 times
+    now_address += 16 - (now_address % 16);
+
+    target->vars_size = now_address;
 }

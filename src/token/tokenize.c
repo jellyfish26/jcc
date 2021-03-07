@@ -126,6 +126,12 @@ void *tokenize() {
                 continue;
             }
 
+            if (str_check(now_str, "long")) {
+                ret = new_token(TK_LONG, ret, now_str, 4);
+                now_str += 4;
+                continue;
+            }
+
             if (isdigit(*now_str)) {
                 ret = new_token(TK_NUM_INT, ret, now_str, 0);
                 char *tmp = now_str;

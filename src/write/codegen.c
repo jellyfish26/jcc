@@ -1,7 +1,38 @@
 #include "write.h"
 
 int label = 0;
-char *args_reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+char *args_64reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+char *args_32reg[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+
+void compile_node(Node *node);
+
+void expand_variable(Node *node) {
+    gen_var(node);
+    printf("  pop rax\n");
+    TypeKind var_type_kind = node->var->var_type->kind;
+    if (var_type_kind == TY_INT) {
+        printf("  mov eax, DWORD PTR [rax]\n");
+        printf("  push rax\n");
+    } else if (var_type_kind == TY_LONG) {
+        printf("  mov rax, QWORD PTR [rax]\n");
+        printf("  push rax\n");
+    }
+}
+
+void expand_assign(Node *node) {
+    gen_var(node->lhs);
+    compile_node(node->rhs);
+
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
+
+    TypeKind var_type_kind = node->lhs->var->var_type->kind;
+    if (var_type_kind == TY_INT) {
+        printf("  mov DWORD PTR [rax], edi\n");
+    } else if (var_type_kind == TY_LONG) {
+        printf("  mov QWORD PTR [rax], rdi\n");   
+    }
+}
 
 void compile_node(Node *node) {
     if (node->kind == ND_INT) {
@@ -18,19 +49,10 @@ void compile_node(Node *node) {
 
     switch (node->kind) {
     case ND_VAR:
-        gen_var(node);
-        printf("  pop rax\n");
-        printf("  mov rax, [rax]\n");
-        printf("  push rax\n");
+        expand_variable(node);
         return;
     case ND_ASSIGN:
-        gen_var(node->lhs);
-        compile_node(node->rhs);
-
-        printf("  pop rdi\n");
-        printf("  pop rax\n");
-        printf("  mov [rax], rdi\n");
-        printf("  push rdi\n");
+        expand_assign(node);
         return;
     case ND_RETURN:
         compile_node(node->lhs);
@@ -116,7 +138,7 @@ void compile_node(Node *node) {
         }
 
         for (int arg_idx = 0; arg_idx < arg_count && arg_idx < 6; arg_idx++) {
-            printf("  pop %s\n", args_reg[arg_idx]);
+            printf("  pop %s\n", args_64reg[arg_idx]);
         }
         
         printf("  call %s\n", name);
@@ -130,6 +152,13 @@ void compile_node(Node *node) {
     printf("  pop rdi\n");
     printf("  pop rax\n");
 
+    TypeKind formula_type_kind;
+    if (node->lhs->var) {
+        formula_type_kind = node->lhs->var->var_type->kind;
+    } else {
+        formula_type_kind = TY_INT;
+    }
+
     // calculation
     switch (node->kind) {
     case ND_ADD:
@@ -142,26 +171,34 @@ void compile_node(Node *node) {
         printf("  imul rax, rdi\n");
         break;
     case ND_DIV:
-        printf("  cqo\n");
-        printf("  idiv rax, rdi\n");
+        switch (formula_type_kind) {
+        case TY_INT:
+            printf("  cdq\n");
+            printf("  idiv eax, edi\n");
+            break;
+        case TY_LONG:
+            printf("  cqo\n");
+            printf("  idiv rax, rdi\n");
+            break;
+        }
         break;
     case ND_EQ:
-        gen_compare("sete");
+        gen_compare("sete", formula_type_kind);
         break;
     case ND_NEQ:
-        gen_compare("setne");
+        gen_compare("setne", formula_type_kind);
         break;
     case ND_LC:
-        gen_compare("setl");
+        gen_compare("setl", formula_type_kind);
         break;
     case ND_LEC:
-        gen_compare("setle");
+        gen_compare("setle", formula_type_kind);
         break;
     case ND_RC:
-        gen_compare("setg");
+        gen_compare("setg", formula_type_kind);
         break;
     case ND_REC:
-        gen_compare("setge");
+        gen_compare("setge", formula_type_kind);
         break;
     }
 
@@ -172,7 +209,7 @@ void codegen() {
     printf(".intel_syntax noprefix\n");
 
     for (Function *now_func = top_func; now_func; now_func = now_func->next) {
-        init_offset(now_func->vars);
+        init_offset(now_func);
         char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
         memcpy(func_name, now_func->func_name, now_func->func_name_len);
         printf(".global %s\n", func_name);
@@ -190,7 +227,14 @@ void codegen() {
             if (arg_count < 6) {
                 gen_var(arg);
                 printf("  pop rax\n");
-                printf("  mov [rax], %s\n", args_reg[arg_count]);
+                switch (arg->var->var_type->kind) {
+                case TY_INT:
+                    printf("  mov DWORD PTR [rax], %s\n", args_32reg[arg_count]);
+                    break;
+                case TY_LONG:
+                    printf("  mov QWORD PTR [rax], %s\n", args_64reg[arg_count]);
+                    break;
+                }
             }
             arg_count--;
         }
@@ -202,7 +246,14 @@ void codegen() {
                 gen_var(arg);
                 printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
                 printf("  pop rsi\n");
-                printf("  mov [rsi], rax\n");
+                switch (arg->var->var_type->kind) {
+                case TY_INT:
+                    printf("  mov DWORD PTR [rsi], eax\n");
+                    break;
+                case TY_LONG:
+                    printf("  mov QWORD PTR [rsi], rax\n");
+                    break;
+                }
             }
             arg_count--;
         }
