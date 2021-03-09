@@ -12,7 +12,7 @@ void gen_compare(char *comp, TypeKind var_type_kind) {
 }
 
 void gen_var(Node *node) {
-    if (node->kind != ND_VAR) {
+    if (node->kind != ND_VAR && node->kind != ND_ADDR) {
         errorf(ER_COMPILE, "Not variable");
     }
 

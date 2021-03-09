@@ -8,8 +8,9 @@
 //
 
 typedef enum {
-    TY_INT,   // "int" type
-    TY_LONG   // "long" type
+    TY_INT,    // "int" type
+    TY_LONG,   // "long" type
+    TY_PTR     // pointer type
 } TypeKind;
 
 typedef struct Type Type;
@@ -68,6 +69,7 @@ typedef enum {
     ND_CONTINUE,  // "continue" statement
     ND_FUNCCALL,  // Function call
     ND_INT,       // Number (int)
+    ND_ADDR       // "&"
 } NodeKind;
 
 struct Node {

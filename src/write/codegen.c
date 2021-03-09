@@ -51,6 +51,9 @@ void compile_node(Node *node) {
     case ND_VAR:
         expand_variable(node);
         return;
+    case ND_ADDR:
+        gen_var(node);
+        return;
     case ND_ASSIGN:
         expand_assign(node);
         return;

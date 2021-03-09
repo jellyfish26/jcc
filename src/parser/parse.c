@@ -306,12 +306,24 @@ Node *unary() {
 //            "(" assign ")" |
 //            ident "(" params? ")"
 //            base_type ident
+//            "&" ident
 // params = assign ("," assign)?
 // base_type is gen_type()
 Node *priority() {
     if (use_symbol("(")) {
         Node *ret = assign();
         use_expect_symbol(")");
+        return ret;
+    }
+
+    if (use_symbol("&")) {
+        Node *ret = new_node(ND_ADDR, NULL,  NULL);
+        Token *tkn = use_any_kind(TK_IDENT);
+        Var *target = find_var(tkn);
+        if (!target) {
+            errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
+        }
+        ret->var = target;
         return ret;
     }
 
