@@ -24,6 +24,7 @@ struct Type {
 };
 
 Type *gen_type();
+Type *ptr_type(Type *before);
 
 //
 // variable.c

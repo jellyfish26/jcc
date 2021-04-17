@@ -26,6 +26,7 @@ Node *size_comp();
 Node *add();
 Node *mul();
 Node *unary();
+Node *define_var();
 Node *priority();
 Node *num();
 
@@ -293,7 +294,7 @@ Node *mul() {
   return ret;
 }
 
-// unary = ("+" | "-")? priority
+// unary = ("+" | "-")? define_var
 Node *unary() {
   if (use_symbol("+")) {
     Node *ret = new_node(ND_ADD, new_node_int(0), priority());
@@ -302,14 +303,50 @@ Node *unary() {
     Node *ret = new_node(ND_SUB, new_node_int(0), priority());
     return ret;
   }
+  return define_var();
+}
+
+
+// define_var = (base_type "*"? ident | priority)
+Node *define_var() {
+  Type *var_type = gen_type();
+
+  // define variable
+  if (var_type) {
+    int ptr_cnt = 0;
+    while (use_symbol("*")) {
+      ++ptr_cnt;
+    }
+
+    Token *tkn = use_any_kind(TK_IDENT);
+    Node *ret = new_node(ND_VAR, NULL, NULL);
+
+    if (!tkn) {
+      errorf_at(ER_COMPILE, source_token,
+                "Variable definition must be identifier.");
+    }
+
+    Var *result = find_var(tkn);
+    if (result) {
+      errorf_at(ER_COMPILE, before_token,
+                "This variable is already definition.");
+    }
+    ret->var = add_var(var_type, tkn->str, tkn->str_len);
+    if (ptr_cnt != 0) {
+      ret->var->var_type = ptr_type(ret->var->var_type);
+    }
+    return ret;
+  }
+
+
   return priority();
 }
 
+
 // priority = num |
 //            "(" assign ")" |
+//            "&"? ident
 //            ident "(" params? ")"
-//            base_type ident
-//            "&" ident
 // params = assign ("," assign)?
 // base_type is gen_type()
 Node *priority() {
@@ -330,11 +367,10 @@ Node *priority() {
     return ret;
   }
 
-  Type *var_type = gen_type();
   Token *tkn = use_any_kind(TK_IDENT);
 
   // function call
-  if (!var_type && tkn) {
+  if (tkn) {
     if (use_symbol("(")) {
       Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
       ret->func_name = tkn->str;
@@ -361,10 +397,10 @@ Node *priority() {
       ret->func_arg = now_arg;
       return ret;
     }
-  };
+  }
 
   // used variable
-  if (!var_type && tkn) {
+  if (tkn) {
     Node *ret = new_node(ND_VAR, NULL, NULL);
     Var *result = find_var(tkn);
     if (!result) {
@@ -374,19 +410,9 @@ Node *priority() {
     return ret;
   }
 
-  // define variable
-  if (var_type && tkn) {
-    Node *ret = new_node(ND_VAR, NULL, NULL);
-    Var *result = find_var(tkn);
-    if (result) {
-      errorf_at(ER_COMPILE, before_token,
-                "This variable is already definition.");
-    }
-    ret->var = add_var(var_type, tkn->str, tkn->str_len);
-    return ret;
-  }
-
   return num();
 }
 
-Node *num() { return new_node_int(use_expect_int()); }
+Node *num() {
+  return new_node_int(use_expect_int());
+}

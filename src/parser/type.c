@@ -21,3 +21,11 @@ Type *gen_type() {
   }
   return NULL;
 }
+
+Type *ptr_type(Type *before) {
+  Type *ret = before;
+  ret->kind = TY_PTR;
+  ret->type_size = 8;
+
+  return ret;
+}
