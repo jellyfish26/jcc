@@ -308,7 +308,8 @@ Node *unary() {
 }
 
 
-// define_var = (base_type "*"? ident | priority)
+// define_var = base_type "*"? ident ("[" num "]")? |
+//              content_ptr
 Node *define_var() {
   Type *var_type = gen_type();
 
@@ -333,6 +334,23 @@ Node *define_var() {
                 "This variable is already definition.");
     }
     ret->var = add_var(var_type, tkn->str, tkn->str_len);
+
+    if (use_symbol("[")) {
+      int array_size = use_expect_int();
+      use_expect_symbol("]");
+      int move_size = ret->var->var_type->type_size;
+      ret->var->var_type->type_size = 8;
+      ret->var->var_type = ptr_type(ret->var->var_type);
+
+      ret->var->var_type->move_size = move_size;
+      ret->var->var_type->type_size = 8;
+
+      Node *back_define = new_node(ND_VAR, NULL, NULL);
+      back_define->var = add_var(var_type, "", 0);
+      back_define->var->var_type->type_size = move_size * array_size;
+      ret->lhs = back_define;
+    }
+
     if (ptr_cnt != 0) {
       ret->var->var_type = ptr_type(ret->var->var_type);
     }

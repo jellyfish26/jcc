@@ -9,6 +9,7 @@ Type *gen_type() {
   if (tkn) {
     ret->kind = TY_INT;
     ret->type_size = 4;
+    ret->move_size = 1;
     return ret;
   }
 
@@ -19,6 +20,7 @@ Type *gen_type() {
 
     ret->kind = TY_LONG;
     ret->type_size = 8;
+    ret->move_size = 1;
     return ret;
   }
   return NULL;

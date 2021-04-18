@@ -21,13 +21,20 @@ void expand_variable(Node *node) {
 }
 
 void expand_assign(Node *node) {
-  gen_var(node->lhs);
+  TypeKind var_type_kind = TY_PTR;
+  if (node->lhs->kind == ND_VAR) {
+    gen_var(node->lhs);
+    var_type_kind = node->lhs->var->var_type->kind;
+  } else if (node->lhs->kind == ND_CONTENT) {
+    compile_node(node->lhs->lhs);
+  } else {
+    errorf(ER_COMPILE, "Cannot assign");
+  }
   compile_node(node->rhs);
 
   printf("  pop rdi\n");
   printf("  pop rax\n");
 
-  TypeKind var_type_kind = node->lhs->var->var_type->kind;
   if (var_type_kind == TY_INT) {
     printf("  mov DWORD PTR [rax], edi\n");
   } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
@@ -51,6 +58,14 @@ void compile_node(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
+      // Pointer variable definition
+      if (node->lhs) {
+        gen_var(node->lhs);
+        gen_var(node);
+        printf("  pop rax\n");
+        printf("  pop rdi\n");
+        printf("  mov QWORD PTR [rax], rdi\n");
+      }
       expand_variable(node);
       return;
     case ND_ADDR:
@@ -167,47 +182,56 @@ void compile_node(Node *node) {
     formula_type_kind = TY_INT;
   }
 
+
+  if (node->lhs->kind == ND_VAR && node->lhs->var->var_type->move_size != 1) {
+    printf("  imul rdi, %d\n", node->lhs->var->var_type->move_size);
+  }
+
+  if (node->rhs->kind == ND_VAR && node->rhs->var->var_type->move_size != 1) {
+    printf("  imul rax, %d\n", node->rhs->var->var_type->move_size);
+  }
+
   // calculation
   switch (node->kind) {
-  case ND_ADD:
-    printf("  add rax, rdi\n");
-    break;
-  case ND_SUB:
-    printf("  sub rax, rdi\n");
-    break;
-  case ND_MUL:
-    printf("  imul rax, rdi\n");
-    break;
-  case ND_DIV:
-    switch (formula_type_kind) {
-    case TY_INT:
-      printf("  cdq\n");
-      printf("  idiv eax, edi\n");
+    case ND_ADD:
+      printf("  add rax, rdi\n");
       break;
-    case TY_LONG:
-      printf("  cqo\n");
-      printf("  idiv rax, rdi\n");
+    case ND_SUB:
+      printf("  sub rax, rdi\n");
       break;
-    }
-    break;
-  case ND_EQ:
-    gen_compare("sete", formula_type_kind);
-    break;
-  case ND_NEQ:
-    gen_compare("setne", formula_type_kind);
-    break;
-  case ND_LC:
-    gen_compare("setl", formula_type_kind);
-    break;
-  case ND_LEC:
-    gen_compare("setle", formula_type_kind);
-    break;
-  case ND_RC:
-    gen_compare("setg", formula_type_kind);
-    break;
-  case ND_REC:
-    gen_compare("setge", formula_type_kind);
-    break;
+    case ND_MUL:
+      printf("  imul rax, rdi\n");
+      break;
+    case ND_DIV:
+      switch (formula_type_kind) {
+        case TY_INT:
+          printf("  cdq\n");
+          printf("  idiv eax, edi\n");
+          break;
+        case TY_LONG:
+          printf("  cqo\n");
+          printf("  idiv rax, rdi\n");
+          break;
+      }
+      break;
+    case ND_EQ:
+      gen_compare("sete", formula_type_kind);
+      break;
+    case ND_NEQ:
+      gen_compare("setne", formula_type_kind);
+      break;
+    case ND_LC:
+      gen_compare("setl", formula_type_kind);
+      break;
+    case ND_LEC:
+      gen_compare("setle", formula_type_kind);
+      break;
+    case ND_RC:
+      gen_compare("setg", formula_type_kind);
+      break;
+    case ND_REC:
+      gen_compare("setge", formula_type_kind);
+      break;
   }
 
   printf("  push rax\n");

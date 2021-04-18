@@ -36,6 +36,7 @@ Type *ptr_type(Type *before);
 struct Var {
   Type *var_type;
   Var *next; // Next Var
+  Var *definition;  // Variable definition if var_type is TY_PTR
 
   char *str;  // Variable name
   int len;    // Length of naem
