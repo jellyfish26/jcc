@@ -1,5 +1,7 @@
 #include "write.h"
 
+#include <stdio.h>
+
 int label = 0;
 char *args_64reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 char *args_32reg[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
@@ -12,11 +14,10 @@ void expand_variable(Node *node) {
   TypeKind var_type_kind = node->var->var_type->kind;
   if (var_type_kind == TY_INT) {
     printf("  mov eax, DWORD PTR [rax]\n");
-    printf("  push rax\n");
-  } else if (var_type_kind == TY_LONG) {
+  } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
     printf("  mov rax, QWORD PTR [rax]\n");
-    printf("  push rax\n");
   }
+  printf("  push rax\n");
 }
 
 void expand_assign(Node *node) {
@@ -29,7 +30,7 @@ void expand_assign(Node *node) {
   TypeKind var_type_kind = node->lhs->var->var_type->kind;
   if (var_type_kind == TY_INT) {
     printf("  mov DWORD PTR [rax], edi\n");
-  } else if (var_type_kind == TY_LONG) {
+  } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
     printf("  mov QWORD PTR [rax], rdi\n");
   }
 }
@@ -49,83 +50,90 @@ void compile_node(Node *node) {
   }
 
   switch (node->kind) {
-  case ND_VAR:
-    expand_variable(node);
-    return;
-  case ND_ADDR:
-    gen_var(node);
-    return;
-  case ND_ASSIGN:
-    expand_assign(node);
-    return;
-  case ND_RETURN:
-    compile_node(node->lhs);
-    printf("  pop rax\n");
-    printf("  mov rsp, rbp\n");
-    printf("  pop rbp\n");
-    printf("  ret\n");
-    return;
-  case ND_IF: {
-    int now_label = label++;
-    compile_node(node->judge);
-    printf("  pop rax\n");
-    printf("  cmp rax, 0\n");
-    printf("  je .Lelse%d\n", now_label);
-
-    // "true"
-    compile_node(node->exec_if);
-    printf("  jmp .Lend%d\n", now_label);
-
-    printf(".Lelse%d:\n", now_label);
-    // "else" statement
-    if (node->exec_else) {
-      compile_node(node->exec_else);
-    }
-
-    // continue
-    printf(".Lend%d:\n", now_label);
-    return;
-  }
-  case ND_WHILE:
-  case ND_FOR: {
-    int now_label = label++;
-    node->label = now_label;
-    if (node->init_for) {
-      compile_node(node->init_for);
-    }
-
-    printf(".Lbegin%d:\n", now_label);
-
-    // judege expr
-    if (node->judge) {
+    case ND_VAR:
+      expand_variable(node);
+      return;
+    case ND_ADDR:
+      gen_var(node);
+      return;
+    case ND_ASSIGN:
+      expand_assign(node);
+      return;
+    case ND_RETURN:
+      compile_node(node->lhs);
+      printf("  pop rax\n");
+      printf("  mov rsp, rbp\n");
+      printf("  pop rbp\n");
+      printf("  ret\n");
+      return;
+    case ND_IF: {
+      int now_label = label++;
       compile_node(node->judge);
       printf("  pop rax\n");
       printf("  cmp rax, 0\n");
-      printf("  je .Lend%d\n", now_label);
+      printf("  je .Lelse%d\n", now_label);
+
+      // "true"
+      compile_node(node->exec_if);
+      printf("  jmp .Lend%d\n", now_label);
+
+      printf(".Lelse%d:\n", now_label);
+      // "else" statement
+      if (node->exec_else) {
+        compile_node(node->exec_else);
+      }
+
+      // continue
+      printf(".Lend%d:\n", now_label);
+      return;
     }
+    case ND_WHILE:
+    case ND_FOR: {
+      int now_label = label++;
+      node->label = now_label;
+      if (node->init_for) {
+        compile_node(node->init_for);
+      }
 
-    compile_node(node->stmt_for);
+      printf(".Lbegin%d:\n", now_label);
 
-    // repeat expr
-    if (node->repeat_for) {
-      compile_node(node->repeat_for);
+      // judege expr
+      if (node->judge) {
+        compile_node(node->judge);
+        printf("  pop rax\n");
+        printf("  cmp rax, 0\n");
+        printf("  je .Lend%d\n", now_label);
+      }
+
+      compile_node(node->stmt_for);
+
+      // repeat expr
+      if (node->repeat_for) {
+        compile_node(node->repeat_for);
+      }
+
+      // finally
+      printf("  jmp .Lbegin%d\n", now_label);
+      printf(".Lend%d:\n", now_label);
+      return;
     }
-
-    // finally
-    printf("  jmp .Lbegin%d\n", now_label);
-    printf(".Lend%d:\n", now_label);
-    return;
-  }
-  case ND_LOOPBREAK: {
-    int now_label = node->lhs->label;
-    printf("  jmp .Lend%d\n", now_label);
-    return;
-  }
-  case ND_CONTINUE: {
-    int now_label = node->lhs->label;
-    printf("  jmp .Lbegin%d\n", now_label);
-    return;
-  }
+    case ND_LOOPBREAK: {
+      int now_label = node->lhs->label;
+      printf("  jmp .Lend%d\n", now_label);
+      return;
+    }
+    case ND_CONTINUE: {
+      int now_label = node->lhs->label;
+      printf("  jmp .Lbegin%d\n", now_label);
+      return;
+    }
+    case ND_CONTENT: {
+      compile_node(node->lhs);
+      printf("  pop rax\n");
+      printf("  mov rax, QWORD PTR [rax]\n");
+      printf("  push rax\n");
+      return;
+    }
   }
 
   if (node->kind == ND_FUNCCALL) {

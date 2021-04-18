@@ -183,3 +183,21 @@ int main() {
   return test(a, b, c);
 }
 "
+
+assert 8 "
+int main() {
+  int a = 2;
+  int b = 5;
+  int *c = &a;
+  return 1 + *(&b) + *c;
+}
+"
+
+assert 5 "
+int main() {
+  int a = 2;
+  int b = 3;
+  int *c = &a;
+  return b + *c;
+}
+"

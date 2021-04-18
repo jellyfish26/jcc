@@ -20,7 +20,10 @@ typedef struct Function Function;
 
 struct Type {
   TypeKind kind;
+  Type *content; // Content of variable if kind is TY_PTR
+
   int type_size; // Variable size
+  int move_size; // Movement size
 };
 
 Type *gen_type();
@@ -70,7 +73,8 @@ typedef enum {
   ND_CONTINUE,  // "continue" statement
   ND_FUNCCALL,  // Function call
   ND_INT,       // Number (int)
-  ND_ADDR       // "&"
+  ND_ADDR,      // "&"
+  ND_CONTENT,   // "*" hoge
 } NodeKind;
 
 struct Node {

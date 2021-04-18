@@ -27,6 +27,7 @@ Node *add();
 Node *mul();
 Node *unary();
 Node *define_var();
+Node *content_ptr();
 Node *priority();
 Node *num();
 
@@ -338,10 +339,21 @@ Node *define_var() {
     return ret;
   }
 
-
-  return priority();
+  return content_ptr();
 }
 
+// content_ptr = "*"? priority
+Node *content_ptr() {
+  int ptr_cnt = 0;
+  while (use_symbol("*")) {
+    ++ptr_cnt;
+  }
+  Node *ret = priority();
+  if (ptr_cnt != 0) {
+    ret = new_node(ND_CONTENT, ret, NULL);
+  }
+  return ret;
+}
 
 // priority = num |
 //            "(" assign ")" |
