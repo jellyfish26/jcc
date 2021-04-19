@@ -16,6 +16,10 @@ Var *find_var(Token *target) {
   memcpy(str, target->str, target->str_len);
   Var *ret = NULL;
   for (Var *now = exp_func->vars; now; now = now->next) {
+    if (now->len != target->str_len) {
+      continue;
+    }
+
     if (memcmp(str, now->str, target->str_len) == 0) {
       ret = now;
       break;
