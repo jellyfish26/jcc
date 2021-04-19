@@ -69,7 +69,11 @@ void compile_node(Node *node) {
       expand_variable(node);
       return;
     case ND_ADDR:
-      gen_var(node);
+      if (node->lhs->kind == ND_VAR) {
+        gen_var(node->lhs);
+      } else if (node->lhs->kind == ND_CONTENT) {
+        compile_node(node->lhs->lhs);
+      }
       return;
     case ND_ASSIGN:
       expand_assign(node);

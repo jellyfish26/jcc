@@ -27,6 +27,7 @@ Node *add();
 Node *mul();
 Node *unary();
 Node *define_var();
+Node *address_op();
 Node *content_ptr();
 Node *priority();
 Node *num();
@@ -356,7 +357,15 @@ Node *define_var() {
     }
     return ret;
   }
+  return address_op();
+}
 
+// address_op = "&"? content_ptr
+Node *address_op() {
+  if (use_symbol("&")) {
+    Node *ret = new_node(ND_ADDR, content_ptr(), NULL);
+    return ret;
+  }
   return content_ptr();
 }
 
@@ -375,7 +384,6 @@ Node *content_ptr() {
 
 // priority = num |
 //            "(" assign ")" |
-//            "&"? ident |
 //            ident ("[" assign "]")? |
 //            ident "(" params? ")" |
 // params = assign ("," assign)?
@@ -387,20 +395,7 @@ Node *priority() {
     return ret;
   }
 
-  if (use_symbol("&")) {
-    Node *ret = new_node(ND_ADDR, NULL, NULL);
-    Token *tkn = use_any_kind(TK_IDENT);
-    Var *target = find_var(tkn);
-    if (!target) {
-      errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
-    }
-    ret->var = target;
-    return ret;
-  }
-
   Token *tkn = use_any_kind(TK_IDENT);
-
-
   if (tkn) {
     if (use_symbol("[")) {
       Var *target = find_var(tkn);
