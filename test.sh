@@ -208,20 +208,6 @@ int main() {
   *a = 1;
   *(a + 1) = 3;
   *(a + 2) = 6;
-  int b = 0;
-  for (int i = 0; i < 3; i = i + 1) {
-    b = b + *(a + i);
-  }
-  return b;
-}
-"
-
-assert 10 "
-int main() {
-  int a[3];
-  *a = 1;
-  *(a + 1) = 3;
-  *(a + 2) = 6;
   int ans = 0;
   for (int i = 0; i < 3; i = i + 1) {
     ans = ans + *(a + i);
@@ -230,3 +216,16 @@ int main() {
 }
 "
 
+assert 10 "
+int main() {
+  int a[3];
+  a[0] = 1;
+  a[1] = 3;
+  a[2] = 6;
+  int ans = 0;
+  for (int i = 0; i < 3; i = i + 1) {
+    ans = ans + a[i];
+  }
+  return ans;
+}
+"

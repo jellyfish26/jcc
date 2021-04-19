@@ -375,8 +375,9 @@ Node *content_ptr() {
 
 // priority = num |
 //            "(" assign ")" |
-//            "&"? ident
-//            ident "(" params? ")"
+//            "&"? ident |
+//            ident ("[" assign "]")? |
+//            ident "(" params? ")" |
 // params = assign ("," assign)?
 // base_type is gen_type()
 Node *priority() {
@@ -398,6 +399,22 @@ Node *priority() {
   }
 
   Token *tkn = use_any_kind(TK_IDENT);
+
+
+  if (tkn) {
+    if (use_symbol("[")) {
+      Var *target = find_var(tkn);
+      if (!target) {
+        errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
+      }
+      Node *ret = new_node(ND_VAR, NULL, NULL);
+      ret->var = target;
+      ret = new_node(ND_ADD, ret, assign());
+      ret = new_node(ND_CONTENT, ret, NULL);
+      use_expect_symbol("]");
+      return ret;
+    }
+  }
 
   // function call
   if (tkn) {

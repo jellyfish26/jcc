@@ -10,7 +10,8 @@
 typedef enum {
   TY_INT,  // "int" type
   TY_LONG, // "long" type
-  TY_PTR   // pointer type
+  TY_PTR,  // Pointer type
+  TY_ADDR, // Base address
 } TypeKind;
 
 typedef struct Type Type;
