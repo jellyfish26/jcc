@@ -8,10 +8,11 @@
 //
 
 typedef enum {
-  TY_INT,  // "int" type
-  TY_LONG, // "long" type
-  TY_PTR,  // Pointer type
-  TY_ADDR, // Base address
+  TY_INT,       // "int" type
+  TY_LONG,      // "long" type
+  TY_PTR,       // Pointer type
+  TY_ARRAY,     // Array type
+  TY_ADDR,      // Base address
 } TypeKind;
 
 typedef struct Type Type;
@@ -29,6 +30,7 @@ struct Type {
 
 Type *gen_type();
 Type *ptr_type(Type *before);
+Type *array_type(Type *before, int array_size);
 
 //
 // variable.c

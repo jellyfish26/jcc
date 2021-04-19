@@ -35,3 +35,10 @@ Type *ptr_type(Type *before) {
 
   return ret;
 }
+
+Type *array_type(Type *before, int array_size) {
+  Type *ret = ptr_type(before);
+  ret->kind = TY_ARRAY;
+  ret->type_size = array_size * before->type_size;
+  return ret;
+}

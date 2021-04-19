@@ -339,17 +339,7 @@ Node *define_var() {
     if (use_symbol("[")) {
       int array_size = use_expect_int();
       use_expect_symbol("]");
-      int move_size = ret->var->var_type->type_size;
-      ret->var->var_type->type_size = 8;
-      ret->var->var_type = ptr_type(ret->var->var_type);
-
-      ret->var->var_type->move_size = move_size;
-      ret->var->var_type->type_size = 8;
-
-      Node *back_define = new_node(ND_VAR, NULL, NULL);
-      back_define->var = add_var(var_type, "", 0);
-      back_define->var->var_type->type_size = move_size * array_size;
-      ret->lhs = back_define;
+      ret->var->var_type = array_type(ret->var->var_type, array_size);
     }
 
     if (ptr_cnt != 0) {

@@ -58,14 +58,6 @@ void compile_node(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
-      // Pointer variable definition
-      if (node->lhs) {
-        gen_var(node->lhs);
-        gen_var(node);
-        printf("  pop rax\n");
-        printf("  pop rdi\n");
-        printf("  mov QWORD PTR [rax], rdi\n");
-      }
       expand_variable(node);
       return;
     case ND_ADDR:
