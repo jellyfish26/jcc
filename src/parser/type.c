@@ -52,3 +52,17 @@ Type *get_type_for_node(Node *target) {
   }
   return target->var->var_type;
 }
+
+void raise_type_for_node(Node *target) {
+  if (target->lhs->var &&
+        (get_type_for_node(target->lhs)->kind == TY_PTR ||
+         get_type_for_node(target->lhs)->kind == TY_ARRAY)) {
+      target->var = target->lhs->var;
+    }
+
+    if (target->rhs->var &&
+        (get_type_for_node(target->rhs)->kind == TY_PTR ||
+         get_type_for_node(target->rhs)->kind == TY_ARRAY)) {
+      target->var = target->rhs->var;
+    }
+}

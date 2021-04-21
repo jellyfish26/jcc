@@ -32,6 +32,7 @@ Type *gen_type();
 Type *connect_ptr_type(Type *before);
 Type *connect_array_type(Type *before, int array_size);
 Type *get_type_for_node(Node *target);
+void raise_type_for_node(Node *target);
 
 //
 // variable.c

@@ -29,6 +29,7 @@ Node *unary();
 Node *define_var();
 Node *address_op();
 Node *content_ptr();
+Node *prefix_inc_or_dec();
 Node *priority();
 Node *num();
 
@@ -277,18 +278,7 @@ Node *add() {
     } else {
       return ret;
     }
-
-    if (ret->lhs->var &&
-        (get_type_for_node(ret->lhs)->kind == TY_PTR ||
-         get_type_for_node(ret->lhs)->kind == TY_ARRAY)) {
-      ret->var = ret->lhs->var;
-    }
-
-    if (ret->rhs->var &&
-        (get_type_for_node(ret->rhs)->kind == TY_PTR ||
-         get_type_for_node(ret->rhs)->kind == TY_ARRAY)) {
-      ret->var = ret->rhs->var;
-    }
+    raise_type_for_node(ret);
   }
   return ret;
 }
@@ -312,9 +302,11 @@ Node *mul() {
 Node *unary() {
   if (use_symbol("+")) {
     Node *ret = new_node(ND_ADD, new_node_int(0), priority());
+    raise_type_for_node(ret);
     return ret;
   } else if (use_symbol("-")) {
     Node *ret = new_node(ND_SUB, new_node_int(0), priority());
+    raise_type_for_node(ret);
     return ret;
   }
   return define_var();
@@ -390,18 +382,35 @@ Node *address_op() {
   return content_ptr();
 }
 
-// content_ptr = "*"? priority
+// content_ptr = "*"? prefix_inc_or_dec
 Node *content_ptr() {
   int ptr_cnt = 0;
   while (use_symbol("*")) {
     ++ptr_cnt;
   }
-  Node *ret = priority();
+  Node *ret = prefix_inc_or_dec();
   if (ptr_cnt != 0) {
     ret = new_node(ND_CONTENT, ret, NULL);
     ret->var = down_type_level(ret->lhs->var);
   }
   return ret;
+}
+
+// prefix_inc_or_dec = ("++" | "--")? priority
+Node *prefix_inc_or_dec() {
+
+  if (use_symbol("++")) {
+    Node *ret = new_node(ND_ADD, priority(), new_node_int(1));
+    raise_type_for_node(ret);
+    ret = new_node(ND_ASSIGN, ret->lhs, ret);
+    return ret;
+  } else if (use_symbol("--")) {
+    Node *ret = new_node(ND_SUB, priority(), new_node_int(1));
+    raise_type_for_node(ret);
+    ret = new_node(ND_ASSIGN, ret->lhs, ret);
+    return ret;
+  }
+  return priority();
 }
 
 // priority = num |

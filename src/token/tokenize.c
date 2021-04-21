@@ -43,8 +43,9 @@ void *tokenize() {
   SourceLine *now_line = source_code;
   Token *ret = &head;
 
-  char *permit_symbol[] = {"+", "-", "*",  "/",  "(",  ")",  ";", "{", "}", "[", "]",
-                           ",", "&", "<=", ">=", "==", "!=", "<", ">", "="};
+  char *permit_symbol[] = {"*",  "/",  "(",  ")",  ";", "{", "}", "[", "]",
+                           ",", "&", "<=", ">=", "==", "!=", "<", ">", "=",
+                           "++", "--", "+", "-"};
 
   char *now_str;
   while (now_line) {
