@@ -26,7 +26,7 @@ Type *gen_type() {
   return NULL;
 }
 
-Type *ptr_type(Type *before) {
+Type *connect_ptr_type(Type *before) {
   Type *ret = calloc(sizeof(Type), 1);
 
   ret->content = before;
@@ -36,8 +36,8 @@ Type *ptr_type(Type *before) {
   return ret;
 }
 
-Type *array_type(Type *before, int array_size) {
-  Type *ret = ptr_type(before);
+Type *connect_array_type(Type *before, int array_size) {
+  Type *ret = connect_ptr_type(before);
 
   ret->content = before;
   ret->kind = TY_ARRAY;

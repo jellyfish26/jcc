@@ -29,8 +29,8 @@ struct Type {
 };
 
 Type *gen_type();
-Type *ptr_type(Type *before);
-Type *array_type(Type *before, int array_size);
+Type *connect_ptr_type(Type *before);
+Type *connect_array_type(Type *before, int array_size);
 
 //
 // variable.c
@@ -49,6 +49,7 @@ struct Var {
 Var *add_var(Type *var_type, char *str, int len);
 Var *find_var(Token *target);
 void init_offset(Function *target);
+Var*down_type_level(Var *target);
 
 //
 // parse.c

@@ -356,12 +356,12 @@ Node *define_var() {
     }
 
     while (top) {
-      ret->var->var_type = array_type(ret->var->var_type, top->array_size);
+      ret->var->var_type = connect_array_type(ret->var->var_type, top->array_size);
       top = top->before;
     }
 
     for (int i = 0; i < ptr_cnt; ++i) {
-      ret->var->var_type = ptr_type(ret->var->var_type);
+      ret->var->var_type = connect_ptr_type(ret->var->var_type);
     }
     return ret;
   }
@@ -443,14 +443,10 @@ Node *priority() {
     }
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->var = target;
-    Type *before_type = target->var_type;
     while (use_symbol("[")) {
       ret = new_node(ND_ADD, ret, assign());
-      if (before_type) {
-        before_type = before_type->content;
-        ret->var = calloc(sizeof(Type), 1);
-        ret->var->var_type = before_type;
-      }
+      ret->var = down_type_level(ret->lhs->var);
+
       ret = new_node(ND_CONTENT, ret, NULL);
       ret->var = ret->lhs->var;
       use_expect_symbol("]");

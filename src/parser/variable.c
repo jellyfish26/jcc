@@ -1,4 +1,5 @@
 #include "parser.h"
+#include <string.h>
 
 Var *add_var(Type *var_type, char *str, int len) {
   Var *ret = calloc(1, sizeof(Var));
@@ -42,4 +43,14 @@ void init_offset(Function *target) {
   now_address += 16 - (now_address % 16);
 
   target->vars_size = now_address;
+}
+
+Var *down_type_level(Var *target) {
+  if (!target) {
+    return NULL;
+  }
+  Var *ret = calloc(sizeof(Var), 1);
+  memcpy(ret, target, sizeof(Var));
+  ret->var_type = ret->var_type->content;
+  return ret;
 }
