@@ -27,6 +27,9 @@ void expand_assign(Node *node) {
     var_type_kind = node->lhs->var->var_type->kind;
   } else if (node->lhs->kind == ND_CONTENT) {
     compile_node(node->lhs->lhs);
+    if (node->lhs->var) {
+      var_type_kind = node->lhs->var->var_type->kind;
+    }
   } else {
     errorf(ER_COMPILE, "Cannot assign");
   }
@@ -140,9 +143,11 @@ void compile_node(Node *node) {
     }
     case ND_CONTENT: {
       compile_node(node->lhs);
-      printf("  pop rax\n");
-      printf("  mov rax, QWORD PTR [rax]\n");
-      printf("  push rax\n");
+      if (!node->var || (node->var && node->var->var_type->kind != TY_ARRAY)) {
+        printf("  pop rax\n");
+        printf("  mov rax, QWORD PTR [rax]\n");
+        printf("  push rax\n");
+      }
       return;
     }
   }
@@ -178,12 +183,11 @@ void compile_node(Node *node) {
     formula_type_kind = TY_INT;
   }
 
-
-  if (node->lhs->kind == ND_VAR && node->lhs->var->var_type->move_size != 1) {
+  if (node->lhs->var && node->lhs->var->var_type->move_size != 1) {
     printf("  imul rdi, %d\n", node->lhs->var->var_type->move_size);
   }
 
-  if (node->rhs->kind == ND_VAR && node->rhs->var->var_type->move_size != 1) {
+  if (node->rhs->var && node->rhs->var->var_type->move_size != 1) {
     printf("  imul rax, %d\n", node->rhs->var->var_type->move_size);
   }
 

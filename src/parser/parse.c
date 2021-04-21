@@ -309,7 +309,7 @@ Node *unary() {
 }
 
 
-// define_var = base_type "*"? ident ("[" num "]")? |
+// define_var = base_type "*"* ident ("[" num "]")* |
 //              content_ptr
 Node *define_var() {
   Type *var_type = gen_type();
@@ -336,13 +336,31 @@ Node *define_var() {
     }
     ret->var = add_var(var_type, tkn->str, tkn->str_len);
 
-    if (use_symbol("[")) {
+    typedef struct ArraySize ArraySize;
+
+    struct ArraySize {
+      int array_size;
+      ArraySize *before;
+    };
+
+    ArraySize *top = NULL;
+
+    while (use_symbol("[")) {
       int array_size = use_expect_int();
       use_expect_symbol("]");
-      ret->var->var_type = array_type(ret->var->var_type, array_size);
+
+      ArraySize *now = calloc(sizeof(ArraySize), 1);
+      now->array_size = array_size;
+      now->before = top;
+      top = now;
     }
 
-    if (ptr_cnt != 0) {
+    while (top) {
+      ret->var->var_type = array_type(ret->var->var_type, top->array_size);
+      top = top->before;
+    }
+
+    for (int i = 0; i < ptr_cnt; ++i) {
       ret->var->var_type = ptr_type(ret->var->var_type);
     }
     return ret;
@@ -374,8 +392,8 @@ Node *content_ptr() {
 
 // priority = num |
 //            "(" assign ")" |
-//            ident ("[" assign "]")? |
-//            ident "(" params? ")" |
+//            ident ("(" params? ")")? |
+//            ident ("[" assign "]")* |
 // params = assign ("," assign)?
 // base_type is gen_type()
 Node *priority() {
@@ -386,20 +404,6 @@ Node *priority() {
   }
 
   Token *tkn = use_any_kind(TK_IDENT);
-  if (tkn) {
-    if (use_symbol("[")) {
-      Var *target = find_var(tkn);
-      if (!target) {
-        errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
-      }
-      Node *ret = new_node(ND_VAR, NULL, NULL);
-      ret->var = target;
-      ret = new_node(ND_ADD, ret, assign());
-      ret = new_node(ND_CONTENT, ret, NULL);
-      use_expect_symbol("]");
-      return ret;
-    }
-  }
 
   // function call
   if (tkn) {
@@ -433,12 +437,24 @@ Node *priority() {
 
   // used variable
   if (tkn) {
-    Node *ret = new_node(ND_VAR, NULL, NULL);
-    Var *result = find_var(tkn);
-    if (!result) {
+    Var *target = find_var(tkn);
+    if (!target) {
       errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
     }
-    ret->var = result;
+    Node *ret = new_node(ND_VAR, NULL, NULL);
+    ret->var = target;
+    Type *before_type = target->var_type;
+    while (use_symbol("[")) {
+      ret = new_node(ND_ADD, ret, assign());
+      if (before_type) {
+        before_type = before_type->content;
+        ret->var = calloc(sizeof(Type), 1);
+        ret->var->var_type = before_type;
+      }
+      ret = new_node(ND_CONTENT, ret, NULL);
+      ret->var = ret->lhs->var;
+      use_expect_symbol("]");
+    }
     return ret;
   }
 

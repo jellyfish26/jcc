@@ -244,3 +244,42 @@ int main() {
   return ans;
 }
 "
+
+assert 4 "
+int main() {
+  int a[2][2];
+  int ans = 0;
+  for (int i = 0; i < 2; i = i + 1) {
+    for (int j = 0; j < 2; j = j + 1) {
+      a[i][j] = i + j;
+      ans = ans + a[i][j];
+    }
+  }
+  return ans;
+}
+"
+
+assert 96 "
+int main() {
+  int a[2][3][4];
+  int i;
+  int j;
+  int k;
+  for (i = 0; i < 2; i = i + 1) {
+    for (j = 0; j < 3; j = j + 1) {
+      for (k = 0; k < 4; k = k + 1) {
+        a[i][j][k] = i + j + k + 1;
+      }
+    }
+  }
+  int ans = 0;
+  for (i = 0; i < 2; i = i + 1) {
+    for (j = 0; j < 3; j = j + 1) {
+      for (k = 0; k < 4; k = k + 1) {
+        ans = ans + a[i][j][k];
+      }
+    }
+  }
+  return ans;
+}
+"

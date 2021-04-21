@@ -29,16 +29,19 @@ Type *gen_type() {
 Type *ptr_type(Type *before) {
   Type *ret = calloc(sizeof(Type), 1);
 
+  ret->content = before;
   ret->kind = TY_PTR;
   ret->move_size = before->type_size;
   ret->type_size = 8;
-
   return ret;
 }
 
 Type *array_type(Type *before, int array_size) {
   Type *ret = ptr_type(before);
+
+  ret->content = before;
   ret->kind = TY_ARRAY;
+  ret->move_size = before->type_size;
   ret->type_size = array_size * before->type_size;
   return ret;
 }

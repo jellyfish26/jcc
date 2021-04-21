@@ -1,6 +1,7 @@
 #include "../read/read.h"
 #include "token.h"
 
+#include <stdio.h>
 #include <string.h>
 
 Token *new_token(TokenKind kind, Token *target, char *str, int len) {
@@ -148,7 +149,7 @@ void *tokenize() {
         ret = new_token(TK_IDENT, ret, start, len);
         continue;
       }
-
+      printf("%s", now_str);
       errorf(ER_TOKENIZE, "Unexpected tokenize");
     }
     now_line = now_line->next;
