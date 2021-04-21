@@ -283,3 +283,18 @@ int main() {
   return ans;
 }
 "
+
+assert 15 "
+int main() {
+  int a[3][3];
+  a[1][2] = 7;
+  *(*(a + 2)) = 5;
+  *(*(a) + 1) = 2;
+  *(*(a + 2) + 2) = 1;
+  int ans = *(*(a + 1) + 2);
+  ans = ans + a[2][0];
+  ans = ans + *(*(a) + 1);
+  ans = ans + a[2][2];
+  return ans;
+}
+"

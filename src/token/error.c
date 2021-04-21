@@ -12,8 +12,8 @@ void errorf(ERROR_TYPE type, char *fmt, ...) {
   case ER_COMPILE:
     err_type = "Compile Error";
     break;
-  case ER_OTHER:
-    err_type = "Other Error";
+  case ER_INTERNAL:
+    err_type = "Internal Error";
     break;
   }
   fprintf(stderr, "\x1b[31m[%s]\x1b[39m: ", err_type);
@@ -33,8 +33,8 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
   case ER_COMPILE:
     err_type = "Compile Error";
     break;
-  case ER_OTHER:
-    err_type = "Other Error";
+  case ER_INTERNAL:
+    err_type = "Internal Error";
     break;
   }
   SourceLine *target = source_code;

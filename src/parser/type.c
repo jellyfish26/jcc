@@ -45,3 +45,10 @@ Type *connect_array_type(Type *before, int array_size) {
   ret->type_size = array_size * before->type_size;
   return ret;
 }
+
+Type *get_type_for_node(Node *target) {
+  if (!target->var) {
+    errorf(ER_INTERNAL, "The Node(%x) do not have variable", target);
+  }
+  return target->var->var_type;
+}

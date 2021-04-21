@@ -277,6 +277,18 @@ Node *add() {
     } else {
       return ret;
     }
+
+    if (ret->lhs->var &&
+        (get_type_for_node(ret->lhs)->kind == TY_PTR ||
+         get_type_for_node(ret->lhs)->kind == TY_ARRAY)) {
+      ret->var = ret->lhs->var;
+    }
+
+    if (ret->rhs->var &&
+        (get_type_for_node(ret->rhs)->kind == TY_PTR ||
+         get_type_for_node(ret->rhs)->kind == TY_ARRAY)) {
+      ret->var = ret->rhs->var;
+    }
   }
   return ret;
 }
@@ -336,6 +348,7 @@ Node *define_var() {
     }
     ret->var = add_var(var_type, tkn->str, tkn->str_len);
 
+    // Size needs to be viewed from the end.
     typedef struct ArraySize ArraySize;
 
     struct ArraySize {
@@ -386,6 +399,7 @@ Node *content_ptr() {
   Node *ret = priority();
   if (ptr_cnt != 0) {
     ret = new_node(ND_CONTENT, ret, NULL);
+    ret->var = down_type_level(ret->lhs->var);
   }
   return ret;
 }
