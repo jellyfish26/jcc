@@ -58,32 +58,33 @@ Var *down_type_level(Var *target);
 //
 
 typedef enum {
-  ND_ADD,       // +
-  ND_SUB,       // -
-  ND_MUL,       // *
-  ND_DIV,       // /
-  ND_REMAINDER, // %
-  ND_EQ,        // ==
-  ND_NEQ,       // !=
-  ND_LC,        // <  (Left Compare)
-  ND_LEC,       // <= (Left Equal Compare)
-  ND_RC,        // >  (Right Compare)
-  ND_REC,       // >= (Right Equal Compare)
-  ND_LEFTSHIFT, // << (Bitwise left shift)
-  ND_ASSIGN,    // =
-  ND_VAR,       // Variable
-  ND_RETURN,    // "return" statement
-  ND_IF,        // "if" statement
-  ND_ELSE,      // "else" statement
-  ND_FOR,       // "for" statement
-  ND_WHILE,     // "while" statement
-  ND_BLOCK,     // Block statement
-  ND_LOOPBREAK, // "break" statement (only for and while)
-  ND_CONTINUE,  // "continue" statement
-  ND_FUNCCALL,  // Function call
-  ND_INT,       // Number (int)
-  ND_ADDR,      // "&"
-  ND_CONTENT,   // "*" hoge
+  ND_ADD,         // +
+  ND_SUB,         // -
+  ND_MUL,         // *
+  ND_DIV,         // /
+  ND_REMAINDER,   // %
+  ND_EQ,          // ==
+  ND_NEQ,         // !=
+  ND_LC,          // <  (Left Compare)
+  ND_LEC,         // <= (Left Equal Compare)
+  ND_RC,          // >  (Right Compare)
+  ND_REC,         // >= (Right Equal Compare)
+  ND_LEFTSHIFT,   // << (Bitwise left shift)
+  ND_RIGHTSHIFT,  // >> (Bitwise right shift)
+  ND_ASSIGN,      // =
+  ND_VAR,         // Variable
+  ND_RETURN,      // "return" statement
+  ND_IF,          // "if" statement
+  ND_ELSE,        // "else" statement
+  ND_FOR,         // "for" statement
+  ND_WHILE,       // "while" statement
+  ND_BLOCK,       // Block statement
+  ND_LOOPBREAK,   // "break" statement (only for and while)
+  ND_CONTINUE,    // "continue" statement
+  ND_FUNCCALL,    // Function call
+  ND_INT,         // Number (int)
+  ND_ADDR,        // "&" (Address-of)
+  ND_CONTENT,     // "*" (Indirection, dereference)
 } NodeKind;
 
 struct Node {

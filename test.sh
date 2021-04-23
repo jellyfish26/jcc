@@ -346,3 +346,12 @@ int main() {
   return c;
 }
 "
+
+assert 16 "
+int main() {
+  int a = 1<<10;
+  int b = 6;
+  int c = a>>b;
+  return c;
+}
+"

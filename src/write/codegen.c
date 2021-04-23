@@ -233,6 +233,10 @@ void compile_node(Node *node) {
       printf("  mov rcx, rdi\n");
       printf("  sal rax, cl\n");
       break;
+    case ND_RIGHTSHIFT:
+      printf("  mov rcx, rdi\n");
+      printf("  sar rax, cl\n");
+      break;
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
       break;

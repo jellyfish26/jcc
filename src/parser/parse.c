@@ -332,12 +332,14 @@ Node *size_comp() {
   return ret;
 }
 
-// bitwise_shift = add ("<<" add)*
+// bitwise_shift = add ("<<" add | ">>" add)*
 Node *bitwise_shift() {
   Node *ret = add();
   while (true) {
     if (use_symbol("<<")) {
       ret = new_node(ND_LEFTSHIFT, ret, add());
+    } else if (use_symbol(">>")) {
+      ret = new_node(ND_RIGHTSHIFT, ret, add());
     } else {
       break;
     }
