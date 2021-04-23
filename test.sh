@@ -336,3 +336,13 @@ int main() {
   return c;
 }
 "
+
+assert 32 "
+int main() {
+  int a = 2;
+  int b = 1<<2;
+  int c = 0;
+  c = (a<<b);
+  return c;
+}
+"

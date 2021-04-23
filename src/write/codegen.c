@@ -229,6 +229,10 @@ void compile_node(Node *node) {
           break;
       }
       break;
+    case ND_LEFTSHIFT:
+      printf("  mov rcx, rdi\n");
+      printf("  sal rax, cl\n");
+      break;
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
       break;

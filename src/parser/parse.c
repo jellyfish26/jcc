@@ -23,6 +23,7 @@ Node *statement();
 Node *assign();
 Node *same_comp();
 Node *size_comp();
+Node *bitwise_shift();
 Node *add();
 Node *mul();
 Node *unary();
@@ -312,24 +313,38 @@ Node *same_comp() {
   return ret;
 }
 
-// size_comp = add ("<" add | ">" add | "<=" add | ">=" add)*
+// size_comp = bitwise_shift ("<" bitwise_shift | ">" bitwise_shift | "<=" bitwise_shift | ">=" bitwise_shift)*
 Node *size_comp() {
-  Node *ret = add();
+  Node *ret = bitwise_shift();
   while (true) {
     if (use_symbol("<")) {
-      ret = new_node(ND_LC, ret, add());
+      ret = new_node(ND_LC, ret, bitwise_shift());
     } else if (use_symbol(">")) {
-      ret = new_node(ND_RC, ret, add());
+      ret = new_node(ND_RC, ret, bitwise_shift());
     } else if (use_symbol("<=")) {
-      ret = new_node(ND_LEC, ret, add());
+      ret = new_node(ND_LEC, ret, bitwise_shift());
     } else if (use_symbol(">=")) {
-      ret = new_node(ND_REC, ret, add());
+      ret = new_node(ND_REC, ret, bitwise_shift());
     } else {
       break;
     }
   }
   return ret;
 }
+
+// bitwise_shift = add ("<<" add)*
+Node *bitwise_shift() {
+  Node *ret = add();
+  while (true) {
+    if (use_symbol("<<")) {
+      ret = new_node(ND_LEFTSHIFT, ret, add());
+    } else {
+      break;
+    }
+  }
+  return ret;
+}
+
 
 // add = mul ("+" mul | "-" mul)*
 Node *add() {
