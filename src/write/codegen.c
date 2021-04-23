@@ -215,6 +215,20 @@ void compile_node(Node *node) {
           break;
       }
       break;
+    case ND_REMAINDER:
+      switch (formula_type_kind) {
+        case TY_INT:
+          printf("  cdq\n");
+          printf("  idiv edi\n");
+          printf("  mov eax, edx\n");
+          break;
+        case TY_LONG:
+          printf("  cqo\n");
+          printf("  idiv rdi\n");
+          printf("  mov rax, rdx\n");
+          break;
+      }
+      break;
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
       break;

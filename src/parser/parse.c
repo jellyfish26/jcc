@@ -347,7 +347,7 @@ Node *add() {
   return ret;
 }
 
-// mul = unary ("*" unary | "/" unary)*
+// mul = unary ("*" unary | "/" unary | "%" unary)*
 Node *mul() {
   Node *ret = unary();
   while (true) {
@@ -355,6 +355,8 @@ Node *mul() {
       ret = new_node(ND_MUL, ret, unary());
     } else if (use_symbol("/")) {
       ret = new_node(ND_DIV, ret, unary());
+    } else if (use_symbol("%")) {
+      ret  = new_node(ND_REMAINDER, ret, unary());
     } else {
       return ret;
     }

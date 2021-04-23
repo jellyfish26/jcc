@@ -62,6 +62,7 @@ typedef enum {
   ND_SUB,       // -
   ND_MUL,       // *
   ND_DIV,       // /
+  ND_REMAINDER, // %
   ND_EQ,        // ==
   ND_NEQ,       // !=
   ND_LC,        // <  (Left Compare)

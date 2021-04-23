@@ -318,3 +318,21 @@ int main() {
   return b;
 }
 "
+
+assert 1 "
+int main() {
+  int a = 10;
+  int b = 3;
+  int c = a % b;
+  return c;
+}
+"
+
+assert 10 "
+int main() {
+  long a = 162;
+  long b = 38;
+  long c = a % b;
+  return c;
+}
+"
