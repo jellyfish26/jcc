@@ -43,6 +43,7 @@ void expand_assign(Node *node) {
   } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
     printf("  mov QWORD PTR [rax], rdi\n");
   }
+  printf("  push rdi\n");
 }
 
 void compile_node(Node *node) {

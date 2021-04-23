@@ -112,11 +112,11 @@ Node *inside_roop; // inside for or while
 // statement = { statement* } |
 //             ("return")? assign ";" |
 //             "if" "(" assign ")" statement ("else" statement)? |
-//             "for" "("assign?; assign?; assign?")" statement |
+//             "for" "("define_type?; assign?; assign?")" statement |
 //             "while" "(" assign ")" statement |
 //             "break;" |
 //             "continue;" |
-//             assign ";"
+//             define_type ";"
 Node *statement() {
   Node *ret;
 
@@ -155,7 +155,7 @@ Node *statement() {
 
     use_expect_symbol("(");
     if (!use_symbol(";")) {
-      ret->init_for = assign();
+      ret->init_for = define_var();
       use_expect_symbol(";");
     }
 
@@ -216,10 +216,74 @@ Node *statement() {
     return ret;
   }
 
-  ret = assign();
+  ret = define_var();
   use_expect_symbol(";");
 
   return ret;
+}
+
+// define_var = base_type "*"* ident ("[" num "]")* ("=" assign)? |
+//              assign
+Node *define_var() {
+  Type *var_type = gen_type();
+
+  // define variable
+  if (var_type) {
+    int ptr_cnt = 0;
+    while (use_symbol("*")) {
+      ++ptr_cnt;
+    }
+
+    Token *tkn = use_any_kind(TK_IDENT);
+    Node *ret = new_node(ND_VAR, NULL, NULL);
+
+    if (!tkn) {
+      errorf_at(ER_COMPILE, source_token,
+                "Variable definition must be identifier.");
+    }
+
+    Var *result = find_var(tkn);
+    if (result) {
+      errorf_at(ER_COMPILE, before_token,
+                "This variable is already definition.");
+    }
+    ret->var = add_var(var_type, tkn->str, tkn->str_len);
+
+    // Size needs to be viewed from the end.
+    typedef struct ArraySize ArraySize;
+
+    struct ArraySize {
+      int array_size;
+      ArraySize *before;
+    };
+
+    ArraySize *top = NULL;
+
+    while (use_symbol("[")) {
+      int array_size = use_expect_int();
+      use_expect_symbol("]");
+
+      ArraySize *now = calloc(sizeof(ArraySize), 1);
+      now->array_size = array_size;
+      now->before = top;
+      top = now;
+    }
+
+    while (top) {
+      ret->var->var_type = connect_array_type(ret->var->var_type, top->array_size);
+      top = top->before;
+    }
+
+    for (int i = 0; i < ptr_cnt; ++i) {
+      ret->var->var_type = connect_ptr_type(ret->var->var_type);
+    }
+
+    if (use_symbol("=")) {
+      ret = new_node(ND_ASSIGN, ret, assign());
+    }
+    return ret;
+  }
+  return assign();
 }
 
 // assign = same_comp |
@@ -298,7 +362,7 @@ Node *mul() {
   return ret;
 }
 
-// unary = ("+" | "-")? define_var
+// unary = ("+" | "-")? address_op
 Node *unary() {
   if (use_symbol("+")) {
     Node *ret = new_node(ND_ADD, new_node_int(0), priority());
@@ -307,67 +371,6 @@ Node *unary() {
   } else if (use_symbol("-")) {
     Node *ret = new_node(ND_SUB, new_node_int(0), priority());
     raise_type_for_node(ret);
-    return ret;
-  }
-  return define_var();
-}
-
-
-// define_var = base_type "*"* ident ("[" num "]")* |
-//              content_ptr
-Node *define_var() {
-  Type *var_type = gen_type();
-
-  // define variable
-  if (var_type) {
-    int ptr_cnt = 0;
-    while (use_symbol("*")) {
-      ++ptr_cnt;
-    }
-
-    Token *tkn = use_any_kind(TK_IDENT);
-    Node *ret = new_node(ND_VAR, NULL, NULL);
-
-    if (!tkn) {
-      errorf_at(ER_COMPILE, source_token,
-                "Variable definition must be identifier.");
-    }
-
-    Var *result = find_var(tkn);
-    if (result) {
-      errorf_at(ER_COMPILE, before_token,
-                "This variable is already definition.");
-    }
-    ret->var = add_var(var_type, tkn->str, tkn->str_len);
-
-    // Size needs to be viewed from the end.
-    typedef struct ArraySize ArraySize;
-
-    struct ArraySize {
-      int array_size;
-      ArraySize *before;
-    };
-
-    ArraySize *top = NULL;
-
-    while (use_symbol("[")) {
-      int array_size = use_expect_int();
-      use_expect_symbol("]");
-
-      ArraySize *now = calloc(sizeof(ArraySize), 1);
-      now->array_size = array_size;
-      now->before = top;
-      top = now;
-    }
-
-    while (top) {
-      ret->var->var_type = connect_array_type(ret->var->var_type, top->array_size);
-      top = top->before;
-    }
-
-    for (int i = 0; i < ptr_cnt; ++i) {
-      ret->var->var_type = connect_ptr_type(ret->var->var_type);
-    }
     return ret;
   }
   return address_op();
