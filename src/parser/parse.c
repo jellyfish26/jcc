@@ -21,8 +21,9 @@ Node *new_node_int(int val) {
 void program();
 Node *statement();
 Node *assign();
-Node *bitwise_and();
+Node *bitwise_or();
 Node *bitwise_xor();
+Node *bitwise_and();
 Node *same_comp();
 Node *size_comp();
 Node *bitwise_shift();
@@ -289,39 +290,39 @@ Node *define_var() {
   return assign();
 }
 
-// assign = bitwise_and ("=" bitwise_and)?
+// assign = bitwise_or ("=" bitwise_or)?
 Node *assign() {
-  Node *ret = bitwise_and();
+  Node *ret = bitwise_or();
 
   if (use_symbol("=")) {
-    ret = new_node(ND_ASSIGN, ret, bitwise_and());
+    ret = new_node(ND_ASSIGN, ret, bitwise_or());
   }
   return ret;
 }
 
-// bitwise_and = bitwise_xor ("&" bitwise_xor)*
-Node *bitwise_and() {
+// bitwise_or = bitwise_xor ("|" bitwise_xor)*
+Node *bitwise_or() {
   Node *ret = bitwise_xor();
-  while (true) {
-    if (use_symbol("&")) {
-      ret = new_node(ND_BITWISEAND, ret, bitwise_xor());
-    } else {
-      break;
-    }
+  while (use_symbol("|")) {
+    ret = new_node(ND_BITWISEOR, ret, bitwise_xor());
   }
   return ret;
 }
 
-
-// bitwise_xor = same_comp ("^" same_comp)*
+// bitwise_xor = bitwise_and ("^" bitwise_and)*
 Node *bitwise_xor() {
+  Node *ret = bitwise_and();
+  while (use_symbol("^")) {
+    ret = new_node(ND_BITWISEXOR, ret, bitwise_and());
+  }
+  return ret;
+}
+
+// bitwise_and = same_comp ("&" same_comp)*
+Node *bitwise_and() {
   Node *ret = same_comp();
-  while (true) {
-    if (use_symbol("^")) {
-      ret = new_node(ND_BITWISEXOR, ret, same_comp());
-    } else {
-      break;
-    }
+  while (use_symbol("&")) {
+    ret = new_node(ND_BITWISEAND, ret, same_comp());
   }
   return ret;
 }

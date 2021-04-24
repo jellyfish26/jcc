@@ -73,6 +73,7 @@ typedef enum {
   ND_RIGHTSHIFT,  // >> (Bitwise right shift)
   ND_BITWISEAND,  // "&" (Bitwise AND)
   ND_BITWISEXOR,  // "^" (Bitwise XOR)
+  ND_BITWISEOR,   // "|" (Bitwise OR)
   ND_ASSIGN,      // =
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement

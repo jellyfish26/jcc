@@ -368,7 +368,15 @@ assert 11 "
 int main() {
   int a = 22;
   int b = 29;
-  int c = a^b;
+  int c = a ^ b;
   return c;
+}
+"
+
+assert 61 "
+int main() {
+  int a = 41;
+  int b = 28;
+  return a | b;
 }
 "

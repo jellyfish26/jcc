@@ -243,6 +243,9 @@ void compile_node(Node *node) {
     case ND_BITWISEXOR:
       printf("  xor rax, rdi\n");
       break;
+    case ND_BITWISEOR:
+      printf("  or rax, rdi\n");
+      break;
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
       break;
