@@ -22,6 +22,7 @@ void program();
 Node *statement();
 Node *assign();
 Node *bitwise_and();
+Node *bitwise_xor();
 Node *same_comp();
 Node *size_comp();
 Node *bitwise_shift();
@@ -298,12 +299,26 @@ Node *assign() {
   return ret;
 }
 
-// bitwise_and = same_comp ("&" same_comp)*
+// bitwise_and = bitwise_xor ("&" bitwise_xor)*
 Node *bitwise_and() {
-  Node *ret = same_comp();
+  Node *ret = bitwise_xor();
   while (true) {
     if (use_symbol("&")) {
-      ret = new_node(ND_BITWISEAND, ret, same_comp());
+      ret = new_node(ND_BITWISEAND, ret, bitwise_xor());
+    } else {
+      break;
+    }
+  }
+  return ret;
+}
+
+
+// bitwise_xor = same_comp ("^" same_comp)*
+Node *bitwise_xor() {
+  Node *ret = same_comp();
+  while (true) {
+    if (use_symbol("^")) {
+      ret = new_node(ND_BITWISEXOR, ret, same_comp());
     } else {
       break;
     }

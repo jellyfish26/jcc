@@ -363,3 +363,12 @@ int main() {
   return a & b;
 }
 "
+
+assert 11 "
+int main() {
+  int a = 22;
+  int b = 29;
+  int c = a^b;
+  return c;
+}
+"
