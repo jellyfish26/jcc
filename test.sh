@@ -355,3 +355,11 @@ int main() {
   return c;
 }
 "
+
+assert 10 "
+int main() {
+  int a = 15;
+  int b = 26;
+  return a & b;
+}
+"

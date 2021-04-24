@@ -21,6 +21,7 @@ Node *new_node_int(int val) {
 void program();
 Node *statement();
 Node *assign();
+Node *bitwise_and();
 Node *same_comp();
 Node *size_comp();
 Node *bitwise_shift();
@@ -287,13 +288,25 @@ Node *define_var() {
   return assign();
 }
 
-// assign = same_comp |
-//          same_comp "=" same_comp
+// assign = bitwise_and ("=" bitwise_and)?
 Node *assign() {
-  Node *ret = same_comp();
+  Node *ret = bitwise_and();
 
   if (use_symbol("=")) {
-    ret = new_node(ND_ASSIGN, ret, same_comp());
+    ret = new_node(ND_ASSIGN, ret, bitwise_and());
+  }
+  return ret;
+}
+
+// bitwise_and = same_comp ("&" same_comp)*
+Node *bitwise_and() {
+  Node *ret = same_comp();
+  while (true) {
+    if (use_symbol("&")) {
+      ret = new_node(ND_BITWISEAND, ret, same_comp());
+    } else {
+      break;
+    }
   }
   return ret;
 }

@@ -71,6 +71,7 @@ typedef enum {
   ND_REC,         // >= (Right Equal Compare)
   ND_LEFTSHIFT,   // << (Bitwise left shift)
   ND_RIGHTSHIFT,  // >> (Bitwise right shift)
+  ND_BITWISEAND,  // "&" (Bitwise AND)
   ND_ASSIGN,      // =
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
