@@ -35,7 +35,7 @@ Node *mul();
 Node *unary();
 Node *define_var();
 Node *address_op();
-Node *content_ptr();
+Node *indirection();
 Node *prefix_inc_or_dec();
 Node *priority();
 Node *num();
@@ -293,12 +293,12 @@ Node *define_var() {
   return assign();
 }
 
-// assign = ternary ("=" ternary)?
+// assign = ternary ("=" assign)?
 Node *assign() {
   Node *ret = ternary();
 
   if (use_symbol("=")) {
-    ret = new_node(ND_ASSIGN, ret, ternary());
+    ret = new_node(ND_ASSIGN, ret, assign());
   }
   return ret;
 }
@@ -443,27 +443,23 @@ Node *unary() {
   return address_op();
 }
 
-// address_op = "&"? content_ptr
+// address_op = "&"? indirection
 Node *address_op() {
   if (use_symbol("&")) {
-    Node *ret = new_node(ND_ADDR, content_ptr(), NULL);
+    Node *ret = new_node(ND_ADDR, indirection(), NULL);
     return ret;
   }
-  return content_ptr();
+  return indirection();
 }
 
-// content_ptr = "*"? prefix_inc_or_dec
-Node *content_ptr() {
-  int ptr_cnt = 0;
-  while (use_symbol("*")) {
-    ++ptr_cnt;
-  }
-  Node *ret = prefix_inc_or_dec();
-  if (ptr_cnt != 0) {
-    ret = new_node(ND_CONTENT, ret, NULL);
+// indirection = (prefix_inc_or_dec | "*" indirection)
+Node *indirection() {
+  if (use_symbol("*")) {
+    Node *ret = new_node(ND_CONTENT, indirection(), NULL);
     ret->var = down_type_level(ret->lhs->var);
+    return ret;
   }
-  return ret;
+  return prefix_inc_or_dec();
 }
 
 // prefix_inc_or_dec = ("++" | "--")? priority

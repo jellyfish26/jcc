@@ -452,3 +452,12 @@ int main() {
   return ans;
 }
 "
+
+assert 12 "
+int main() {
+  int a = 2;
+  int b = 4;
+  a = b = 6;
+  return a + b;
+}
+"
