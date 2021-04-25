@@ -365,85 +365,66 @@ Node *bitwise_and() {
   return ret;
 }
 
-// same_comp = size_comp ("==" size_comp | "!=" size_comp)*
+// same_comp = size_comp ("==" same_comp | "!=" sama_comp)?
 Node *same_comp() {
   Node *ret = size_comp();
-  while (true) {
-    if (use_symbol("==")) {
-      ret = new_node(ND_EQ, ret, size_comp());
-    } else if (use_symbol("!=")) {
-      ret = new_node(ND_NEQ, ret, size_comp());
-    } else {
-      break;
-    }
+  if (use_symbol("==")) {
+    ret = new_node(ND_EQ, ret, same_comp());
+  } else if (use_symbol("!=")) {
+    ret = new_node(ND_NEQ, ret, same_comp());
   }
   return ret;
 }
 
-// size_comp = bitwise_shift ("<" bitwise_shift | ">" bitwise_shift | "<=" bitwise_shift | ">=" bitwise_shift)*
+// size_comp = bitwise_shift ("<" size_comp  | ">" size_comp | "<=" size_comp | ">=" size_comp)?
 Node *size_comp() {
   Node *ret = bitwise_shift();
-  while (true) {
-    if (use_symbol("<")) {
-      ret = new_node(ND_LC, ret, bitwise_shift());
-    } else if (use_symbol(">")) {
-      ret = new_node(ND_RC, ret, bitwise_shift());
-    } else if (use_symbol("<=")) {
-      ret = new_node(ND_LEC, ret, bitwise_shift());
-    } else if (use_symbol(">=")) {
-      ret = new_node(ND_REC, ret, bitwise_shift());
-    } else {
-      break;
-    }
+  if (use_symbol("<")) {
+    ret = new_node(ND_LC, ret, size_comp());
+  } else if (use_symbol(">")) {
+    ret = new_node(ND_RC, ret, size_comp());
+  } else if (use_symbol("<=")) {
+    ret = new_node(ND_LEC, ret, size_comp());
+  } else if (use_symbol(">=")) {
+    ret = new_node(ND_REC, ret, size_comp());
   }
   return ret;
 }
 
-// bitwise_shift = add ("<<" add | ">>" add)*
+// bitwise_shift = add ("<<" bitwise_shift | ">>" bitwise_shift)?
 Node *bitwise_shift() {
   Node *ret = add();
-  while (true) {
-    if (use_symbol("<<")) {
-      ret = new_node(ND_LEFTSHIFT, ret, add());
-    } else if (use_symbol(">>")) {
-      ret = new_node(ND_RIGHTSHIFT, ret, add());
-    } else {
-      break;
-    }
+  if (use_symbol("<<")) {
+    ret = new_node(ND_LEFTSHIFT, ret, bitwise_shift());
+  } else if (use_symbol(">>")) {
+    ret = new_node(ND_RIGHTSHIFT, ret, bitwise_shift());
   }
   return ret;
 }
 
 
-// add = mul ("+" mul | "-" mul)*
+// add = mul ("+" add | "-" add)?
 Node *add() {
   Node *ret = mul();
-  while (true) {
-    if (use_symbol("+")) {
-      ret = new_node(ND_ADD, ret, mul());
-    } else if (use_symbol("-")) {
-      ret = new_node(ND_SUB, ret, mul());
-    } else {
-      return ret;
-    }
+  if (use_symbol("+")) {
+    ret = new_node(ND_ADD, ret, add());
+    raise_type_for_node(ret);
+  } else if (use_symbol("-")) {
+    ret = new_node(ND_SUB, ret, add());
     raise_type_for_node(ret);
   }
   return ret;
 }
 
-// mul = unary ("*" unary | "/" unary | "%" unary)*
+// mul = unary ("*" mul | "/" mul | "%" mul)?
 Node *mul() {
   Node *ret = unary();
-  while (true) {
-    if (use_symbol("*")) {
-      ret = new_node(ND_MUL, ret, unary());
-    } else if (use_symbol("/")) {
-      ret = new_node(ND_DIV, ret, unary());
-    } else if (use_symbol("%")) {
-      ret  = new_node(ND_REMAINDER, ret, unary());
-    } else {
-      return ret;
-    }
+  if (use_symbol("*")) {
+    ret = new_node(ND_MUL, ret, mul());
+  } else if (use_symbol("/")) {
+    ret = new_node(ND_DIV, ret, mul());
+  } else if (use_symbol("%")) {
+    ret = new_node(ND_REMAINDER, ret, mul());
   }
   return ret;
 }
