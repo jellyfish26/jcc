@@ -432,3 +432,23 @@ int main() {
   return ans;
 }
 "
+
+assert 3 "
+int main() {
+  int ans = 0;
+  int a = 2;
+  int b = 1;
+  ans = (a - b == 1 ? 3 : 2);
+  return ans;
+}
+"
+
+assert 5 "
+int main() {
+  int ans = 0;
+  int a = 3;
+  int b = 5;
+  ans = (a + b == 7 ? ans == 0 ? 1 : 2 : a + b == 8 ? b : a);
+  return ans;
+}
+"

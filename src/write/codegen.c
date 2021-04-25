@@ -78,6 +78,18 @@ void expand_logical_or(Node *node, int label) {
   printf("  jne .Ltrue%d\n", label);
 }
 
+void expand_ternary(Node *node, int label) {
+  compile_node(node->exec_if);
+  printf("  pop rax\n");
+  printf("  cmp rax, 0\n");
+  printf("  je .Lfalse%d\n", label);
+  compile_node(node->lhs);
+  printf("  jmp .Lnext%d\n", label);
+  printf(".Lfalse%d:\n", label);
+  compile_node(node->rhs);
+  printf(".Lnext%d:\n", label);
+}
+
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
     printf("  push %d\n", node->val);
@@ -132,6 +144,11 @@ void compile_node(Node *node) {
 
       // continue
       printf(".Lend%d:\n", now_label);
+      return;
+    }
+    case ND_TERNARY: {
+      int now_label = label++;
+      expand_ternary(node, label);
       return;
     }
     case ND_WHILE:

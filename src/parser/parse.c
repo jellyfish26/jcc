@@ -21,6 +21,7 @@ Node *new_node_int(int val) {
 void program();
 Node *statement();
 Node *assign();
+Node *ternary();
 Node *logical_or();
 Node *logical_and();
 Node *bitwise_or();
@@ -292,12 +293,27 @@ Node *define_var() {
   return assign();
 }
 
-// assign = logical_or ("=" logical_or)?
+// assign = ternary ("=" ternary)?
 Node *assign() {
-  Node *ret = logical_or();
+  Node *ret = ternary();
 
   if (use_symbol("=")) {
-    ret = new_node(ND_ASSIGN, ret, logical_or());
+    ret = new_node(ND_ASSIGN, ret, ternary());
+  }
+  return ret;
+}
+
+// ternary = logical_or ("?" ternary ":" ternary)?
+Node *ternary() {
+  Node *ret = logical_or();
+
+  if (use_symbol("?")) {
+    Node *tmp = new_node(ND_TERNARY, NULL, NULL);
+    tmp->lhs = ternary();
+    use_expect_symbol(":");
+    tmp->rhs = ternary();
+    tmp->exec_if = ret;
+    ret = tmp;
   }
   return ret;
 }
