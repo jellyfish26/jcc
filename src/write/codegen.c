@@ -35,9 +35,13 @@ void expand_assign(Node *node) {
   } else {
     errorf(ER_COMPILE, "Cannot assign");
   }
-  compile_node(node->rhs);
 
-  printf("  pop rdi\n");
+  if (node->rhs->kind == ND_ASSIGN) {
+    expand_assign(node->rhs);
+  } else {
+    compile_node(node->rhs);
+    printf("  pop rdi\n");
+  }
   printf("  pop rax\n");
 
   if (var_type_kind == TY_INT) {
@@ -45,14 +49,14 @@ void expand_assign(Node *node) {
   } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
     printf("  mov QWORD PTR [rax], rdi\n");
   }
-  printf("  push rdi\n");
 }
 
 void expand_logical_and(Node *node, int label) {
-    compile_node(node->lhs);
-    printf("  pop rax\n");
-    printf("  cmp rax, 0\n");
-    printf("  je .Lfalse%d\n", label);
+  compile_node(node->lhs);
+  printf("  pop rax\n");
+  printf("  cmp rax, 0\n");
+  printf("  je .Lfalse%d\n", label);
+
   if (node->rhs && node->rhs->kind == ND_LOGICALAND) {
     expand_logical_and(node->rhs, label);
   } else {
@@ -68,6 +72,7 @@ void expand_logical_or(Node *node, int label) {
   printf("  pop rax\n");
   printf("  cmp rax, 0\n");
   printf("  jne .Ltrue%d\n", label);
+
   if (node->rhs && node->rhs->kind == ND_LOGICALAND) {
     expand_logical_or(node->rhs, label);
   } else {
@@ -83,9 +88,11 @@ void expand_ternary(Node *node, int label) {
   printf("  pop rax\n");
   printf("  cmp rax, 0\n");
   printf("  je .Lfalse%d\n", label);
+
   compile_node(node->lhs);
   printf("  jmp .Lnext%d\n", label);
   printf(".Lfalse%d:\n", label);
+
   compile_node(node->rhs);
   printf(".Lnext%d:\n", label);
 }
