@@ -328,39 +328,39 @@ Node *logical_or() {
   return ret;
 }
 
-// logical_and = bitwise_or ("&&" bitwise_or)*
+// logical_and = bitwise_or ("&&" logical_and)?
 Node *logical_and() {
   Node *ret = bitwise_or();
 
-  while (use_symbol("&&")) {
-    ret = new_node(ND_LOGICALAND, ret, bitwise_or());
+  if (use_symbol("&&")) {
+    ret = new_node(ND_LOGICALAND, ret, logical_and());
   }
   return ret;
 }
 
-// bitwise_or = bitwise_xor ("|" bitwise_xor)*
+// bitwise_or = bitwise_xor ("|" bitwise_or)?
 Node *bitwise_or() {
   Node *ret = bitwise_xor();
-  while (use_symbol("|")) {
-    ret = new_node(ND_BITWISEOR, ret, bitwise_xor());
+  if (use_symbol("|")) {
+    ret = new_node(ND_BITWISEOR, ret, bitwise_or());
   }
   return ret;
 }
 
-// bitwise_xor = bitwise_and ("^" bitwise_and)*
+// bitwise_xor = bitwise_and ("^" bitwise_xor)?
 Node *bitwise_xor() {
   Node *ret = bitwise_and();
-  while (use_symbol("^")) {
-    ret = new_node(ND_BITWISEXOR, ret, bitwise_and());
+  if (use_symbol("^")) {
+    ret = new_node(ND_BITWISEXOR, ret, bitwise_xor());
   }
   return ret;
 }
 
-// bitwise_and = same_comp ("&" same_comp)*
+// bitwise_and = same_comp ("&" bitwise_and)?
 Node *bitwise_and() {
   Node *ret = same_comp();
-  while (use_symbol("&")) {
-    ret = new_node(ND_BITWISEAND, ret, same_comp());
+  if (use_symbol("&")) {
+    ret = new_node(ND_BITWISEAND, ret, bitwise_and());
   }
   return ret;
 }

@@ -49,18 +49,18 @@ void expand_assign(Node *node) {
 }
 
 void expand_logical_and(Node *node, int label) {
-  if (node->lhs && node->lhs->kind == ND_LOGICALAND) {
-    expand_logical_and(node->lhs, label);
-  } else {
     compile_node(node->lhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je .Lfalse%d\n", label);
+  if (node->rhs && node->rhs->kind == ND_LOGICALAND) {
+    expand_logical_and(node->rhs, label);
+  } else {
+    compile_node(node->rhs);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je .Lfalse%d\n", label);
   }
-  compile_node(node->rhs);
-  printf("  pop rax\n");
-  printf("  cmp rax, 0\n");
-  printf("  je .Lfalse%d\n", label);
 }
 
 void expand_logical_or(Node *node, int label) {
