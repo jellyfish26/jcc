@@ -21,6 +21,7 @@ Node *new_node_int(int val) {
 void program();
 Node *statement();
 Node *assign();
+Node *logical_and();
 Node *bitwise_or();
 Node *bitwise_xor();
 Node *bitwise_and();
@@ -290,12 +291,22 @@ Node *define_var() {
   return assign();
 }
 
-// assign = bitwise_or ("=" bitwise_or)?
+// assign = logical_and ("=" logical_and)?
 Node *assign() {
-  Node *ret = bitwise_or();
+  Node *ret = logical_and();
 
   if (use_symbol("=")) {
-    ret = new_node(ND_ASSIGN, ret, bitwise_or());
+    ret = new_node(ND_ASSIGN, ret, logical_and());
+  }
+  return ret;
+}
+
+// logical_and = bitwise_or ("&&" bitwise_or)*
+Node *logical_and() {
+  Node *ret = bitwise_or();
+
+  while (use_symbol("&&")) {
+    ret = new_node(ND_LOGICALAND, ret, bitwise_or());
   }
   return ret;
 }

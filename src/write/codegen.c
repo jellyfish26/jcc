@@ -7,6 +7,7 @@ char *args_64reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 char *args_32reg[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 
 void compile_node(Node *node);
+void expand_logical_and(Node *node, int label);
 
 void expand_variable(Node *node) {
   gen_var(node);
@@ -44,6 +45,21 @@ void expand_assign(Node *node) {
     printf("  mov QWORD PTR [rax], rdi\n");
   }
   printf("  push rdi\n");
+}
+
+void expand_logical_and(Node *node, int label) {
+  if (node->lhs && node->lhs->kind == ND_LOGICALAND) {
+    expand_logical_and(node->lhs, label);
+  } else {
+    compile_node(node->lhs);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je .Lend%d\n", label);
+  }
+  compile_node(node->rhs);
+  printf("  pop rax\n");
+  printf("  cmp rax, 0\n");
+  printf("  je .Lend%d\n", label);
 }
 
 void compile_node(Node *node) {
@@ -246,6 +262,16 @@ void compile_node(Node *node) {
     case ND_BITWISEOR:
       printf("  or rax, rdi\n");
       break;
+    case ND_LOGICALAND: {
+       int now_label = label++;
+       expand_logical_and(node, now_label);
+       printf("  mov rax, 1\n");
+       printf("  jmp .Lnext%d\n", now_label);
+       printf(".Lend%d:\n", now_label);
+       printf("  mov rax, 0\n");
+       printf(".Lnext%d:\n", now_label);
+       break;
+      }
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
       break;

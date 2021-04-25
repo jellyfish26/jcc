@@ -380,3 +380,29 @@ int main() {
   return a | b;
 }
 "
+
+assert 5 "
+int main() {
+  int ans = 0;
+  int a = 2;
+  int b = 3;
+  if (a == 2 && b == 3) {
+    ans = 5;
+  }
+  return ans;
+}
+"
+
+assert 3 "
+int main() {
+  int ans = 0;
+  int a = 2;
+  int b = 3;
+  if (a + b == 5 && a == 3) {
+    ans = 5;
+  } else {
+    ans = 3;
+  }
+  return ans;
+}
+"
