@@ -318,12 +318,12 @@ Node *ternary() {
   return ret;
 }
 
-// logical_or = logical_and ("||" logical_and)*
+// logical_or = logical_and ("||" logical_or)?
 Node *logical_or() {
   Node *ret = logical_and();
 
-  while (use_symbol("||")) {
-    ret = new_node(ND_LOGICALOR, ret, bitwise_and());
+  if (use_symbol("||")) {
+    ret = new_node(ND_LOGICALOR, ret, logical_or());
   }
   return ret;
 }

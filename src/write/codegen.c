@@ -64,18 +64,18 @@ void expand_logical_and(Node *node, int label) {
 }
 
 void expand_logical_or(Node *node, int label) {
-  if (node->lhs && node->lhs->kind == ND_LOGICALAND) {
-    expand_logical_or(node->lhs, label);
+  compile_node(node->lhs);
+  printf("  pop rax\n");
+  printf("  cmp rax, 0\n");
+  printf("  jne .Ltrue%d\n", label);
+  if (node->rhs && node->rhs->kind == ND_LOGICALAND) {
+    expand_logical_or(node->rhs, label);
   } else {
-    compile_node(node->lhs);
+    compile_node(node->rhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  jne .Ltrue%d\n", label);
   }
-  compile_node(node->rhs);
-  printf("  pop rax\n");
-  printf("  cmp rax, 0\n");
-  printf("  jne .Ltrue%d\n", label);
 }
 
 void expand_ternary(Node *node, int label) {
