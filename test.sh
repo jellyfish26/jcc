@@ -406,3 +406,29 @@ int main() {
   return ans;
 }
 "
+
+assert 10 "
+int main() {
+  int ans = 0;
+  int a = 2;
+  int b = 3;
+  if (a == 3 || a + b == 5 || b == 2) {
+    ans = 10;
+  }
+  return ans;
+}
+"
+
+assert 2 "
+int main() {
+  int ans = 0;
+  int a = 3;
+  int b = 2;
+  if (a == b || a * b == a || (a | b) == 2) {
+    ans = 5;
+  } else {
+    ans = 2;
+  }
+  return ans;
+}
+"
