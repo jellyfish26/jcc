@@ -78,6 +78,7 @@ typedef enum {
   ND_LOGICALOR,   // "||" (Logical OR)
   ND_TERNARY,     // Ternay operator
   ND_ASSIGN,      // =
+  ND_ASSIGNADD,   // +=
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
   ND_IF,          // "if" statement

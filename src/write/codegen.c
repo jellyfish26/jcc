@@ -24,6 +24,10 @@ void expand_variable(Node *node) {
 
 void expand_assign(Node *node) {
   TypeKind var_type_kind = TY_PTR;
+
+  // The left node must be assignable.
+  // If left node is a direct variable, get the address of the variable.
+  // If left node is a indirect, get original address.
   if (node->lhs->kind == ND_VAR) {
     gen_var(node->lhs);
     var_type_kind = node->lhs->var->var_type->kind;
@@ -36,13 +40,27 @@ void expand_assign(Node *node) {
     errorf(ER_COMPILE, "Cannot assign");
   }
 
-  if (node->rhs->kind == ND_ASSIGN) {
-    expand_assign(node->rhs);
-  } else {
-    compile_node(node->rhs);
-    printf("  pop rdi\n");
+  switch (node->rhs->kind) {
+    case ND_ASSIGN:
+    case ND_ASSIGNADD:
+      expand_assign(node->rhs);
+      break;
+    default:
+      compile_node(node->rhs);
+      printf("  pop rdi\n");
   }
   printf("  pop rax\n");
+
+  switch (node->kind) {
+    case ND_ASSIGNADD: {
+      if (var_type_kind == TY_INT) {
+        printf("  add edi, DWORD PTR [rax]\n");
+      } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
+        printf("  add rdi, QWORD PTR [rax]\n");
+      }
+      break;
+    }
+  }
 
   if (var_type_kind == TY_INT) {
     printf("  mov DWORD PTR [rax], edi\n");
@@ -123,6 +141,7 @@ void compile_node(Node *node) {
       }
       return;
     case ND_ASSIGN:
+    case ND_ASSIGNADD:
       expand_assign(node);
       return;
     case ND_RETURN:

@@ -461,3 +461,11 @@ int main() {
   return a + b;
 }
 "
+
+assert 10 "
+int main() {
+  int a = 2;
+  a += 5;
+  return a + 3;
+}
+"
