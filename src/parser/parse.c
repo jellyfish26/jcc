@@ -293,7 +293,7 @@ Node *define_var() {
   return assign();
 }
 
-// assign = ternary ("=" assign | "+=" assign)?
+// assign = ternary ("=" assign | "+=" assign | "-=" assign)?
 Node *assign() {
   Node *ret = ternary();
 
@@ -301,6 +301,8 @@ Node *assign() {
     ret = new_node(ND_ASSIGN, ret, assign());
   } else if (use_symbol("+=")) {
     ret = new_node(ND_ASSIGNADD, ret, assign());
+  } else if (use_symbol("-=")) {
+    ret = new_node(ND_ASSIGNSUB, ret, assign());
   }
   return ret;
 }

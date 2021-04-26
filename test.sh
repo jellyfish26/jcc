@@ -469,3 +469,39 @@ int main() {
   return a + 3;
 }
 "
+
+assert 18 "
+int main() {
+  int a = 2;
+  int b = 3;
+  a += b += 5;
+  return a + b;
+}
+"
+
+assert 5 "
+int main() {
+  int a = 10;
+  a -= 7;
+  return a + 2;
+}
+"
+
+assert 10 "
+int main() {
+  int a = 10;
+  int b = 3;
+  int c = 7;
+  a -= c -= b;
+  return a + c;
+}
+"
+
+assert 9 "
+int main() {
+  int a = 3;
+  int b = 5;
+  a += b -= 2;
+  return a + b;
+}
+"

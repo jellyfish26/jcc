@@ -43,6 +43,7 @@ void expand_assign(Node *node) {
   switch (node->rhs->kind) {
     case ND_ASSIGN:
     case ND_ASSIGNADD:
+    case ND_ASSIGNSUB:
       expand_assign(node->rhs);
       break;
     default:
@@ -58,6 +59,20 @@ void expand_assign(Node *node) {
       } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
         printf("  add rdi, QWORD PTR [rax]\n");
       }
+      break;
+    }
+    case ND_ASSIGNSUB: {
+      printf("  push rax\n");
+      if (var_type_kind == TY_INT) {
+        printf("  mov eax, DWORD PTR [rax]\n");
+        printf("  sub eax, edi\n");
+        printf("  mov edi, eax\n");
+      } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
+        printf("  mov rax, QWORD PTR [rax]\n");
+        printf("  sub rax, rdi\n");
+        printf("  mov rdi, rax\n");
+      }
+      printf("  pop rax\n");
       break;
     }
   }
@@ -142,6 +157,7 @@ void compile_node(Node *node) {
       return;
     case ND_ASSIGN:
     case ND_ASSIGNADD:
+    case ND_ASSIGNSUB:
       expand_assign(node);
       return;
     case ND_RETURN:
