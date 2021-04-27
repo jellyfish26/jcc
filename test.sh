@@ -505,3 +505,22 @@ int main() {
   return a + b;
 }
 "
+
+assert 15 "
+int main() {
+  int a = 2;
+  int b = 3;
+  a *= b += 2;
+  return a + b;
+}
+"
+
+assert 18 "
+int main() {
+  int a = 3;
+  int b = 2;
+  a *= b *= 3;
+  return a;
+}
+"
+

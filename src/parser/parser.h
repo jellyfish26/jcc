@@ -80,6 +80,7 @@ typedef enum {
   ND_ASSIGN,      // =
   ND_ASSIGNADD,   // +=
   ND_ASSIGNSUB,   // -=
+  ND_ASSINGMUL,   // *=
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
   ND_IF,          // "if" statement

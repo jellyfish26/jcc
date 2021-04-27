@@ -37,16 +37,18 @@ bool str_check(char *top_str, char *comp_str) {
           !is_ident_char(*(top_str + comp_len)));
 }
 
+char *permit_symbol[] = {
+  "/", "(", ")", ";", "{", "}", "[", "]",
+  "<<", "<=", "<", ">>", ">=", ">", "==", "!=",
+  "=", "++", "+=", "+", "--", "-=", "-", "*=", "*",
+  "%", "^", "||", "|", "&&", "&", "?", ":", ","
+};
+
 // Update source token
 void *tokenize() {
   Token head;
   SourceLine *now_line = source_code;
   Token *ret = &head;
-
-  char *permit_symbol[] = {"*",  "/",  "(",  ")",  ";", "{", "}", "[", "]",
-                           ",", "<<", ">>", "<=", ">=", "==", "!=", "<", ">",
-                           "=", "++", "+=", "+", "--", "-=", "-", "%", "^",
-                           "||", "|", "&&", "&", "?", ":"};
 
   char *now_str;
   while (now_line) {
