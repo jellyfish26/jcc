@@ -305,7 +305,9 @@ Node *assign() {
   } else if (use_symbol("-=")) {
     ret = new_node(ND_ASSIGNSUB, ret, assign());
   } else if (use_symbol("*=")) {
-    ret = new_node(ND_ASSINGMUL, ret, assign());
+    ret = new_node(ND_ASSIGNMUL, ret, assign());
+  } else if (use_symbol("/=")) {
+    ret = new_node(ND_ASSIGNDIV, ret, assign());
   }
   return ret;
 }

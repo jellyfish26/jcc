@@ -524,3 +524,20 @@ int main() {
 }
 "
 
+assert 3 "
+int main() {
+  int a = 6;
+  int b = 4;
+  a /= b /= 2;
+  return a;
+}
+"
+
+assert 10 "
+int main() {
+  long a = 30;
+  long b = 6;
+  a /= b /= 2;
+  return a;
+}
+"
