@@ -21,7 +21,8 @@ typedef enum {
   REG_R12,  // r12, r12d, r12w, r12b
   REG_R13,  // r13, r13d, r13w, r13b
   REG_R14,  // r14, r14d, r14w, r14b
-  REG_R15   // r15, r15d, r15w, r15b
+  REG_R15,  // r15, r15d, r15w, r15b
+  REG_MEM,  // Memory
 } RegKind;
 
 typedef enum {
@@ -36,10 +37,12 @@ typedef enum {
 //
 
 const char *get_reg(RegKind reg_kind, RegSizeKind reg_size);
+RegSizeKind convert_type_to_size(TypeKind var_type);
 
 void gen_compare(char *comp, TypeKind var_type_kind);
-void gen_var(Node *node);
+void gen_var_address(Node *node);
 
+bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 
 //
 // codegen.c

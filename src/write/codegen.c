@@ -11,7 +11,7 @@ void expand_logical_and(Node *node, int label);
 void expand_logical_or(Node *node, int label);
 
 void expand_variable(Node *node) {
-  gen_var(node);
+  gen_var_address(node);
   printf("  pop rax\n");
   TypeKind var_type_kind = node->var->var_type->kind;
   if (var_type_kind == TY_INT) {
@@ -29,7 +29,7 @@ void expand_assign(Node *node) {
   // If left node is a direct variable, get the address of the variable.
   // If left node is a indirect, get original address.
   if (node->lhs->kind == ND_VAR) {
-    gen_var(node->lhs);
+    gen_var_address(node->lhs);
     var_type_kind = node->lhs->var->var_type->kind;
   } else if (node->lhs->kind == ND_CONTENT) {
     compile_node(node->lhs->lhs);
@@ -52,11 +52,7 @@ void expand_assign(Node *node) {
 
   switch (node->assign_type) {
     case ND_ADD: {
-      if (var_type_kind == TY_INT) {
-        printf("  add edi, DWORD PTR [rax]\n");
-      } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-        printf("  add rdi, QWORD PTR [rax]\n");
-      }
+      gen_instruction_add(REG_RDI, REG_MEM, convert_type_to_size(var_type_kind));
       break;
     }
     case ND_SUB: {
@@ -175,7 +171,7 @@ void compile_node(Node *node) {
       return;
     case ND_ADDR:
       if (node->lhs->kind == ND_VAR) {
-        gen_var(node->lhs);
+        gen_var_address(node->lhs);
       } else if (node->lhs->kind == ND_CONTENT) {
         compile_node(node->lhs->lhs);
       }
@@ -331,7 +327,7 @@ void compile_node(Node *node) {
   // calculation
   switch (node->kind) {
     case ND_ADD:
-      printf("  add rax, rdi\n");
+      gen_operator_add(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
       break;
     case ND_SUB:
       printf("  sub rax, rdi\n");
@@ -425,7 +421,7 @@ void codegen() {
     int arg_count = now_func->func_argc - 1;
     for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
       if (arg_count < 6) {
-        gen_var(arg);
+        gen_var_address(arg);
         printf("  pop rax\n");
         switch (arg->var->var_type->kind) {
         case TY_INT:
@@ -443,7 +439,7 @@ void codegen() {
     arg_count = now_func->func_argc - 1;
     for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
       if (arg_count >= 6) {
-        gen_var(arg);
+        gen_var_address(arg);
         printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  pop rsi\n");
         switch (arg->var->var_type->kind) {

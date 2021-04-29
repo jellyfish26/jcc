@@ -3,22 +3,26 @@
 
 const char *reg_8byte[] = {
   "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
-  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+  "QWORD PTR [rax]"
 };
 
 const char *reg_4byte[] = {
   "eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp",
-  "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"
+  "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d",
+  "DWORD PTR [rax]"
 };
 
 const char *reg_2byte[] = {
   "ax", "bx", "cx", "dx", "si", "di", "bp", "sp",
-  "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w"
+  "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w",
+  "WORD PTR [rax]"
 };
 
 const char *reg_1byte[] = {
   "al", "bl", "cl", "dl", "sil", "dil", "bpl", "spl",
-  "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b"
+  "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b",
+  "BYTE PTR [rax]"
 };
 
 const char *get_reg(RegKind reg_kind, RegSizeKind reg_size) {
@@ -51,7 +55,7 @@ void gen_compare(char *comp_op, TypeKind type_kind) {
   printf("  movzx rax, al\n");
 }
 
-void gen_var(Node *node) {
+void gen_var_address(Node *node) {
   if (node->kind != ND_VAR && node->kind != ND_ADDR) {
     errorf(ER_COMPILE, "Not variable");
   }
@@ -60,3 +64,17 @@ void gen_var(Node *node) {
   printf("  sub rax, %d\n", node->var->offset);
   printf("  push rax\n");
 }
+
+// left_reg = left_reg + right_reg
+// If the return value is true, the generation succeeded,
+// and if it is negative, the generation failed.
+bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
+  if (left_reg == REG_MEM) {
+    return false;
+  }
+  printf("  add %s, %s\n",
+      get_reg(left_reg, reg_size),
+      get_reg(right_reg, reg_size));
+  return true;
+}
+
