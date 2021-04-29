@@ -65,9 +65,18 @@ void gen_var_address(Node *node) {
   printf("  push rax\n");
 }
 
+// left_reg = right_reg
+bool gen_instruction_mov(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
+  if (left_reg == REG_MEM && right_reg == REG_MEM) {
+    return false;
+  }
+  printf("  mov %s, %s\n",
+      get_reg(left_reg, reg_size),
+      get_reg(right_reg, reg_size));
+  return true;
+}
+
 // left_reg = left_reg + right_reg
-// If the return value is true, the generation succeeded,
-// and if it is negative, the generation failed.
 bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
   if (left_reg == REG_MEM) {
     return false;

@@ -42,6 +42,9 @@ RegSizeKind convert_type_to_size(TypeKind var_type);
 void gen_compare(char *comp, TypeKind var_type_kind);
 void gen_var_address(Node *node);
 
+// If the return value is true, the generation succeeded,
+// and if it is negative, the generation failed.
+bool gen_instruction_mov(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 
 //

@@ -3,8 +3,10 @@
 #include <stdio.h>
 
 int label = 0;
-const char *args_64reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
-const char *args_32reg[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+
+const RegKind args_reg[] = {
+  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
+};
 
 void compile_node(Node *node);
 void expand_logical_and(Node *node, int label);
@@ -57,12 +59,14 @@ void expand_assign(Node *node) {
     }
     case ND_SUB: {
       printf("  push rax\n");
+      gen_instruction_mov(
+          REG_RAX,
+          REG_MEM,
+          convert_type_to_size(var_type_kind));
       if (var_type_kind == TY_INT) {
-        printf("  mov eax, DWORD PTR [rax]\n");
         printf("  sub eax, edi\n");
         printf("  mov edi, eax\n");
       } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-        printf("  mov rax, QWORD PTR [rax]\n");
         printf("  sub rax, rdi\n");
         printf("  mov rdi, rax\n");
       }
@@ -78,31 +82,33 @@ void expand_assign(Node *node) {
       break;
     }
     case ND_DIV: {
+      printf("  push rax\n");
+      gen_instruction_mov(
+          REG_RAX,
+          REG_MEM,
+          convert_type_to_size(var_type_kind));
       if (var_type_kind == TY_INT) {
-        printf("  push rax\n");
-        printf("  mov eax, DWORD PTR [rax]\n");
         printf("  cdq\n");
         printf("  idiv edi\n");
         printf("  mov edi, eax\n");
         printf("  pop rax\n");
-        printf("  mov DWORD PTR [rax], edi\n");
       } else if(var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-        printf("  push rax\n");
-        printf("  mov rax, QWORD PTR [rax]\n");
         printf("  cqo\n");
         printf("  idiv rdi\n");
         printf("  mov rdi, rax\n");
         printf("  pop rax\n");
-        printf("  mov QWORD PTR [rax], rdi\n");
       }
+      gen_instruction_mov(
+          REG_MEM,
+          REG_RDI,
+          convert_type_to_size(var_type_kind));
     }
   }
 
-  if (var_type_kind == TY_INT) {
-    printf("  mov DWORD PTR [rax], edi\n");
-  } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-    printf("  mov QWORD PTR [rax], rdi\n");
-  }
+  gen_instruction_mov(
+      REG_MEM,
+      REG_RDI,
+      convert_type_to_size(var_type_kind));
 }
 
 void expand_logical_and(Node *node, int label) {
@@ -295,7 +301,7 @@ void compile_node(Node *node) {
     }
 
     for (int arg_idx = 0; arg_idx < arg_count && arg_idx < 6; arg_idx++) {
-      printf("  pop %s\n", args_64reg[arg_idx]);
+      printf("  pop %s\n", get_reg(args_reg[arg_idx], REG_SIZE_8));
     }
 
     printf("  call %s\n", name);
@@ -327,7 +333,7 @@ void compile_node(Node *node) {
   // calculation
   switch (node->kind) {
     case ND_ADD:
-      gen_operator_add(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
+      gen_instruction_add(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
       break;
     case ND_SUB:
       printf("  sub rax, rdi\n");
@@ -352,14 +358,16 @@ void compile_node(Node *node) {
         case TY_INT:
           printf("  cdq\n");
           printf("  idiv edi\n");
-          printf("  mov eax, edx\n");
           break;
         case TY_LONG:
           printf("  cqo\n");
           printf("  idiv rdi\n");
-          printf("  mov rax, rdx\n");
           break;
       }
+      gen_instruction_mov(
+          REG_RAX,
+          REG_RDX,
+          convert_type_to_size(formula_type_kind));
       break;
     case ND_LEFTSHIFT:
       printf("  mov rcx, rdi\n");
@@ -423,14 +431,10 @@ void codegen() {
       if (arg_count < 6) {
         gen_var_address(arg);
         printf("  pop rax\n");
-        switch (arg->var->var_type->kind) {
-        case TY_INT:
-          printf("  mov DWORD PTR [rax], %s\n", args_32reg[arg_count]);
-          break;
-        case TY_LONG:
-          printf("  mov QWORD PTR [rax], %s\n", args_64reg[arg_count]);
-          break;
-        }
+        gen_instruction_mov(
+            REG_MEM,
+            args_reg[arg_count],
+            convert_type_to_size(arg->var->var_type->kind));
       }
       arg_count--;
     }
@@ -441,15 +445,12 @@ void codegen() {
       if (arg_count >= 6) {
         gen_var_address(arg);
         printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
-        printf("  pop rsi\n");
-        switch (arg->var->var_type->kind) {
-        case TY_INT:
-          printf("  mov DWORD PTR [rsi], eax\n");
-          break;
-        case TY_LONG:
-          printf("  mov QWORD PTR [rsi], rax\n");
-          break;
-        }
+        printf("  mov rdi, rax\n");
+        printf("  pop rax\n");
+        gen_instruction_mov(
+            REG_MEM,
+            REG_RDI,
+            convert_type_to_size(arg->var->var_type->kind));
       }
       arg_count--;
     }
