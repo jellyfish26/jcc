@@ -294,7 +294,7 @@ Node *define_var() {
 }
 
 // assign = ternary ("=" assign | "+=" assign | "-=" assign
-//                   "*=" assign)?
+//                   "*=" assign | "/=" assign)?
 Node *assign() {
   Node *ret = ternary();
 

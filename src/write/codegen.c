@@ -3,8 +3,8 @@
 #include <stdio.h>
 
 int label = 0;
-char *args_64reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
-char *args_32reg[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+const char *args_64reg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+const char *args_32reg[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 
 void compile_node(Node *node);
 void expand_logical_and(Node *node, int label);
