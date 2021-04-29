@@ -42,10 +42,6 @@ void expand_assign(Node *node) {
 
   switch (node->rhs->kind) {
     case ND_ASSIGN:
-    case ND_ASSIGNADD:
-    case ND_ASSIGNSUB:
-    case ND_ASSIGNMUL:
-    case ND_ASSIGNDIV:
       expand_assign(node->rhs);
       break;
     default:
@@ -54,8 +50,8 @@ void expand_assign(Node *node) {
   }
   printf("  pop rax\n");
 
-  switch (node->kind) {
-    case ND_ASSIGNADD: {
+  switch (node->assign_type) {
+    case ND_ADD: {
       if (var_type_kind == TY_INT) {
         printf("  add edi, DWORD PTR [rax]\n");
       } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
@@ -63,7 +59,7 @@ void expand_assign(Node *node) {
       }
       break;
     }
-    case ND_ASSIGNSUB: {
+    case ND_SUB: {
       printf("  push rax\n");
       if (var_type_kind == TY_INT) {
         printf("  mov eax, DWORD PTR [rax]\n");
@@ -77,7 +73,7 @@ void expand_assign(Node *node) {
       printf("  pop rax\n");
       break;
     }
-    case ND_ASSIGNMUL: {
+    case ND_MUL: {
       if (var_type_kind == TY_INT) {
         printf("  imul edi, DWORD PTR [rax]\n");
       } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
@@ -85,7 +81,7 @@ void expand_assign(Node *node) {
       }
       break;
     }
-    case ND_ASSIGNDIV: {
+    case ND_DIV: {
       if (var_type_kind == TY_INT) {
         printf("  push rax\n");
         printf("  mov eax, DWORD PTR [rax]\n");
@@ -185,10 +181,6 @@ void compile_node(Node *node) {
       }
       return;
     case ND_ASSIGN:
-    case ND_ASSIGNADD:
-    case ND_ASSIGNSUB:
-    case ND_ASSIGNMUL:
-    case ND_ASSIGNDIV:
       expand_assign(node);
       return;
     case ND_RETURN:

@@ -77,11 +77,7 @@ typedef enum {
   ND_LOGICALAND,  // "&&" (Logical AND)
   ND_LOGICALOR,   // "||" (Logical OR)
   ND_TERNARY,     // Ternay operator
-  ND_ASSIGN,      // =
-  ND_ASSIGNADD,   // +=
-  ND_ASSIGNSUB,   // -=
-  ND_ASSIGNMUL,   // *=
-  ND_ASSIGNDIV,   // /=
+  ND_ASSIGN,      // Assign
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
   ND_IF,          // "if" statement
@@ -113,6 +109,8 @@ struct Node {
   Node *stmt_for;   // statement in exec "for"
 
   Node *next_stmt; // Block statement
+
+  NodeKind assign_type; // Type of assign
 
   int val;   // value if kind is ND_INT
   int label; // label (only "for" or "while" statement)

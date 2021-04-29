@@ -17,6 +17,13 @@ Node *new_node_int(int val) {
   return ret;
 }
 
+// kind is ND_ASSIGN if operation only assign
+Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
+  Node *ret = new_node(ND_ASSIGN, lhs, rhs);
+  ret->assign_type = kind;
+  return ret;
+}
+
 // Prototype
 void program();
 Node *statement();
@@ -286,7 +293,7 @@ Node *define_var() {
     }
 
     if (use_symbol("=")) {
-      ret = new_node(ND_ASSIGN, ret, assign());
+      ret = new_assign_node(ND_ASSIGN, ret, assign());
     }
     return ret;
   }
@@ -299,15 +306,15 @@ Node *assign() {
   Node *ret = ternary();
 
   if (use_symbol("=")) {
-    ret = new_node(ND_ASSIGN, ret, assign());
+    ret = new_assign_node(ND_ASSIGN, ret, assign());
   } else if (use_symbol("+=")) {
-    ret = new_node(ND_ASSIGNADD, ret, assign());
+    ret = new_assign_node(ND_ADD, ret, assign());
   } else if (use_symbol("-=")) {
-    ret = new_node(ND_ASSIGNSUB, ret, assign());
+    ret = new_assign_node(ND_SUB, ret, assign());
   } else if (use_symbol("*=")) {
-    ret = new_node(ND_ASSIGNMUL, ret, assign());
+    ret = new_assign_node(ND_MUL, ret, assign());
   } else if (use_symbol("/=")) {
-    ret = new_node(ND_ASSIGNDIV, ret, assign());
+    ret = new_assign_node(ND_DIV, ret, assign());
   }
   return ret;
 }
@@ -477,12 +484,12 @@ Node *prefix_inc_or_dec() {
   if (use_symbol("++")) {
     Node *ret = new_node(ND_ADD, priority(), new_node_int(1));
     raise_type_for_node(ret);
-    ret = new_node(ND_ASSIGN, ret->lhs, ret);
+    ret = new_assign_node(ND_ASSIGN, ret->lhs, ret);
     return ret;
   } else if (use_symbol("--")) {
     Node *ret = new_node(ND_SUB, priority(), new_node_int(1));
     raise_type_for_node(ret);
-    ret = new_node(ND_ASSIGN, ret->lhs, ret);
+    ret = new_assign_node(ND_ASSIGN, ret->lhs, ret);
     return ret;
   }
   return priority();
