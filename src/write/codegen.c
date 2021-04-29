@@ -76,11 +76,10 @@ void expand_assign(Node *node) {
       break;
     }
     case ND_MUL: {
-      if (var_type_kind == TY_INT) {
-        printf("  imul edi, DWORD PTR [rax]\n");
-      } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-        printf("  imul rdi, QWORD PTR [rax]\n");
-      }
+      gen_instruction_mul(
+          REG_RDI,
+          REG_MEM,
+          convert_type_to_size(var_type_kind));
       break;
     }
     case ND_DIV: {
@@ -89,17 +88,12 @@ void expand_assign(Node *node) {
           REG_RAX,
           REG_MEM,
           convert_type_to_size(var_type_kind));
-      if (var_type_kind == TY_INT) {
-        printf("  cdq\n");
-        printf("  idiv edi\n");
-        printf("  mov edi, eax\n");
-        printf("  pop rax\n");
-      } else if(var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-        printf("  cqo\n");
-        printf("  idiv rdi\n");
-        printf("  mov rdi, rax\n");
-        printf("  pop rax\n");
-      }
+      gen_instruction_div(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(var_type_kind),
+          false);
+      printf("  pop rax\n");
       gen_instruction_mov(
           REG_MEM,
           REG_RDI,
@@ -338,38 +332,16 @@ void compile_node(Node *node) {
       gen_instruction_add(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
       break;
     case ND_SUB:
-      gen_instruction_sub(REG_RAX, REG_RDI,convert_type_to_size(formula_type_kind));
+      gen_instruction_sub(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
       break;
     case ND_MUL:
-      printf("  imul rax, rdi\n");
+      gen_instruction_mul(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
       break;
     case ND_DIV:
-      switch (formula_type_kind) {
-        case TY_INT:
-          printf("  cdq\n");
-          printf("  idiv eax, edi\n");
-          break;
-        case TY_LONG:
-          printf("  cqo\n");
-          printf("  idiv rax, rdi\n");
-          break;
-      }
+      gen_instruction_div(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind), false);
       break;
     case ND_REMAINDER:
-      switch (formula_type_kind) {
-        case TY_INT:
-          printf("  cdq\n");
-          printf("  idiv edi\n");
-          break;
-        case TY_LONG:
-          printf("  cqo\n");
-          printf("  idiv rdi\n");
-          break;
-      }
-      gen_instruction_mov(
-          REG_RAX,
-          REG_RDX,
-          convert_type_to_size(formula_type_kind));
+      gen_instruction_div(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind), true);
       break;
     case ND_LEFTSHIFT:
       printf("  mov rcx, rdi\n");

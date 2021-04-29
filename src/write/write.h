@@ -47,6 +47,8 @@ void gen_var_address(Node *node);
 bool gen_instruction_mov(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
+bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
+bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder);
 
 //
 // codegen.c

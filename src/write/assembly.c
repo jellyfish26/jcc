@@ -98,3 +98,51 @@ bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
       get_reg(right_reg, reg_size));
   return true;
 }
+
+// left_reg = left_reg * right_reg
+bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
+  if (left_reg == REG_MEM) {
+    return false;
+  }
+  if (reg_size == REG_SIZE_1) {
+    if (right_reg == REG_MEM) {
+      return false;
+    }
+    reg_size = REG_SIZE_2;
+  }
+
+  printf("  imul %s, %s\n",
+      get_reg(left_reg, reg_size),
+      get_reg(right_reg, reg_size));
+  return true;
+}
+
+// left_reg = left_reg / right_reg
+// left_reg = left_reg % right_reg
+// This function overwrites the rax and rdx registers
+bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder) {
+  if (left_reg == REG_MEM) {
+    return false;
+  }
+  if (left_reg != REG_RAX) {
+    gen_instruction_mov(
+        REG_RAX,
+        left_reg,
+        reg_size);
+  }
+
+  if (reg_size == REG_SIZE_8) {
+    printf("  cqo\n");
+  } else {
+    printf("  cdq\n");
+  }
+
+  printf("  idiv %s\n",
+      get_reg(right_reg, reg_size));
+  if (is_remainder) {
+    gen_instruction_mov(left_reg, REG_RDX, reg_size);
+  } else {
+    gen_instruction_mov(right_reg, REG_RAX, reg_size);
+  }
+  return true;
+}
