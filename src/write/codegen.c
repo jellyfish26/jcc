@@ -16,10 +16,11 @@ void expand_variable(Node *node) {
   gen_var_address(node);
   printf("  pop rax\n");
   TypeKind var_type_kind = node->var->var_type->kind;
-  if (var_type_kind == TY_INT) {
-    printf("  mov eax, DWORD PTR [rax]\n");
-  } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-    printf("  mov rax, QWORD PTR [rax]\n");
+  if (var_type_kind != TY_ARRAY) {
+    gen_instruction_mov(
+        REG_RAX,
+        REG_MEM,
+        convert_type_to_size(var_type_kind));
   }
   printf("  push rax\n");
 }
@@ -63,13 +64,14 @@ void expand_assign(Node *node) {
           REG_RAX,
           REG_MEM,
           convert_type_to_size(var_type_kind));
-      if (var_type_kind == TY_INT) {
-        printf("  sub eax, edi\n");
-        printf("  mov edi, eax\n");
-      } else if (var_type_kind == TY_LONG || var_type_kind == TY_PTR) {
-        printf("  sub rax, rdi\n");
-        printf("  mov rdi, rax\n");
-      }
+      gen_instruction_sub(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(var_type_kind));
+      gen_instruction_mov(
+          REG_RDI,
+          REG_RAX,
+          convert_type_to_size(var_type_kind));
       printf("  pop rax\n");
       break;
     }
@@ -336,7 +338,7 @@ void compile_node(Node *node) {
       gen_instruction_add(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
       break;
     case ND_SUB:
-      printf("  sub rax, rdi\n");
+      gen_instruction_sub(REG_RAX, REG_RDI,convert_type_to_size(formula_type_kind));
       break;
     case ND_MUL:
       printf("  imul rax, rdi\n");

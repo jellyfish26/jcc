@@ -22,7 +22,7 @@ typedef enum {
   REG_R13,  // r13, r13d, r13w, r13b
   REG_R14,  // r14, r14d, r14w, r14b
   REG_R15,  // r15, r15d, r15w, r15b
-  REG_MEM,  // Memory
+  REG_MEM,  // Memory (Must set address in rax)
 } RegKind;
 
 typedef enum {
@@ -46,6 +46,7 @@ void gen_var_address(Node *node);
 // and if it is negative, the generation failed.
 bool gen_instruction_mov(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
+bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 
 //
 // codegen.c

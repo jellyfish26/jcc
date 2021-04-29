@@ -87,3 +87,14 @@ bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
   return true;
 }
 
+// left_reg = left_reg - right_reg
+bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
+  if (left_reg == REG_MEM) {
+    return false;
+  }
+
+  printf("  sub %s, %s\n",
+      get_reg(left_reg, reg_size),
+      get_reg(right_reg, reg_size));
+  return true;
+}
