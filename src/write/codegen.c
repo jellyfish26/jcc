@@ -82,7 +82,8 @@ void expand_assign(Node *node) {
           convert_type_to_size(var_type_kind));
       break;
     }
-    case ND_DIV: {
+    case ND_DIV:
+    case ND_REMAINDER: {
       printf("  push rax\n");
       gen_instruction_mov(
           REG_RAX,
@@ -92,7 +93,11 @@ void expand_assign(Node *node) {
           REG_RAX,
           REG_RDI,
           convert_type_to_size(var_type_kind),
-          false);
+          node->assign_type == ND_REMAINDER);
+      gen_instruction_mov(
+          REG_RDI,
+          REG_RAX,
+          convert_type_to_size(var_type_kind));
       printf("  pop rax\n");
       gen_instruction_mov(
           REG_MEM,

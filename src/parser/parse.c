@@ -315,6 +315,8 @@ Node *assign() {
     ret = new_assign_node(ND_MUL, ret, assign());
   } else if (use_symbol("/=")) {
     ret = new_assign_node(ND_DIV, ret, assign());
+  } else if (use_symbol("%=")) {
+    ret = new_assign_node(ND_REMAINDER, ret, assign());
   }
   return ret;
 }

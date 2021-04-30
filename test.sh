@@ -541,3 +541,12 @@ int main() {
   return a;
 }
 "
+
+assert 10 "
+int main() {
+  int a = 3;
+  int b = 5;
+  a %= b %= 3;
+  return a + 9;
+}
+"
