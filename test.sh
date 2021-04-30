@@ -575,3 +575,30 @@ int main() {
   return b + a;
 }
 "
+
+assert 5 "
+int main() {
+  int a = 5;
+  int b = 15;
+  a &= b &= 29;
+  return a;
+}
+"
+
+assert 23 "
+int main() {
+  int a = 5;
+  int b = 15;
+  a ^= b ^= 29;
+  return a;
+}
+"
+
+assert 31 "
+int main() {
+  int a = 5;
+  int b = 15;
+  a |= b |= 29;
+  return a;
+}
+"

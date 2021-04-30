@@ -53,6 +53,10 @@ bool gen_instruction_bitwise_shift(RegKind left_reg,
                                    RegKind right_reg,
                                    RegSizeKind reg_size,
                                    bool shift_left);
+bool gen_instruction_bitwise_operation(RegKind left_reg,
+                                       RegKind right_reg,
+                                       RegSizeKind reg_size,
+                                       int operation);
 
 //
 // codegen.c

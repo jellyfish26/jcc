@@ -153,10 +153,6 @@ bool gen_instruction_bitwise_shift(RegKind left_reg,
                                    RegKind right_reg,
                                    RegSizeKind reg_size,
                                    bool shift_left) {
-  if (left_reg == REG_MEM) {
-    return false;
-  }
-
   if (right_reg != REG_RCX) {
     gen_instruction_mov(
         REG_RCX,
@@ -168,6 +164,30 @@ bool gen_instruction_bitwise_shift(RegKind left_reg,
     printf("  sal %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, REG_SIZE_1));
   } else {
     printf("  sar %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, REG_SIZE_1));
+  }
+  return true;
+}
+
+// left_reg = left_reg ("&" | "^" | "|") right_reg
+// In the case of AND, operation is 001
+// In the case of XOR, operation is 010
+// In the case of OR, operation is 100
+bool gen_instruction_bitwise_operation(RegKind left_reg,
+                                       RegKind right_reg,
+                                       RegSizeKind reg_size,
+                                       int operation) {
+  if (left_reg == REG_MEM && right_reg == REG_MEM) {
+    return false;
+  }
+
+  if (operation == (1<<0)) {
+    printf("  and %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+  } else if (operation == (1<<1)) {
+    printf("  xor %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+  } else if (operation == (1<<2)) {
+    printf("  or %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+  } else {
+    return false;
   }
   return true;
 }

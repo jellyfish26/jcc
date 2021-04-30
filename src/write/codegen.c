@@ -106,25 +106,36 @@ void expand_assign(Node *node) {
       break;
     }
     case ND_LEFTSHIFT:
-    case ND_RIGHTSHIFT: {
-      printf("  push rax\n");
-      gen_instruction_mov(
-          REG_RAX,
-          REG_MEM,
-          convert_type_to_size(var_type_kind));
+    case ND_RIGHTSHIFT:
       gen_instruction_bitwise_shift(
-          REG_RAX,
+          REG_MEM,
           REG_RDI,
           convert_type_to_size(var_type_kind),
           node->assign_type == ND_LEFTSHIFT);
       gen_instruction_mov(
           REG_RDI,
-          REG_RAX,
+          REG_MEM,
           convert_type_to_size(var_type_kind));
-      printf("  pop rax\n");
-      gen_instruction_mov(
+      break;
+    case ND_BITWISEAND:
+    case ND_BITWISEXOR:
+    case ND_BITWISEOR: {
+      int operation = 0;
+      if (node->assign_type == ND_BITWISEAND) {
+        operation = (1<<0);
+      } else if (node->assign_type == ND_BITWISEXOR) {
+        operation = (1<<1);
+      } else {
+        operation = (1<<2);
+      }
+      gen_instruction_bitwise_operation(
           REG_MEM,
           REG_RDI,
+          convert_type_to_size(var_type_kind),
+          operation);
+      gen_instruction_mov(
+          REG_RDI,
+          REG_MEM,
           convert_type_to_size(var_type_kind));
       break;
     }
@@ -381,13 +392,25 @@ void compile_node(Node *node) {
           node->kind == ND_LEFTSHIFT);
       break;
     case ND_BITWISEAND:
-      printf("  and rax, rdi\n");
+      gen_instruction_bitwise_operation(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(formula_type_kind),
+          (1<<0));
       break;
     case ND_BITWISEXOR:
-      printf("  xor rax, rdi\n");
+      gen_instruction_bitwise_operation(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(formula_type_kind),
+          (1<<1));
       break;
     case ND_BITWISEOR:
-      printf("  or rax, rdi\n");
+      gen_instruction_bitwise_operation(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(formula_type_kind),
+          (1<<2));
       break;
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
