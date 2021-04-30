@@ -119,7 +119,7 @@ bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
 
 // left_reg = left_reg / right_reg
 // left_reg = left_reg % right_reg
-// This function overwrites the rax and rdx registers
+// This function overwrites rax and rdx registers
 bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder) {
   if (left_reg == REG_MEM) {
     return false;
@@ -137,12 +137,37 @@ bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
     printf("  cdq\n");
   }
 
-  printf("  idiv %s\n",
-      get_reg(right_reg, reg_size));
+  printf("  idiv %s\n", get_reg(right_reg, reg_size));
   if (is_remainder) {
     gen_instruction_mov(left_reg, REG_RDX, reg_size);
   } else {
     gen_instruction_mov(right_reg, REG_RAX, reg_size);
+  }
+  return true;
+}
+
+// left_reg = left_reg << right_reg
+// left_reg = left_reg >> right_reg
+// This function overwrites rcx register
+bool gen_instruction_bitwise_shift(RegKind left_reg,
+                                   RegKind right_reg,
+                                   RegSizeKind reg_size,
+                                   bool shift_left) {
+  if (left_reg == REG_MEM) {
+    return false;
+  }
+
+  if (right_reg != REG_RCX) {
+    gen_instruction_mov(
+        REG_RCX,
+        right_reg,
+        reg_size);
+  }
+
+  if (shift_left) {
+    printf("  sal %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, REG_SIZE_1));
+  } else {
+    printf("  sar %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, REG_SIZE_1));
   }
   return true;
 }

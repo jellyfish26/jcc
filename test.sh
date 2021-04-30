@@ -550,3 +550,28 @@ int main() {
   return a + 9;
 }
 "
+
+assert 32 "
+int main() {
+  int a = 2;
+  a <<= 4;
+  return a;
+}
+"
+
+assert 4 "
+int main() {
+  int a = 128;
+  a >>= 5;
+  return a;
+}
+"
+
+assert 20 "
+int main() {
+  int a = 2;
+  int b = 1;
+  b <<= a <<= 1;
+  return b + a;
+}
+"

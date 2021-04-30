@@ -49,6 +49,10 @@ bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
 bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
 bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder);
+bool gen_instruction_bitwise_shift(RegKind left_reg,
+                                   RegKind right_reg,
+                                   RegSizeKind reg_size,
+                                   bool shift_left);
 
 //
 // codegen.c

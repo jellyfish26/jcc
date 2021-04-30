@@ -301,7 +301,8 @@ Node *define_var() {
 }
 
 // assign = ternary ("=" assign | "+=" assign | "-=" assign
-//                   "*=" assign | "/=" assign)?
+//                   "*=" assign | "/=" assign | "%=" assign
+//                   "<<=" assign | ">>=" assign)?
 Node *assign() {
   Node *ret = ternary();
 
@@ -317,6 +318,10 @@ Node *assign() {
     ret = new_assign_node(ND_DIV, ret, assign());
   } else if (use_symbol("%=")) {
     ret = new_assign_node(ND_REMAINDER, ret, assign());
+  } else if (use_symbol("<<=")) {
+    ret = new_assign_node(ND_LEFTSHIFT, ret, assign());
+  } else if (use_symbol(">>=")) {
+    ret = new_assign_node(ND_RIGHTSHIFT, ret, assign());
   }
   return ret;
 }

@@ -103,6 +103,30 @@ void expand_assign(Node *node) {
           REG_MEM,
           REG_RDI,
           convert_type_to_size(var_type_kind));
+      break;
+    }
+    case ND_LEFTSHIFT:
+    case ND_RIGHTSHIFT: {
+      printf("  push rax\n");
+      gen_instruction_mov(
+          REG_RAX,
+          REG_MEM,
+          convert_type_to_size(var_type_kind));
+      gen_instruction_bitwise_shift(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(var_type_kind),
+          node->assign_type == ND_LEFTSHIFT);
+      gen_instruction_mov(
+          REG_RDI,
+          REG_RAX,
+          convert_type_to_size(var_type_kind));
+      printf("  pop rax\n");
+      gen_instruction_mov(
+          REG_MEM,
+          REG_RDI,
+          convert_type_to_size(var_type_kind));
+      break;
     }
   }
 
@@ -349,12 +373,12 @@ void compile_node(Node *node) {
       gen_instruction_div(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind), true);
       break;
     case ND_LEFTSHIFT:
-      printf("  mov rcx, rdi\n");
-      printf("  sal rax, cl\n");
-      break;
     case ND_RIGHTSHIFT:
-      printf("  mov rcx, rdi\n");
-      printf("  sar rax, cl\n");
+      gen_instruction_bitwise_shift(
+          REG_RAX,
+          REG_RDI,
+          convert_type_to_size(formula_type_kind),
+          node->kind == ND_LEFTSHIFT);
       break;
     case ND_BITWISEAND:
       printf("  and rax, rdi\n");
