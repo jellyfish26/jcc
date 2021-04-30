@@ -122,7 +122,7 @@ bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
 // This function overwrites rax and rdx registers
 bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder) {
   if (left_reg == REG_MEM) {
-    return false;
+    printf("  push %s\n", get_reg(REG_RAX, REG_SIZE_8));
   }
   if (left_reg != REG_RAX) {
     gen_instruction_mov(
@@ -138,11 +138,14 @@ bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_si
   }
 
   printf("  idiv %s\n", get_reg(right_reg, reg_size));
-  if (is_remainder) {
-    gen_instruction_mov(left_reg, REG_RDX, reg_size);
-  } else {
-    gen_instruction_mov(right_reg, REG_RAX, reg_size);
+  if (!is_remainder) {
+    gen_instruction_mov(REG_RDX, REG_RAX, reg_size);
   }
+
+  if (left_reg == REG_MEM) {
+    printf("  pop %s\n", get_reg(REG_RAX, REG_SIZE_8));
+  }
+  gen_instruction_mov(left_reg, REG_RDX, reg_size);
   return true;
 }
 
