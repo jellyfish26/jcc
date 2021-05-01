@@ -362,6 +362,29 @@ void compile_node(Node *node) {
       }
       return;
     }
+    case ND_BITWISENOT: {
+      compile_node(node->lhs);
+      printf("  pop rax\n");
+      gen_instruction_bitwise_operation(
+          REG_RAX,
+          REG_RAX,
+          convert_type_to_size(node->lhs->var->var_type->kind),
+          (1<<3));
+      printf("  push rax\n");
+      return;
+    }
+    case ND_LOGICALNOT: {
+      compile_node(node->lhs);
+      printf("  pop rax\n");
+      printf("  mov rdi, 1\n");
+      gen_instruction_bitwise_operation(
+          REG_RAX,
+          REG_RDI,
+          REG_SIZE_8,
+          (1<<1));
+      printf("  push rax\n");
+      return;
+    }
     default:
       break;
   }

@@ -618,3 +618,33 @@ int main() {
   return b;
 }
 "
+
+assert 10 "
+int main() {
+  int a = 5;
+  int b = 4;
+  if (!(a == b)) {
+    b = 5;
+  }
+  return a + b;
+}
+"
+
+assert 9 "
+int main() {
+  int a = 5;
+  int b = 4;
+  if (!(a != b)) {
+    b = 5;
+  }
+  return a + b;
+}
+"
+
+assert 30 "
+int main() {
+  int a = 30;
+  int b = a & (~a);
+  return a + b;
+}
+"

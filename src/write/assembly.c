@@ -172,9 +172,11 @@ bool gen_instruction_bitwise_shift(RegKind left_reg,
 }
 
 // left_reg = left_reg ("&" | "^" | "|") right_reg
-// In the case of AND, operation is 001
-// In the case of XOR, operation is 010
-// In the case of OR, operation is 100
+// left_reg = "~" left_reg
+// In the case of AND, operation is 0001
+// In the case of XOR, operation is 0010
+// In the case of OR, operation is 0100
+// In the case of NOT, operation is 1000
 bool gen_instruction_bitwise_operation(RegKind left_reg,
                                        RegKind right_reg,
                                        RegSizeKind reg_size,
@@ -189,8 +191,11 @@ bool gen_instruction_bitwise_operation(RegKind left_reg,
     printf("  xor %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
   } else if (operation == (1<<2)) {
     printf("  or %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+  } else if (operation == (1<<3)) {
+    printf("  not %s\n", get_reg(left_reg, reg_size));
   } else {
     return false;
   }
+
   return true;
 }

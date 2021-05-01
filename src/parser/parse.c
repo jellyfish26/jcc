@@ -43,12 +43,11 @@ Node *unary();
 Node *define_var();
 Node *address_op();
 Node *indirection();
-Node *prefix_inc_or_dec();
-Node *suffix_inc_and_dec();
+Node *increment_and_decrement();
 Node *priority();
 Node *num();
 
-void *function();
+void function();
 
 Function *top_func;
 Function *exp_func;
@@ -71,7 +70,7 @@ void program() {
 // function = base_type ident "(" params?")" statement
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
-void *function(Function *target) {
+void function(Function *target) {
   Type *ret_type = gen_type();
 
   if (ret_type) {
@@ -460,16 +459,21 @@ Node *mul() {
   return ret;
 }
 
-// unary = ("+" | "-")? address_op
+// unary = address_op |
+//         ("+" | "-" | "!" | "~") unary
 Node *unary() {
   if (use_symbol("+")) {
-    Node *ret = new_node(ND_ADD, new_node_int(0), priority());
+    Node *ret = new_node(ND_ADD, new_node_int(0), unary());
     raise_type_for_node(ret);
     return ret;
   } else if (use_symbol("-")) {
-    Node *ret = new_node(ND_SUB, new_node_int(0), priority());
+    Node *ret = new_node(ND_SUB, new_node_int(0), unary());
     raise_type_for_node(ret);
     return ret;
+  } else if (use_symbol("!")) {
+    return new_node(ND_LOGICALNOT, unary(), NULL);
+  } else if (use_symbol("~")) {
+    return new_node(ND_BITWISENOT, unary(), NULL);
   }
   return address_op();
 }
@@ -483,29 +487,26 @@ Node *address_op() {
   return indirection();
 }
 
-// indirection = (prefix_inc_or_dec | "*" indirection)
+// indirection = (increment_and_decrement | "*" indirection)
 Node *indirection() {
   if (use_symbol("*")) {
     Node *ret = new_node(ND_CONTENT, indirection(), NULL);
     ret->var = down_type_level(ret->lhs->var);
     return ret;
   }
-  return prefix_inc_or_dec();
+  return increment_and_decrement();
 }
 
-// prefix_inc_or_dec = ("++" | "--")? suffix_inc_or_dec
-Node *prefix_inc_or_dec() {
-
+// increment_and_decrement = priority |
+//                           ("++" | "--") priority |
+//                           priority ("++" | "--")
+Node *increment_and_decrement() {
   if (use_symbol("++")) {
-    return new_node(ND_PREFIX_INC, suffix_inc_and_dec(), NULL);
+    return new_node(ND_PREFIX_INC, priority(), NULL);
   } else if (use_symbol("--")) {
-    return new_node(ND_PREFIX_DEC, suffix_inc_and_dec(), NULL);
+    return new_node(ND_PREFIX_DEC, priority(), NULL);
   }
-  return suffix_inc_and_dec();
-}
 
-// suffix_inc_and_dec = prioriy ("++" | "--")?
-Node *suffix_inc_and_dec() {
   Node *ret = priority();
   if (use_symbol("++")) {
     return new_node(ND_SUFFIX_INC, ret, NULL);
