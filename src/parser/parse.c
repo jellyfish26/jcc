@@ -44,6 +44,7 @@ Node *define_var();
 Node *address_op();
 Node *indirection();
 Node *prefix_inc_or_dec();
+Node *suffix_inc_and_dec();
 Node *priority();
 Node *num();
 
@@ -492,21 +493,26 @@ Node *indirection() {
   return prefix_inc_or_dec();
 }
 
-// prefix_inc_or_dec = ("++" | "--")? priority
+// prefix_inc_or_dec = ("++" | "--")? suffix_inc_or_dec
 Node *prefix_inc_or_dec() {
 
   if (use_symbol("++")) {
-    Node *ret = new_node(ND_ADD, priority(), new_node_int(1));
-    raise_type_for_node(ret);
-    ret = new_assign_node(ND_ASSIGN, ret->lhs, ret);
-    return ret;
+    return new_node(ND_PREFIX_INC, suffix_inc_and_dec(), NULL);
   } else if (use_symbol("--")) {
-    Node *ret = new_node(ND_SUB, priority(), new_node_int(1));
-    raise_type_for_node(ret);
-    ret = new_assign_node(ND_ASSIGN, ret->lhs, ret);
-    return ret;
+    return new_node(ND_PREFIX_DEC, suffix_inc_and_dec(), NULL);
   }
-  return priority();
+  return suffix_inc_and_dec();
+}
+
+// suffix_inc_and_dec = prioriy ("++" | "--")?
+Node *suffix_inc_and_dec() {
+  Node *ret = priority();
+  if (use_symbol("++")) {
+    return new_node(ND_SUFFIX_INC, ret, NULL);
+  } else if (use_symbol("--")) {
+    return new_node(ND_SUFFIX_DEC, ret, NULL);
+  }
+  return ret;
 }
 
 // priority = num |

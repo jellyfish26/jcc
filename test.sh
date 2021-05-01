@@ -602,3 +602,19 @@ int main() {
   return a;
 }
 "
+
+assert 9 "
+int main() {
+  int a = 4;
+  int b = a++;
+  return a + b;
+}
+"
+
+assert 9 "
+int main() {
+  int a = 4;
+  int b = a++ + a++;
+  return b;
+}
+"

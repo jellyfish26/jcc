@@ -25,23 +25,28 @@ void expand_variable(Node *node) {
   printf("  push rax\n");
 }
 
-void expand_assign(Node *node) {
-  TypeKind var_type_kind = TY_PTR;
-
-  // The left node must be assignable.
-  // If left node is a direct variable, get the address of the variable.
-  // If left node is a indirect, get original address.
-  if (node->lhs->kind == ND_VAR) {
-    gen_var_address(node->lhs);
-    var_type_kind = node->lhs->var->var_type->kind;
-  } else if (node->lhs->kind == ND_CONTENT) {
-    compile_node(node->lhs->lhs);
+// If left node is a direct variable, get the address of the variable.
+// If left node is a indirect, get original address.
+TypeKind gen_assignable_address(Node *node) {
+  if (node->kind == ND_VAR) {
+    gen_var_address(node);
+    return node->var->var_type->kind;
+  } else if (node->kind == ND_CONTENT) {
+    compile_node(node->lhs);
     if (node->lhs->var) {
-      var_type_kind = node->lhs->var->var_type->kind;
+      return node->lhs->var->var_type->kind;
     }
   } else {
     errorf(ER_COMPILE, "Cannot assign");
   }
+  return TY_PTR;
+}
+
+void expand_assign(Node *node) {
+  TypeKind var_type_kind = TY_PTR;
+
+  // The left node must be assignable.
+  var_type_kind = gen_assignable_address(node->lhs);
 
   switch (node->rhs->kind) {
     case ND_ASSIGN:
@@ -131,6 +136,8 @@ void expand_assign(Node *node) {
           convert_type_to_size(var_type_kind));
       break;
     }
+    default:
+      break;
   }
 
   gen_instruction_mov(
@@ -296,27 +303,67 @@ void compile_node(Node *node) {
       return;
     }
     case ND_LOGICALAND: {
-        int now_label = label++;
-        expand_logical_and(node, now_label);
-        printf("  mov rax, 1\n");
-        printf("  jmp .Lnext%d\n", now_label);
-        printf(".Lfalse%d:\n", now_label);
-        printf("  mov rax, 0\n");
-        printf(".Lnext%d:\n", now_label);
-        printf("  push rax\n");
-        return;
-      }
+      int now_label = label++;
+      expand_logical_and(node, now_label);
+      printf("  mov rax, 1\n");
+      printf("  jmp .Lnext%d\n", now_label);
+      printf(".Lfalse%d:\n", now_label);
+      printf("  mov rax, 0\n");
+      printf(".Lnext%d:\n", now_label);
+      printf("  push rax\n");
+      return;
+    }
     case ND_LOGICALOR: {
-        int now_label = label++;
-        expand_logical_or(node, now_label);
-        printf("  mov rax, 0\n");
-        printf("  jmp .Lnext%d\n", now_label);
-        printf(".Ltrue%d:\n", now_label);
-        printf("  mov rax, 1\n");
-        printf(".Lnext%d:\n", now_label);
-        printf("  push rax\n");
-        return;
+      int now_label = label++;
+      expand_logical_or(node, now_label);
+      printf("  mov rax, 0\n");
+      printf("  jmp .Lnext%d\n", now_label);
+      printf(".Ltrue%d:\n", now_label);
+      printf("  mov rax, 1\n");
+      printf(".Lnext%d:\n", now_label);
+      printf("  push rax\n");
+      return;
+    }
+    case ND_PREFIX_INC:
+    case ND_PREFIX_DEC: {
+      gen_assignable_address(node->lhs);
+      printf("  mov rdi, 1\n");
+      printf("  pop rax\n");
+      if (node->kind == ND_PREFIX_INC) {
+        gen_instruction_add(
+            REG_MEM,
+            REG_RDI,
+            convert_type_to_size(node->lhs->var->var_type->kind));
+      } else {
+        gen_instruction_sub(
+            REG_MEM,
+            REG_RDI,
+            convert_type_to_size(node->lhs->var->var_type->kind));
       }
+      compile_node(node->lhs);
+      return;
+    }
+    case ND_SUFFIX_INC:
+    case ND_SUFFIX_DEC: {
+      compile_node(node->lhs);
+      gen_assignable_address(node->lhs);
+      printf("  mov rdi, 1\n");
+      printf("  pop rax\n");
+      if (node->kind == ND_SUFFIX_INC) {
+        gen_instruction_add(
+            REG_MEM,
+            REG_RDI,
+            convert_type_to_size(node->lhs->var->var_type->kind));
+      } else {
+        gen_instruction_sub(
+            REG_MEM,
+            REG_RDI,
+            convert_type_to_size(node->lhs->var->var_type->kind));
+      }
+      return;
+    }
+    default:
+      break;
   }
 
   if (node->kind == ND_FUNCCALL) {
@@ -421,6 +468,8 @@ void compile_node(Node *node) {
       break;
     case ND_REC:
       gen_compare("setge", formula_type_kind);
+      break;
+    default:
       break;
   }
 

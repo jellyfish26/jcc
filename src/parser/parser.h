@@ -91,6 +91,10 @@ typedef enum {
   ND_INT,         // Number (int)
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
+  ND_PREFIX_INC,  // Prefix increment
+  ND_PREFIX_DEC,  // Prefix decrement
+  ND_SUFFIX_INC,  // Suffix increment
+  ND_SUFFIX_DEC,  // Suffix increment
 } NodeKind;
 
 struct Node {
