@@ -37,7 +37,7 @@ bool str_check(char *top_str, char *comp_str) {
           !is_ident_char(*(top_str + comp_len)));
 }
 
-char *permit_symbol[] = {
+char *permit_panct[] = {
   "(", ")", ";", "{", "}", "[", "]",
   "<<=", "<<", "<=", "<", ">>=", ">>", ">=", ">", "==", "!=",
   "=", "++", "+=", "+", "--", "-=", "-", "*=", "*",
@@ -45,8 +45,13 @@ char *permit_symbol[] = {
   "^=", "^", "?", ":", ",", "!", "~"
 };
 
+char *permit_keywords[] = {
+  "return", "if", "else", "for", "while", "break", "continue",
+  "int", "long"
+};
+
 // Update source token
-void *tokenize() {
+void tokenize() {
   Token head;
   SourceLine *now_line = source_code;
   Token *ret = &head;
@@ -61,10 +66,12 @@ void *tokenize() {
       }
 
       bool check = false;
-      for (int i = 0; i < sizeof(permit_symbol) / sizeof(char *); i++) {
-        int len = strlen(permit_symbol[i]);
-        if (memcmp(now_str, permit_symbol[i], len) == 0) {
-          ret = new_token(TK_SYMBOL, ret, now_str, len);
+
+      // Check punctuators
+      for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
+        int len = strlen(permit_panct[i]);
+        if (memcmp(now_str, permit_panct[i], len) == 0) {
+          ret = new_token(TK_PUNCT, ret, now_str, len);
           now_str += len;
           check = true;
           break;
@@ -75,65 +82,18 @@ void *tokenize() {
         continue;
       }
 
-      // "return" statement
-      if (str_check(now_str, "return")) {
-        ret = new_token(TK_RETURN, ret, now_str, 6);
-        now_str += 6;
-        continue;
+      // Check keywords
+      for (int i = 0; i < sizeof(permit_keywords) / sizeof(char*); ++i) {
+        int len = strlen(permit_keywords[i]);
+        if (memcmp(now_str, permit_keywords[i], len) == 0) {
+          ret = new_token(TK_KEYWORD, ret, now_str, len);
+          now_str += len;
+          check = true;
+          break;
+        }
       }
 
-      // "if" statement
-      if (str_check(now_str, "if")) {
-        ret = new_token(TK_IF, ret, now_str, 2);
-        now_str += 2;
-        continue;
-      }
-
-      // "else" statement
-      if (str_check(now_str, "else")) {
-        ret = new_token(TK_ELSE, ret, now_str, 4);
-        now_str += 4;
-        continue;
-      }
-
-      // "for" statement
-      if (str_check(now_str, "for")) {
-        ret = new_token(TK_FOR, ret, now_str, 3);
-        now_str += 3;
-        continue;
-      }
-
-      // "while" statement
-      if (str_check(now_str, "while")) {
-        ret = new_token(TK_WHILE, ret, now_str, 5);
-        now_str += 5;
-        continue;
-      }
-
-      // "break" statement
-      if (str_check(now_str, "break")) {
-        ret = new_token(TK_BREAK, ret, now_str, 5);
-        now_str += 5;
-        continue;
-      }
-
-      // "continue" statement
-      if (str_check(now_str, "continue")) {
-        ret = new_token(TK_CONTINUE, ret, now_str, 8);
-        now_str += 8;
-        continue;
-      }
-
-      // "int" type
-      if (str_check(now_str, "int")) {
-        ret = new_token(TK_INT, ret, now_str, 3);
-        now_str += 3;
-        continue;
-      }
-
-      if (str_check(now_str, "long")) {
-        ret = new_token(TK_LONG, ret, now_str, 4);
-        now_str += 4;
+      if (check) {
         continue;
       }
 

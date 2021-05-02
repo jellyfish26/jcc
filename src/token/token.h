@@ -11,18 +11,10 @@
 
 typedef enum {
   TK_NUM_INT,  // Number (Int)
-  TK_SYMBOL,   // Symbol
+  TK_PUNCT,    // Punctuators
+  TK_KEYWORD,  // Keywords
   TK_IDENT,    // Ident (etc. variable)
-  TK_RETURN,   // "return" statement
-  TK_IF,       // "if" statement
-  TK_ELSE,     // "else" statement
-  TK_FOR,      // "for" statement
-  TK_WHILE,    // "while" statement
-  TK_BREAK,    // "break" statement
-  TK_CONTINUE, // "continue" statement
   TK_EOF,      // End of File
-  TK_INT,      // "int" type
-  TK_LONG      // "long" type
 } TokenKind;
 
 typedef struct Token Token;
@@ -37,7 +29,7 @@ struct Token {
 
 extern Token *source_token; // Warn: Don't operate it directly.
 extern Token *before_token; // before source_token
-void *tokenize();
+void tokenize();
 
 //
 // error.c

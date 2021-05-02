@@ -9,8 +9,8 @@ Token *consume(TokenKind kind, char *op) {
     return NULL;
   }
 
-  // Symbol consume
-  if (kind == TK_SYMBOL) {
+  // Panctuator consume or Keyword consume
+  if (kind == TK_PUNCT || kind == TK_KEYWORD) {
     if (op == NULL) {
       return NULL;
     }
