@@ -5,7 +5,7 @@
 Type *gen_type() {
   Type *ret = calloc(1, sizeof(Type));
 
-  Token *tkn = use_any_kind(TK_INT);
+  Token *tkn = consume(TK_INT, NULL);
   if (tkn) {
     ret->kind = TY_INT;
     ret->type_size = 4;
@@ -13,10 +13,10 @@ Type *gen_type() {
     return ret;
   }
 
-  tkn = use_any_kind(TK_LONG);
+  tkn = consume(TK_LONG, NULL);
   if (tkn) {
-    while (use_any_kind(TK_LONG));    // "long long ..."
-    use_any_kind(TK_INT);             // "long long int" or "long int"
+    while (consume(TK_LONG, NULL));    // "long long ..."
+    consume(TK_INT, NULL);             // "long long int" or "long int"
 
     ret->kind = TY_LONG;
     ret->type_size = 8;

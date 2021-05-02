@@ -1,43 +1,33 @@
 #include "token.h"
+#include <string.h>
 
-int use_expect_int() {
-  if (source_token->kind != TK_NUM_INT) {
-    errorf_at(ER_COMPILE, source_token, "Not a number");
-  }
-  before_token = source_token;
-  int val = source_token->val;
-  source_token = source_token->next;
-  return val;
-}
-
-bool use_symbol(char *op) {
-  if (source_token->kind != TK_SYMBOL || source_token->str_len != strlen(op) ||
-      memcmp(source_token->str, op, source_token->str_len)) {
-    return false;
-  }
-  before_token = source_token;
-  source_token = source_token->next;
-  return true;
-}
-
-void use_expect_symbol(char *op) {
-  if (source_token->kind != TK_SYMBOL || source_token->str_len != strlen(op) ||
-      memcmp(source_token->str, op, source_token->str_len)) {
-    errorf_at(ER_COMPILE, source_token, "Need \"%s\" operator", op);
-  }
-  before_token = source_token;
-  source_token = source_token->next;
-}
-
-// Warn: This function only checks the TokenKind.
-Token *use_any_kind(TokenKind kind) {
+// If the token cannot be consumed, NULL is return value.
+// When a token is consumed, the source_token variable
+// will point to the next token.
+Token *consume(TokenKind kind, char *op) {
   if (source_token->kind != kind) {
     return NULL;
   }
+
+  // Symbol consume
+  if (kind == TK_SYMBOL) {
+    if (op == NULL) {
+      return NULL;
+    }
+
+    if (source_token->str_len != strlen(op) || memcmp(source_token->str, op, strlen(op))) {
+      return NULL;
+    }
+  }
+
+  // Move token
   Token *ret = source_token;
   before_token = source_token;
   source_token = source_token->next;
   return ret;
 }
 
-bool is_eof() { return source_token->kind == TK_EOF; }
+bool is_eof() {
+  return source_token->kind == TK_EOF;
+}
+

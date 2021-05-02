@@ -56,9 +56,5 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...);
 // operate.c
 //
 
-int use_expect_int();
-bool use_symbol(char *op);
-void use_expect_symbol(char *op);
-Token *use_any_kind(TokenKind kind);
-
+Token *consume(TokenKind kind, char *op);
 bool is_eof();
