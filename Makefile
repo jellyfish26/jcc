@@ -1,4 +1,4 @@
-CFLAGS=-std=c11 -g -static
+CFLAGS=-std=c11 -g -static -I./src
 SRC_READ=$(wildcard ./src/*/*.c)
 SRC_OBJS=$(SRC_READ:.c=.o)
 

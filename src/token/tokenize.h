@@ -10,11 +10,11 @@
 //
 
 typedef enum {
-  TK_NUM_INT,  // Number (Int)
-  TK_PUNCT,    // Punctuators
-  TK_KEYWORD,  // Keywords
-  TK_IDENT,    // Ident (etc. variable)
-  TK_EOF,      // End of File
+  TK_NUM_INT, // Number (Int)
+  TK_PUNCT,   // Punctuators
+  TK_KEYWORD, // Keywords
+  TK_IDENT,   // Ident (etc. variable)
+  TK_EOF,     // End of File
 } TokenKind;
 
 typedef struct Token Token;

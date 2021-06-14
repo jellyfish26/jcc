@@ -1,4 +1,4 @@
-#include "parser.h"
+#include "parser/parser.h"
 
 #include <stdlib.h>
 
@@ -21,6 +21,132 @@ Node *new_node_int(int val) {
 Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = new_node(ND_ASSIGN, lhs, rhs);
   ret->assign_type = kind;
+  return ret;
+}
+
+//
+// About generate type
+//
+Type *gen_type() {
+  Type *ret = calloc(1, sizeof(Type));
+
+  Token *tkn = consume(TK_KEYWORD, "int");
+  if (tkn) {
+    ret->kind = TY_INT;
+    ret->type_size = 4;
+    ret->move_size = 1;
+    return ret;
+  }
+
+  tkn = consume(TK_KEYWORD, "long");
+  if (tkn) {
+    while (consume(TK_KEYWORD, "long"));    // "long long ..."
+    consume(TK_KEYWORD, "int");             // "long long int" or "long int"
+
+    ret->kind = TY_LONG;
+    ret->type_size = 8;
+    ret->move_size = 1;
+    return ret;
+  }
+  return NULL;
+}
+
+Type *connect_ptr_type(Type *before) {
+  Type *ret = calloc(sizeof(Type), 1);
+
+  ret->content = before;
+  ret->kind = TY_PTR;
+  ret->move_size = before->type_size;
+  ret->type_size = 8;
+  return ret;
+}
+
+Type *connect_array_type(Type *before, int array_size) {
+  Type *ret = connect_ptr_type(before);
+
+  ret->content = before;
+  ret->kind = TY_ARRAY;
+  ret->move_size = before->type_size;
+  ret->type_size = array_size * before->type_size;
+  return ret;
+}
+
+Type *get_type_for_node(Node *target) {
+  if (!target->var) {
+    errorf(ER_INTERNAL, "The Node(%x) do not have variable", target);
+  }
+  return target->var->var_type;
+}
+
+void raise_type_for_node(Node *target) {
+  if (target->lhs->var &&
+        (get_type_for_node(target->lhs)->kind == TY_PTR ||
+         get_type_for_node(target->lhs)->kind == TY_ARRAY)) {
+      target->var = target->lhs->var;
+    }
+
+    if (target->rhs->var &&
+        (get_type_for_node(target->rhs)->kind == TY_PTR ||
+         get_type_for_node(target->rhs)->kind == TY_ARRAY)) {
+      target->var = target->rhs->var;
+    }
+}
+
+//
+// About variable
+//
+
+Var *add_var(Type *var_type, char *str, int len) {
+  Var *ret = calloc(1, sizeof(Var));
+  ret->var_type = var_type;
+  ret->str = str;
+  ret->len = len;
+
+  ret->next = exp_func->vars;
+  exp_func->vars = ret;
+  return ret;
+}
+
+Var *find_var(Token *target) {
+  char *str = calloc(target->str_len + 1, sizeof(char));
+  memcpy(str, target->str, target->str_len);
+  Var *ret = NULL;
+  for (Var *now = exp_func->vars; now; now = now->next) {
+    if (now->len != target->str_len) {
+      continue;
+    }
+
+    if (memcmp(str, now->str, target->str_len) == 0) {
+      ret = now;
+      break;
+    }
+  }
+  return ret;
+}
+
+void init_offset(Function *target) {
+  int now_address = 0;
+  Var *now_var = target->vars;
+  while (now_var) {
+    now_address += now_var->var_type->type_size;
+    now_var->offset = now_address;
+
+    now_var = now_var->next;
+  }
+
+  // set 16 times
+  now_address += 16 - (now_address % 16);
+
+  target->vars_size = now_address;
+}
+
+Var *down_type_level(Var *target) {
+  if (!target) {
+    return NULL;
+  }
+  Var *ret = calloc(sizeof(Var), 1);
+  memcpy(ret, target, sizeof(Var));
+  ret->var_type = ret->var_type->content;
   return ret;
 }
 

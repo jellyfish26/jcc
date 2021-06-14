@@ -1,5 +1,5 @@
 #pragma once
-#include "../token/token.h"
+#include "token/tokenize.h"
 
 #include <stdbool.h>
 

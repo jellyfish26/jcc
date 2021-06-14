@@ -1,8 +1,138 @@
-#include "../read/read.h"
-#include "token.h"
+#include "token/tokenize.h"
+#include "read/readsrc.h"
 
 #include <stdio.h>
 #include <string.h>
+
+// If the token cannot be consumed, NULL is return value.
+// When a token is consumed, the source_token variable
+// will point to the next token.
+Token *consume(TokenKind kind, char *op) {
+  if (source_token->kind != kind) {
+    return NULL;
+  }
+
+  // Panctuator consume or Keyword consume
+  if (kind == TK_PUNCT || kind == TK_KEYWORD) {
+    if (op == NULL) {
+      return NULL;
+    }
+
+    if (source_token->str_len != strlen(op) ||
+        memcmp(source_token->str, op, strlen(op))) {
+      return NULL;
+    }
+  }
+
+  // Move token
+  Token *ret = source_token;
+  before_token = source_token;
+  source_token = source_token->next;
+  return ret;
+}
+
+bool is_eof() { return source_token->kind == TK_EOF; }
+
+//
+// About error output
+//
+
+void errorf(ERROR_TYPE type, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  char *err_type;
+  switch (type) {
+  case ER_TOKENIZE:
+    err_type = "Tokenize Error";
+    break;
+  case ER_COMPILE:
+    err_type = "Compile Error";
+    break;
+  case ER_INTERNAL:
+    err_type = "Internal Error";
+    break;
+  }
+  fprintf(stderr, "\x1b[31m[%s]\x1b[39m: ", err_type);
+  vfprintf(stderr, fmt, ap);
+  fprintf(stderr, "\n");
+  exit(1);
+}
+
+void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  char *err_type;
+  switch (type) {
+  case ER_TOKENIZE:
+    err_type = "Tokenize Error";
+    break;
+  case ER_COMPILE:
+    err_type = "Compile Error";
+    break;
+  case ER_INTERNAL:
+    err_type = "Internal Error";
+    break;
+  }
+  SourceLine *target = source_code;
+
+  // Search
+  while (target) {
+    // If EOF, the source_code indicates the last line
+    if (!token->str) {
+      if (target->next && !target->str) {
+        target = target->next;
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    bool check = false;
+    for (char *now = target->str; *now; now++) {
+      if (now == token->str) {
+        check = true;
+        break;
+      }
+    }
+    if (check) {
+      break;
+    }
+    target = target->next;
+  }
+
+  if (!target) {
+    fprintf(stderr, "Internal error\n");
+  }
+
+  fprintf(stderr, "\x1b[31m[%s]\x1b[39m\n", err_type);
+  int pos = 0;
+  if (token->str) {
+    pos = token->str - target->str;
+  } else {
+    pos = target->len - 2;
+  }
+
+  // Print source code
+  fprintf(stderr, "%d:%s", target->number, target->str);
+
+  // Space of number
+  for (int i = target->number; i != 0; i /= 10) {
+    fprintf(stderr, " ");
+  }
+
+  // Space ": "
+  for (int i = -1; i < pos + token->str_len; i++) {
+    if (i < pos) {
+      fprintf(stderr, " ");
+    } else {
+      fprintf(stderr, "^");
+    }
+  }
+  fprintf(stderr, " ");
+  vfprintf(stderr, fmt, ap);
+  fprintf(stderr, "\n");
+  exit(1);
+}
 
 Token *new_token(TokenKind kind, Token *target, char *str, int len) {
   Token *ret = calloc(1, sizeof(Token));
@@ -38,17 +168,13 @@ bool str_check(char *top_str, char *comp_str) {
 }
 
 char *permit_panct[] = {
-  "(", ")", ";", "{", "}", "[", "]",
-  "<<=", "<<", "<=", "<", ">>=", ">>", ">=", ">", "==", "!=",
-  "=", "++", "+=", "+", "--", "-=", "-", "*=", "*",
-  "/=", "/", "%=", "%", "&=", "&&", "&", "|=", "||", "|",
-  "^=", "^", "?", ":", ",", "!", "~"
-};
+    "(",   ")",  ";",  "{",  "}",  "[",  "]",  "<<=", "<<", "<=", "<",
+    ">>=", ">>", ">=", ">",  "==", "!=", "=",  "++",  "+=", "+",  "--",
+    "-=",  "-",  "*=", "*",  "/=", "/",  "%=", "%",   "&=", "&&", "&",
+    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~"};
 
-char *permit_keywords[] = {
-  "return", "if", "else", "for", "while", "break", "continue",
-  "int", "long"
-};
+char *permit_keywords[] = {"return", "if",       "else", "for", "while",
+                           "break",  "continue", "int",  "long"};
 
 // Update source token
 void tokenize() {
@@ -83,7 +209,7 @@ void tokenize() {
       }
 
       // Check keywords
-      for (int i = 0; i < sizeof(permit_keywords) / sizeof(char*); ++i) {
+      for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
         int len = strlen(permit_keywords[i]);
         if (memcmp(now_str, permit_keywords[i], len) == 0) {
           ret = new_token(TK_KEYWORD, ret, now_str, len);
