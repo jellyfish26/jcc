@@ -96,7 +96,7 @@ typedef enum {
   ND_PREFIX_INC,  // Prefix increment
   ND_PREFIX_DEC,  // Prefix decrement
   ND_SUFFIX_INC,  // Suffix increment
-  ND_SUFFIX_DEC,  // Suffix increment
+  ND_SUFFIX_DEC,  // Suffix decrement
 } NodeKind;
 
 struct Node {
