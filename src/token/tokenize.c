@@ -31,7 +31,9 @@ Token *consume(TokenKind kind, char *op) {
   return ret;
 }
 
-bool is_eof() { return source_token->kind == TK_EOF; }
+bool is_eof() {
+  return source_token->kind == TK_EOF;
+}
 
 //
 // About error output
