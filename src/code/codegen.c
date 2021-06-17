@@ -1,4 +1,5 @@
 #include "code/codegen.h"
+#include "variable/variable.h"
 
 #include <stdio.h>
 
@@ -623,12 +624,12 @@ void compile_node(Node *node) {
     formula_type_kind = TY_INT;
   }
 
-  if (node->lhs->var && node->lhs->var->var_type->move_size != 1) {
-    printf("  imul rdi, %d\n", node->lhs->var->var_type->move_size);
+  if (node->lhs->var && pointer_movement_size(node->lhs->var) != 1) {
+    printf("  imul rdi, %d\n", pointer_movement_size(node->lhs->var));
   }
 
-  if (node->rhs->var && node->rhs->var->var_type->move_size != 1) {
-    printf("  imul rax, %d\n", node->rhs->var->var_type->move_size);
+  if (node->rhs->var && pointer_movement_size(node->rhs->var) != 1) {
+    printf("  imul rax, %d\n", pointer_movement_size(node->rhs->var));
   }
 
   // calculation
@@ -706,7 +707,7 @@ void codegen() {
   printf(".intel_syntax noprefix\n");
 
   for (Function *now_func = top_func; now_func; now_func = now_func->next) {
-    init_offset(now_func);
+    now_func->vars_size = init_offset(now_func->vars);
     char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
     memcpy(func_name, now_func->func_name, now_func->func_name_len);
     printf(".global %s\n", func_name);

@@ -1,5 +1,8 @@
 #include "parser/parser.h"
+#include "token/tokenize.h"
+#include "variable/variable.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -24,51 +27,19 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
   return ret;
 }
 
-//
-// About generate type
-//
-Type *gen_type() {
-  Type *ret = calloc(1, sizeof(Type));
-
+Type *new_type() {
   Token *tkn = consume(TK_KEYWORD, "int");
   if (tkn) {
-    ret->kind = TY_INT;
-    ret->type_size = 4;
-    ret->move_size = 1;
-    return ret;
+    return new_general_type(TY_INT);
   }
-
   tkn = consume(TK_KEYWORD, "long");
   if (tkn) {
-    while (consume(TK_KEYWORD, "long"));    // "long long ..."
-    consume(TK_KEYWORD, "int");             // "long long int" or "long int"
-
-    ret->kind = TY_LONG;
-    ret->type_size = 8;
-    ret->move_size = 1;
-    return ret;
+    while (consume(TK_KEYWORD, "long"))
+      ;
+    consume(TK_KEYWORD, "int");
+    return new_general_type(TY_LONG);
   }
   return NULL;
-}
-
-Type *connect_ptr_type(Type *before) {
-  Type *ret = calloc(sizeof(Type), 1);
-
-  ret->content = before;
-  ret->kind = TY_PTR;
-  ret->move_size = before->type_size;
-  ret->type_size = 8;
-  return ret;
-}
-
-Type *connect_array_type(Type *before, int array_size) {
-  Type *ret = connect_ptr_type(before);
-
-  ret->content = before;
-  ret->kind = TY_ARRAY;
-  ret->move_size = before->type_size;
-  ret->type_size = array_size * before->type_size;
-  return ret;
 }
 
 Type *get_type_for_node(Node *target) {
@@ -79,75 +50,15 @@ Type *get_type_for_node(Node *target) {
 }
 
 void raise_type_for_node(Node *target) {
-  if (target->lhs->var &&
-        (get_type_for_node(target->lhs)->kind == TY_PTR ||
-         get_type_for_node(target->lhs)->kind == TY_ARRAY)) {
-      target->var = target->lhs->var;
-    }
-
-    if (target->rhs->var &&
-        (get_type_for_node(target->rhs)->kind == TY_PTR ||
-         get_type_for_node(target->rhs)->kind == TY_ARRAY)) {
-      target->var = target->rhs->var;
-    }
-}
-
-//
-// About variable
-//
-
-Var *add_var(Type *var_type, char *str, int len) {
-  Var *ret = calloc(1, sizeof(Var));
-  ret->var_type = var_type;
-  ret->str = str;
-  ret->len = len;
-
-  ret->next = exp_func->vars;
-  exp_func->vars = ret;
-  return ret;
-}
-
-Var *find_var(Token *target) {
-  char *str = calloc(target->str_len + 1, sizeof(char));
-  memcpy(str, target->str, target->str_len);
-  Var *ret = NULL;
-  for (Var *now = exp_func->vars; now; now = now->next) {
-    if (now->len != target->str_len) {
-      continue;
-    }
-
-    if (memcmp(str, now->str, target->str_len) == 0) {
-      ret = now;
-      break;
-    }
-  }
-  return ret;
-}
-
-void init_offset(Function *target) {
-  int now_address = 0;
-  Var *now_var = target->vars;
-  while (now_var) {
-    now_address += now_var->var_type->type_size;
-    now_var->offset = now_address;
-
-    now_var = now_var->next;
+  if (target->lhs->var && (get_type_for_node(target->lhs)->kind == TY_PTR ||
+                           get_type_for_node(target->lhs)->kind == TY_ARRAY)) {
+    target->var = target->lhs->var;
   }
 
-  // set 16 times
-  now_address += 16 - (now_address % 16);
-
-  target->vars_size = now_address;
-}
-
-Var *down_type_level(Var *target) {
-  if (!target) {
-    return NULL;
+  if (target->rhs->var && (get_type_for_node(target->rhs)->kind == TY_PTR ||
+                           get_type_for_node(target->rhs)->kind == TY_ARRAY)) {
+    target->var = target->rhs->var;
   }
-  Var *ret = calloc(sizeof(Var), 1);
-  memcpy(ret, target, sizeof(Var));
-  ret->var_type = ret->var_type->content;
-  return ret;
 }
 
 // Prototype
@@ -197,7 +108,7 @@ void program() {
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
 void function(Function *target) {
-  Type *ret_type = gen_type();
+  Type *ret_type = new_type();
 
   if (ret_type) {
     target->ret_type = ret_type;
@@ -208,7 +119,8 @@ void function(Function *target) {
   Token *function_ident = consume(TK_IDENT, NULL);
   if (function_ident) {
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token, "Define function must start with \"(\".");
+      errorf_at(ER_COMPILE, source_token,
+                "Define function must start with \"(\".");
     }
 
     bool is_variable_defined = true;
@@ -218,18 +130,22 @@ void function(Function *target) {
 
     // Set arguments
     while (is_variable_defined) {
-      Type *arg_type = gen_type();
+      Type *arg_type = new_type();
       if (!arg_type) {
         errorf_at(ER_COMPILE, source_token, "Undefined type.");
       }
 
       Token *var_tkn = consume(TK_IDENT, NULL);
       if (var_tkn) {
-        Var *local_var = find_var(var_tkn);
+        Var *local_var =
+            find_var(exp_func->vars, var_tkn->str, var_tkn->str_len);
         if (local_var) {
-          errorf_at(ER_COMPILE, before_token, "This variable already definition.");
+          errorf_at(ER_COMPILE, before_token,
+                    "This variable already definition.");
         }
-        local_var = add_var(arg_type, var_tkn->str, var_tkn->str_len);
+        local_var = connect_var(exp_func->vars, arg_type, var_tkn->str,
+                                var_tkn->str_len);
+        exp_func->vars = local_var;
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
         target->func_args->var = local_var;
         target->func_argc++;
@@ -244,7 +160,8 @@ void function(Function *target) {
       if (consume(TK_PUNCT, ")")) {
         break;
       } else {
-        errorf_at(ER_COMPILE, source_token, "Define function must end with \")\".");
+        errorf_at(ER_COMPILE, source_token,
+                  "Define function must end with \")\".");
       }
     }
     target->func_name = function_ident->str;
@@ -308,27 +225,31 @@ Node *statement() {
     inside_roop = ret;
 
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token, "For statement must start with \"(\".");
+      errorf_at(ER_COMPILE, source_token,
+                "For statement must start with \"(\".");
     }
 
     if (!consume(TK_PUNCT, ";")) {
       ret->init_for = define_var();
       if (!consume(TK_PUNCT, ";")) {
-        errorf_at(ER_COMPILE, source_token, "After defining an expression, it must end with \";\". ");
+        errorf_at(ER_COMPILE, source_token,
+                  "After defining an expression, it must end with \";\". ");
       }
     }
 
     if (!consume(TK_PUNCT, ";")) {
       ret->judge = assign();
       if (!consume(TK_PUNCT, ";")) {
-        errorf_at(ER_COMPILE, source_token, "After defining an expression, it must end with \";\". ");
+        errorf_at(ER_COMPILE, source_token,
+                  "After defining an expression, it must end with \";\". ");
       }
     }
 
     if (!consume(TK_PUNCT, ")")) {
       ret->repeat_for = assign();
       if (!consume(TK_PUNCT, ")")) {
-        errorf_at(ER_COMPILE, source_token, "For statement must end with \")\".");
+        errorf_at(ER_COMPILE, source_token,
+                  "For statement must end with \")\".");
       }
     }
     ret->stmt_for = statement();
@@ -343,11 +264,13 @@ Node *statement() {
     inside_roop = ret;
 
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token, "While statement must start with \"(\".");
+      errorf_at(ER_COMPILE, source_token,
+                "While statement must start with \"(\".");
     }
     ret->judge = assign();
     if (!consume(TK_PUNCT, ")")) {
-      errorf_at(ER_COMPILE, source_token, "While statement must end with \")\".");
+      errorf_at(ER_COMPILE, source_token,
+                "While statement must end with \")\".");
     }
     ret->stmt_for = statement();
 
@@ -366,8 +289,7 @@ Node *statement() {
 
   if (consume(TK_KEYWORD, "break")) {
     if (!inside_roop) {
-      errorf_at(ER_COMPILE, before_token, "%s",
-                "Not whithin loop");
+      errorf_at(ER_COMPILE, before_token, "%s", "Not whithin loop");
     }
     ret = new_node(ND_LOOPBREAK, NULL, NULL);
     ret->lhs = inside_roop;
@@ -401,7 +323,7 @@ Node *statement() {
 // define_var = base_type "*"* ident ("[" num "]")* ("=" assign)? |
 //              assign
 Node *define_var() {
-  Type *var_type = gen_type();
+  Type *var_type = new_type();
 
   // define variable
   if (var_type) {
@@ -418,12 +340,13 @@ Node *define_var() {
                 "Variable definition must be identifier.");
     }
 
-    Var *result = find_var(tkn);
+    Var *result = find_var(exp_func->vars, tkn->str, tkn->str_len);
     if (result) {
       errorf_at(ER_COMPILE, before_token,
                 "This variable is already definition.");
     }
-    ret->var = add_var(var_type, tkn->str, tkn->str_len);
+    ret->var = connect_var(exp_func->vars, var_type, tkn->str, tkn->str_len);
+    exp_func->vars = ret->var;
 
     // Size needs to be viewed from the end.
     typedef struct ArraySize ArraySize;
@@ -451,12 +374,12 @@ Node *define_var() {
     }
 
     while (top) {
-      ret->var->var_type = connect_array_type(ret->var->var_type, top->array_size);
+      new_array_dimension_var(ret->var, top->array_size);
       top = top->before;
     }
 
     for (int i = 0; i < ptr_cnt; ++i) {
-      ret->var->var_type = connect_ptr_type(ret->var->var_type);
+      new_pointer_var(ret->var);
     }
 
     if (consume(TK_PUNCT, "=")) {
@@ -508,7 +431,8 @@ Node *ternary() {
     Node *tmp = new_node(ND_TERNARY, NULL, NULL);
     tmp->lhs = ternary();
     if (!consume(TK_PUNCT, ":")) {
-      errorf_at(ER_COMPILE, source_token, "The ternary operator requires \":\".");
+      errorf_at(ER_COMPILE, source_token,
+                "The ternary operator requires \":\".");
     }
     tmp->rhs = ternary();
     tmp->exec_if = ret;
@@ -575,7 +499,8 @@ Node *same_comp() {
   return ret;
 }
 
-// size_comp = bitwise_shift ("<" size_comp  | ">" size_comp | "<=" size_comp | ">=" size_comp)?
+// size_comp = bitwise_shift ("<" size_comp  | ">" size_comp | "<=" size_comp |
+// ">=" size_comp)?
 Node *size_comp() {
   Node *ret = bitwise_shift();
   if (consume(TK_PUNCT, "<")) {
@@ -600,7 +525,6 @@ Node *bitwise_shift() {
   }
   return ret;
 }
-
 
 // add = mul ("+" add | "-" add)?
 Node *add() {
@@ -660,7 +584,9 @@ Node *address_op() {
 Node *indirection() {
   if (consume(TK_PUNCT, "*")) {
     Node *ret = new_node(ND_CONTENT, indirection(), NULL);
-    ret->var = down_type_level(ret->lhs->var);
+    if (ret->lhs->var) {
+      ret->var = new_content_var(ret->lhs->var);
+    }
     return ret;
   }
   return increment_and_decrement();
@@ -694,9 +620,10 @@ Node *increment_and_decrement() {
 Node *priority() {
   if (consume(TK_PUNCT, "(")) {
     Node *ret = assign();
-    
+
     if (!consume(TK_PUNCT, ")")) {
-      errorf_at(ER_COMPILE, source_token, "\"(\" and \")\" should be written in pairs.");
+      errorf_at(ER_COMPILE, source_token,
+                "\"(\" and \")\" should be written in pairs.");
     }
     return ret;
   }
@@ -726,7 +653,8 @@ Node *priority() {
         }
 
         if (!consume(TK_PUNCT, ")")) {
-          errorf_at(ER_COMPILE, source_token, "Function call must end with \")\".");
+          errorf_at(ER_COMPILE, source_token,
+                    "Function call must end with \")\".");
         }
         break;
       }
@@ -737,7 +665,7 @@ Node *priority() {
 
   // used variable
   if (tkn) {
-    Var *target = find_var(tkn);
+    Var *target = find_var(exp_func->vars, tkn->str, tkn->str_len);
     if (!target) {
       errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
     }
@@ -745,7 +673,7 @@ Node *priority() {
     ret->var = target;
     while (consume(TK_PUNCT, "[")) {
       ret = new_node(ND_ADD, ret, assign());
-      ret->var = down_type_level(ret->lhs->var);
+      ret->var = new_content_var(ret->lhs->var);
 
       ret = new_node(ND_CONTENT, ret, NULL);
       ret->var = ret->lhs->var;

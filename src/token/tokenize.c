@@ -44,15 +44,15 @@ void errorf(ERROR_TYPE type, char *fmt, ...) {
   va_start(ap, fmt);
   char *err_type;
   switch (type) {
-  case ER_TOKENIZE:
-    err_type = "Tokenize Error";
-    break;
-  case ER_COMPILE:
-    err_type = "Compile Error";
-    break;
-  case ER_INTERNAL:
-    err_type = "Internal Error";
-    break;
+    case ER_TOKENIZE:
+      err_type = "Tokenize Error";
+      break;
+    case ER_COMPILE:
+      err_type = "Compile Error";
+      break;
+    case ER_INTERNAL:
+      err_type = "Internal Error";
+      break;
   }
   fprintf(stderr, "\x1b[31m[%s]\x1b[39m: ", err_type);
   vfprintf(stderr, fmt, ap);
@@ -65,15 +65,15 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
   va_start(ap, fmt);
   char *err_type;
   switch (type) {
-  case ER_TOKENIZE:
-    err_type = "Tokenize Error";
-    break;
-  case ER_COMPILE:
-    err_type = "Compile Error";
-    break;
-  case ER_INTERNAL:
-    err_type = "Internal Error";
-    break;
+    case ER_TOKENIZE:
+      err_type = "Tokenize Error";
+      break;
+    case ER_COMPILE:
+      err_type = "Compile Error";
+      break;
+    case ER_INTERNAL:
+      err_type = "Internal Error";
+      break;
   }
   SourceLine *target = source_code;
 

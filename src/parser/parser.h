@@ -1,57 +1,11 @@
 #pragma once
 #include "token/tokenize.h"
+#include "variable/variable.h"
 
 #include <stdbool.h>
 
-//
-// type.c
-//
-
-typedef enum {
-  TY_INT,       // "int" type
-  TY_LONG,      // "long" type
-  TY_PTR,       // Pointer type
-  TY_ARRAY,     // Array type
-  TY_ADDR,      // Base address
-} TypeKind;
-
-typedef struct Type Type;
-typedef struct Var Var;
 typedef struct Node Node;
 typedef struct Function Function;
-
-struct Type {
-  TypeKind kind;
-  Type *content; // Content of variable if kind is TY_PTR
-
-  int type_size; // Variable size
-  int move_size; // Movement size
-};
-
-Type *gen_type();
-Type *connect_ptr_type(Type *before);
-Type *connect_array_type(Type *before, int array_size);
-Type *get_type_for_node(Node *target);
-void raise_type_for_node(Node *target);
-
-//
-// variable.c
-//
-
-struct Var {
-  Type *var_type;
-  Var *next; // Next Var
-  Var *definition;  // Variable definition if var_type is TY_PTR
-
-  char *str;  // Variable name
-  int len;    // Length of naem
-  int offset; // Offset
-};
-
-Var *add_var(Type *var_type, char *str, int len);
-Var *find_var(Token *target);
-void init_offset(Function *target);
-Var *down_type_level(Var *target);
 
 //
 // parse.c
