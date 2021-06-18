@@ -1,8 +1,5 @@
 #pragma once
-
-//
-// type.c
-//
+#include <stdbool.h>
 
 typedef enum {
   TY_INT,   // "int" type
@@ -14,6 +11,7 @@ typedef enum {
 
 typedef struct Type Type;
 typedef struct Var Var;
+typedef struct ScopeVars ScopeVars;
 
 struct Type {
   TypeKind kind;
@@ -25,10 +23,6 @@ struct Type {
 Type *new_general_type(TypeKind kind);
 Type *new_pointer_type(Type *content_type);
 Type *new_array_dimension_type(Type *content_type, int dimension_size);
-
-//
-// variable.c
-//
 
 struct Var {
   Type *var_type;
@@ -44,6 +38,21 @@ void new_pointer_var(Var *var);
 void new_array_dimension_var(Var *var, int dimension_size);
 Var *new_content_var(Var *var);
 Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len);
-Var *find_var(Var *top_var, char *str, int str_len);
 int pointer_movement_size(Var *var);
-int init_offset(Var *top_var);
+
+struct ScopeVars {
+  int depth; // Scope depth -> 0 is general, over 1 is local
+  int use_address;
+  ScopeVars *upper;
+  Var *vars;
+};
+
+extern ScopeVars *define_vars;
+extern Var *used_vars;
+
+void new_scope_definition();
+void out_scope_definition();
+void add_scope_var(Var *var);
+Var *find_var(char *str, int str_len);
+bool check_already_define(char *str, int str_len);
+int init_offset();

@@ -1,5 +1,7 @@
 #include "variable/variable.h"
+#include "token/tokenize.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -64,21 +66,6 @@ Var *new_content_var(Var *var) {
   return ret;
 }
 
-Var *find_var(Var *top_var, char *str, int str_len) {
-  char *var_name = calloc(str_len + 1, sizeof(char));
-  memcpy(var_name, str, str_len);
-  for (Var *now = top_var; now; now = now->next) {
-    if (now->len != str_len) {
-      continue;
-    }
-
-    if (memcmp(var_name, now->str, str_len) == 0) {
-      return now;
-    }
-  }
-  return NULL;
-}
-
 Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
   Var *ret = new_general_var(var_type, str, str_len);
   ret->next = top_var;
@@ -92,14 +79,75 @@ int pointer_movement_size(Var *var) {
   return var->var_type->content->var_size;
 }
 
-int init_offset(Var *top_var) {
+ScopeVars *define_vars;
+Var *used_vars;
+
+void new_scope_definition() {
+  ScopeVars *new_scope = calloc(sizeof(ScopeVars), 1);
+  new_scope->upper = define_vars;
+  define_vars = new_scope;
+}
+
+void out_scope_definition() {
+  if (!define_vars) {
+    errorf(ER_INTERNAL, "Internal Error at scope");
+  }
+  Var *used = define_vars->vars;
+  while (used && used->next) {
+    used = used->next;
+  }
+  if (used) {
+    used->next = used_vars;
+    used_vars = define_vars->vars;
+  }
+  define_vars = define_vars->upper;
+}
+
+void add_scope_var(Var *var) {
+  var->next = define_vars->vars;
+  define_vars->vars = var;
+}
+
+Var *find_var(char *str, int str_len) {
+  char *var_name = calloc(sizeof(char), 1);
+  memcpy(var_name, str, str_len);
+  for (ScopeVars *now_scope = define_vars; now_scope; now_scope = now_scope->upper) {
+    for (Var *now_var = now_scope->vars; now_var; now_var = now_var->next) {
+      if (now_var->len != str_len) {
+        continue;
+      }
+
+      if (memcmp(var_name, now_var->str, str_len) == 0) {
+        return now_var;
+      }
+    }
+  }
+  return NULL;
+}
+
+bool check_already_define(char *str, int str_len) {
+  char *var_name = calloc(sizeof(char), 1);
+  for (Var *now_var = define_vars->vars; now_var; now_var = now_var->next) {
+    if (now_var->len != str_len) {
+      continue;
+    }
+
+    if (memcmp(var_name, now_var->str, str_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int init_offset() {
   int now_address = 0;
-  Var *now = top_var;
+  Var *now = used_vars;
   while (now) {
     now_address += now->var_type->var_size;
     now->offset = now_address;
     now = now->next;
   }
+  used_vars = NULL;
   now_address += 16 - (now_address % 16);
   return now_address;
 }

@@ -32,10 +32,6 @@ typedef enum {
   REG_SIZE_1   // 1-byte register (8bit)
 } RegSizeKind;
 
-//
-// assembly.c
-//
-
 const char *get_reg(RegKind reg_kind, RegSizeKind reg_size);
 RegSizeKind convert_type_to_size(TypeKind var_type);
 
@@ -57,10 +53,6 @@ bool gen_instruction_bitwise_operation(RegKind left_reg,
                                        RegKind right_reg,
                                        RegSizeKind reg_size,
                                        int operation);
-
-//
-// codegen.c
-//
 
 void codegen();
 

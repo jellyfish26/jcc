@@ -68,7 +68,8 @@ struct Node {
   Node *repeat_for; // repeact in exec "for"
   Node *stmt_for;   // statement in exec "for"
 
-  Node *next_stmt; // Block statement
+  Node *next_stmt;  // Next statement
+  Node *next_block; // Next Block
 
   NodeKind assign_type; // Type of assign
 
@@ -90,8 +91,7 @@ struct Function {
   Node *stmt;     // Node of statement
   Function *next; // Next function
   Type *ret_type; // Type of function return
-
-  Var *vars;
+  Var *vars; // Definition variables
 
   Node *func_args; // Function arguments
   int func_argc;   // Count of function arguments

@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
@@ -63,7 +64,7 @@ void raise_type_for_node(Node *target) {
 
 // Prototype
 void program();
-Node *statement();
+Node *statement(bool new_scope);
 Node *assign();
 Node *ternary();
 Node *logical_or();
@@ -90,6 +91,8 @@ Function *top_func;
 Function *exp_func;
 
 void program() {
+  define_vars = NULL;
+  used_vars = NULL;
   int i = 0;
   while (!is_eof()) {
     if (exp_func) {
@@ -108,6 +111,7 @@ void program() {
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
 void function(Function *target) {
+  new_scope_definition();
   Type *ret_type = new_type();
 
   if (ret_type) {
@@ -137,15 +141,12 @@ void function(Function *target) {
 
       Token *var_tkn = consume(TK_IDENT, NULL);
       if (var_tkn) {
-        Var *local_var =
-            find_var(exp_func->vars, var_tkn->str, var_tkn->str_len);
-        if (local_var) {
+        if (check_already_define(var_tkn->str, var_tkn->str_len)) {
           errorf_at(ER_COMPILE, before_token,
                     "This variable already definition.");
         }
-        local_var = connect_var(exp_func->vars, arg_type, var_tkn->str,
-                                var_tkn->str_len);
-        exp_func->vars = local_var;
+        Var *local_var = new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
+        add_scope_var(local_var);
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
         target->func_args->var = local_var;
         target->func_argc++;
@@ -166,7 +167,9 @@ void function(Function *target) {
     }
     target->func_name = function_ident->str;
     target->func_name_len = function_ident->str_len;
-    target->stmt = statement();
+    target->stmt = statement(false);
+    out_scope_definition();
+    target->vars_size = init_offset();
   } else {
     errorf_at(ER_COMPILE, source_token,
               "Start the function with an identifier.");
@@ -177,49 +180,75 @@ Node *inside_roop; // inside for or while
 
 // statement = { statement* } |
 //             ("return")? assign ";" |
-//             "if" "(" assign ")" statement ("else" statement)? |
-//             "for" "("define_type?; assign?; assign?")" statement |
-//             "while" "(" assign ")" statement |
+//             "if" "(" define_var ")" statement ("else" statement)? |
+//             "for" "(" define_var? ";" assign? ";" assign?")" statement |
+//             "while" "(" define_var ")" statement |
 //             "break;" |
 //             "continue;" |
 //             define_type ";"
-Node *statement() {
+Node *statement(bool new_scope) {
   Node *ret;
 
   // Block statement
   if (consume(TK_PUNCT, "{")) {
+    if (new_scope) {
+      new_scope_definition();
+    }
     ret = new_node(ND_BLOCK, NULL, NULL);
     Node *now = NULL;
     while (!consume(TK_PUNCT, "}")) {
       if (now) {
-        now->next_stmt = statement();
+        now->next_stmt = statement(true);
         now = now->next_stmt;
       } else {
-        now = statement();
-        ret->next_stmt = now;
+        now = statement(true);
+        ret->next_block = now;
       }
+    }
+    if (new_scope) {
+      out_scope_definition();
     }
     return ret;
   }
 
   if (consume(TK_KEYWORD, "if")) {
+    new_scope_definition();
     ret = new_node(ND_IF, NULL, NULL);
 
     if (!consume(TK_PUNCT, "(")) {
       errorf_at(ER_COMPILE, source_token, "If statement must start with \"(\"");
     }
-    ret->judge = assign();
+    ret->judge = define_var();
+    Var *top_var = define_vars->vars;
     if (!consume(TK_PUNCT, ")")) {
       errorf_at(ER_COMPILE, source_token, "If statement must end with \")\".");
     }
-    ret->exec_if = statement();
+    ret->exec_if = statement(false);
+    // Transfer varaibles
+    if (top_var && define_vars->vars == top_var) {
+      define_vars->vars = NULL;
+    } else if (top_var) {
+      for (Var *now_var = define_vars->vars; now_var; now_var = now_var->next) {
+        if (now_var->next == top_var) {
+          now_var->next = NULL;
+          break;
+        }
+      }
+    }
+    out_scope_definition();
     if (consume(TK_KEYWORD, "else")) {
-      ret->exec_else = statement();
+      new_scope_definition();
+      if (top_var) {
+        add_scope_var(top_var);
+      }
+      ret->exec_else = statement(false);
+      out_scope_definition();
     }
     return ret;
   }
 
   if (consume(TK_KEYWORD, "for")) {
+    new_scope_definition();
     Node *roop_state = inside_roop;
     ret = new_node(ND_FOR, NULL, NULL);
     inside_roop = ret;
@@ -252,13 +281,15 @@ Node *statement() {
                   "For statement must end with \")\".");
       }
     }
-    ret->stmt_for = statement();
+    ret->stmt_for = statement(false);
+    out_scope_definition();
 
     inside_roop = roop_state;
     return ret;
   }
 
   if (consume(TK_KEYWORD, "while")) {
+    new_scope_definition();
     Node *roop_state = inside_roop;
     ret = new_node(ND_WHILE, NULL, NULL);
     inside_roop = ret;
@@ -272,9 +303,10 @@ Node *statement() {
       errorf_at(ER_COMPILE, source_token,
                 "While statement must end with \")\".");
     }
-    ret->stmt_for = statement();
+    ret->stmt_for = statement(false);
 
     inside_roop = roop_state;
+    out_scope_definition();
     return ret;
   }
 
@@ -340,13 +372,13 @@ Node *define_var() {
                 "Variable definition must be identifier.");
     }
 
-    Var *result = find_var(exp_func->vars, tkn->str, tkn->str_len);
-    if (result) {
+    if (check_already_define(tkn->str, tkn->str_len)) {
       errorf_at(ER_COMPILE, before_token,
                 "This variable is already definition.");
     }
-    ret->var = connect_var(exp_func->vars, var_type, tkn->str, tkn->str_len);
-    exp_func->vars = ret->var;
+    Var *result = new_general_var(var_type, tkn->str, tkn->str_len);
+    ret->var = result;
+    add_scope_var(result);
 
     // Size needs to be viewed from the end.
     typedef struct ArraySize ArraySize;
@@ -665,7 +697,7 @@ Node *priority() {
 
   // used variable
   if (tkn) {
-    Var *target = find_var(exp_func->vars, tkn->str, tkn->str_len);
+    Var *target = find_var(tkn->str, tkn->str_len);
     if (!target) {
       errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
     }

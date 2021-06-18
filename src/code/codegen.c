@@ -403,7 +403,7 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_BLOCK) {
-    for (Node *now_stmt = node->next_stmt; now_stmt;
+    for (Node *now_stmt = node->next_block; now_stmt;
          now_stmt = now_stmt->next_stmt) {
       compile_node(now_stmt);
     }
@@ -707,7 +707,6 @@ void codegen() {
   printf(".intel_syntax noprefix\n");
 
   for (Function *now_func = top_func; now_func; now_func = now_func->next) {
-    now_func->vars_size = init_offset(now_func->vars);
     char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
     memcpy(func_name, now_func->func_name, now_func->func_name_len);
     printf(".global %s\n", func_name);
