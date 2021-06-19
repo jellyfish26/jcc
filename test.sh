@@ -660,3 +660,20 @@ int main() {
   return a + b;
 }
 "
+
+assert 5 "
+int main() {
+  int a = 2, b = 3;
+  return a + b;
+}
+"
+
+assert 15 "
+int main() {
+  int *a, b = 2;
+  int c = 5, d;
+  a = &d;
+  d = 4;
+  return *a + b + c + d;
+}
+"

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
@@ -62,9 +63,18 @@ void raise_type_for_node(Node *target) {
   }
 }
 
+Node *last_stmt(Node *now) {
+  while (now->next_stmt) {
+    now = now->next_stmt;
+  }
+  return now;
+}
+
 // Prototype
 void program();
 Node *statement(bool new_scope);
+Node *define_var(bool once);
+Node *define_ident();
 Node *assign();
 Node *ternary();
 Node *logical_or();
@@ -78,7 +88,6 @@ Node *bitwise_shift();
 Node *add();
 Node *mul();
 Node *unary();
-Node *define_var();
 Node *address_op();
 Node *indirection();
 Node *increment_and_decrement();
@@ -180,12 +189,12 @@ Node *inside_roop; // inside for or while
 
 // statement = { statement* } |
 //             ("return")? assign ";" |
-//             "if" "(" define_var ")" statement ("else" statement)? |
-//             "for" "(" define_var? ";" assign? ";" assign?")" statement |
-//             "while" "(" define_var ")" statement |
+//             "if" "(" define_var(true) ")" statement ("else" statement)? |
+//             "for" "(" define_var(true)? ";" assign? ";" assign?")" statement |
+//             "while" "(" define_var(true) ")" statement |
 //             "break;" |
 //             "continue;" |
-//             define_type ";"
+//             define_var(false) ";"
 Node *statement(bool new_scope) {
   Node *ret;
 
@@ -199,11 +208,11 @@ Node *statement(bool new_scope) {
     while (!consume(TK_PUNCT, "}")) {
       if (now) {
         now->next_stmt = statement(true);
-        now = now->next_stmt;
       } else {
         now = statement(true);
         ret->next_block = now;
       }
+      now = last_stmt(now);
     }
     if (new_scope) {
       out_scope_definition();
@@ -218,7 +227,7 @@ Node *statement(bool new_scope) {
     if (!consume(TK_PUNCT, "(")) {
       errorf_at(ER_COMPILE, source_token, "If statement must start with \"(\"");
     }
-    ret->judge = define_var();
+    ret->judge = define_var(true);
     Var *top_var = define_vars->vars;
     if (!consume(TK_PUNCT, ")")) {
       errorf_at(ER_COMPILE, source_token, "If statement must end with \")\".");
@@ -259,7 +268,7 @@ Node *statement(bool new_scope) {
     }
 
     if (!consume(TK_PUNCT, ";")) {
-      ret->init_for = define_var();
+      ret->init_for = define_var(true);
       if (!consume(TK_PUNCT, ";")) {
         errorf_at(ER_COMPILE, source_token,
                   "After defining an expression, it must end with \";\". ");
@@ -344,7 +353,7 @@ Node *statement(bool new_scope) {
     return ret;
   }
 
-  ret = define_var();
+  ret = define_var(false);
   if (!consume(TK_PUNCT, ";")) {
     errorf_at(ER_COMPILE, source_token, "Expression must end with \";\".");
   }
@@ -352,74 +361,90 @@ Node *statement(bool new_scope) {
   return ret;
 }
 
-// define_var = base_type "*"* ident ("[" num "]")* ("=" assign)? |
+// define_var = base_type define_ident (once is false: ("," define_ident)*) |
 //              assign
-Node *define_var() {
+Node *define_var(bool once) {
   Type *var_type = new_type();
-
-  // define variable
   if (var_type) {
-    int ptr_cnt = 0;
-    while (consume(TK_PUNCT, "*")) {
-      ++ptr_cnt;
-    }
-
-    Token *tkn = consume(TK_IDENT, NULL);
-    Node *ret = new_node(ND_VAR, NULL, NULL);
-
-    if (!tkn) {
-      errorf_at(ER_COMPILE, source_token,
-                "Variable definition must be identifier.");
-    }
-
-    if (check_already_define(tkn->str, tkn->str_len)) {
-      errorf_at(ER_COMPILE, before_token,
-                "This variable is already definition.");
-    }
-    Var *result = new_general_var(var_type, tkn->str, tkn->str_len);
-    ret->var = result;
-    add_scope_var(result);
-
-    // Size needs to be viewed from the end.
-    typedef struct ArraySize ArraySize;
-
-    struct ArraySize {
-      int array_size;
-      ArraySize *before;
-    };
-
-    ArraySize *top = NULL;
-
-    while (consume(TK_PUNCT, "[")) {
-      Token *array_size = consume(TK_NUM_INT, NULL);
-      if (!array_size) {
-        errorf_at(ER_COMPILE, source_token, "Specify the size of array.");
+    Node *first_var = define_ident(var_type);
+    if (!once) {
+      Node *now_var = first_var;
+      while (consume(TK_PUNCT, ",")) {
+        now_var->next_stmt = define_ident(var_type);
+        now_var = now_var->next_stmt;
       }
-      if (!consume(TK_PUNCT, "]")) {
-        errorf_at(ER_COMPILE, source_token, "Must end [");
-      }
-
-      ArraySize *now = calloc(sizeof(ArraySize), 1);
-      now->array_size = array_size->val;
-      now->before = top;
-      top = now;
     }
-
-    while (top) {
-      new_array_dimension_var(ret->var, top->array_size);
-      top = top->before;
-    }
-
-    for (int i = 0; i < ptr_cnt; ++i) {
-      new_pointer_var(ret->var);
-    }
-
-    if (consume(TK_PUNCT, "=")) {
-      ret = new_assign_node(ND_ASSIGN, ret, assign());
-    }
-    return ret;
+    return first_var;
   }
   return assign();
+}
+
+// define_ident = "*"* ident ("[" num "]")*
+Node *define_ident(Type *define_type) {
+  if (!define_type) {
+    errorf(ER_INTERNAL, "Internal Error at define variable");
+  }
+  Type *now_type = calloc(sizeof(Type), 1);
+  memcpy(now_type, define_type, sizeof(Type));
+  int ptr_cnt = 0;
+  while (consume(TK_PUNCT, "*")) {
+    ++ptr_cnt;
+  }
+
+  Token *tkn = consume(TK_IDENT, NULL);
+  Node *ret = new_node(ND_VAR, NULL, NULL);
+
+  if (!tkn) {
+    errorf_at(ER_COMPILE, source_token,
+              "Variable definition must be identifier.");
+  }
+
+  if (check_already_define(tkn->str, tkn->str_len)) {
+    errorf_at(ER_COMPILE, before_token,
+              "This variable is already definition.");
+  }
+  Var *result = new_general_var(now_type, tkn->str, tkn->str_len);
+  ret->var = result;
+  add_scope_var(result);
+
+  // Size needs to be viewed from the end.
+  typedef struct ArraySize ArraySize;
+
+  struct ArraySize {
+    int array_size;
+    ArraySize *before;
+  };
+
+  ArraySize *top = NULL;
+
+  while (consume(TK_PUNCT, "[")) {
+    Token *array_size = consume(TK_NUM_INT, NULL);
+    if (!array_size) {
+      errorf_at(ER_COMPILE, source_token, "Specify the size of array.");
+    }
+    if (!consume(TK_PUNCT, "]")) {
+      errorf_at(ER_COMPILE, source_token, "Must end [");
+    }
+
+    ArraySize *now = calloc(sizeof(ArraySize), 1);
+    now->array_size = array_size->val;
+    now->before = top;
+    top = now;
+  }
+
+  while (top) {
+    new_array_dimension_var(ret->var, top->array_size);
+    top = top->before;
+  }
+
+  for (int i = 0; i < ptr_cnt; ++i) {
+    new_pointer_var(ret->var);
+  }
+
+  if (consume(TK_PUNCT, "=")) {
+    ret = new_assign_node(ND_ASSIGN, ret, assign());
+  }
+  return ret;
 }
 
 // assign = ternary ("=" assign | "+=" assign | "-=" assign
