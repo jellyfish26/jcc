@@ -25,11 +25,12 @@ struct Token {
   char *str;      // Token String
   int str_len;    // Token length
   int val;        // Value if kind is TK_NUM_INT
+  int loc;        // Location from the beginning of the file
 };
 
 extern Token *source_token; // Warn: Don't operate it directly.
 extern Token *before_token; // before source_token
-void tokenize();
+void tokenize(char *file_name);
 
 //
 // error.c

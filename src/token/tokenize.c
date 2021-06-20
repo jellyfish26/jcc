@@ -1,8 +1,11 @@
 #include "token/tokenize.h"
-#include "read/readsrc.h"
 
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+char *source_str;
 
 // If the token cannot be consumed, NULL is return value.
 // When a token is consumed, the source_token variable
@@ -75,56 +78,42 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
       err_type = "Internal Error";
       break;
   }
-  SourceLine *target = source_code;
+  int line_cnt = 1;
+  int begin_line_loc = token->loc;
+  char *now_str = source_str;
 
-  // Search
-  while (target) {
-    // If EOF, the source_code indicates the last line
-    if (!token->str) {
-      if (target->next && !target->str) {
-        target = target->next;
-        continue;
-      } else {
-        break;
-      }
+  // Explore where the Token is on the line.
+  while (now_str < source_str + token->loc) {
+    if (*now_str == '\n') {
+      line_cnt++;
     }
-
-    bool check = false;
-    for (char *now = target->str; *now; now++) {
-      if (now == token->str) {
-        check = true;
-        break;
-      }
-    }
-    if (check) {
-      break;
-    }
-    target = target->next;
+    now_str++;
   }
 
-  if (!target) {
-    fprintf(stderr, "Internal error\n");
+  // Go back to the beginning of the line
+  while (now_str != source_str && *(now_str - 1) != '\n') {
+    now_str--;
+    begin_line_loc--;
   }
 
   fprintf(stderr, "\x1b[31m[%s]\x1b[39m\n", err_type);
-  int pos = 0;
-  if (token->str) {
-    pos = token->str - target->str;
-  } else {
-    pos = target->len - 2;
-  }
 
   // Print source code
-  fprintf(stderr, "%d:%s", target->number, target->str);
+  fprintf(stderr, "%d:", line_cnt);
+  while (*now_str != '\n' && *now_str != '\0') {
+    fprintf(stderr, "%c", *now_str);
+    now_str++;
+  }
+  fprintf(stderr, "\n");
 
   // Space of number
-  for (int i = target->number; i != 0; i /= 10) {
+  for (int i = line_cnt; i != 0; i /= 10) {
     fprintf(stderr, " ");
   }
 
   // Space ": "
-  for (int i = -1; i < pos + token->str_len; i++) {
-    if (i < pos) {
+  for (int i = begin_line_loc - 1; i < token->loc + token->str_len; i++) {
+    if (i < token->loc) {
       fprintf(stderr, " ");
     } else {
       fprintf(stderr, "^");
@@ -136,14 +125,15 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
   exit(1);
 }
 
-Token *new_token(TokenKind kind, Token *target, char *str, int len) {
+Token *new_token(TokenKind kind, Token *connect, char *str, int len, int loc) {
   Token *ret = calloc(1, sizeof(Token));
   // printf("%d\n", kind);
   ret->kind = kind;
   ret->str = str;
   ret->str_len = len;
-  if (target) {
-    target->next = ret;
+  ret->loc = loc;
+  if (connect) {
+    connect->next = ret;
   }
   return ret;
 }
@@ -179,74 +169,90 @@ char *permit_keywords[] = {"return", "if",       "else", "for", "while",
                            "break",  "continue", "int",  "long"};
 
 // Update source token
-void tokenize() {
+void tokenize(char *file_name) {
+  FILE *fp;
+  if ((fp = fopen(file_name, "r")) == NULL) {
+    fprintf(stderr, "Failed to open the file: %s\n", file_name);
+    exit(1);
+  }
+  // Get file length and string
+  fseek(fp, 0, SEEK_END);
+  int file_len = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  source_str = calloc(sizeof(char), file_len + 1);
+  for (int i = 0; i < file_len; ++i) {
+    *(source_str + i) = fgetc(fp);
+  }
+  fclose(fp);
+
   Token head;
-  SourceLine *now_line = source_code;
   Token *ret = &head;
 
-  char *now_str;
-  while (now_line) {
-    now_str = now_line->str;
-    while (*now_str) {
-      if (isspace(*now_str)) {
-        now_str++;
-        continue;
-      }
-
-      bool check = false;
-
-      // Check punctuators
-      for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
-        int len = strlen(permit_panct[i]);
-        if (memcmp(now_str, permit_panct[i], len) == 0) {
-          ret = new_token(TK_PUNCT, ret, now_str, len);
-          now_str += len;
-          check = true;
-          break;
-        }
-      }
-
-      if (check) {
-        continue;
-      }
-
-      // Check keywords
-      for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
-        int len = strlen(permit_keywords[i]);
-        if (memcmp(now_str, permit_keywords[i], len) == 0) {
-          ret = new_token(TK_KEYWORD, ret, now_str, len);
-          now_str += len;
-          check = true;
-          break;
-        }
-      }
-
-      if (check) {
-        continue;
-      }
-
-      if (isdigit(*now_str)) {
-        ret = new_token(TK_NUM_INT, ret, now_str, 0);
-        char *tmp = now_str;
-        ret->val = strtol(now_str, &now_str, 10);
-        ret->str_len = now_str - tmp;
-        continue;
-      }
-
-      if (is_useable_char(*now_str)) {
-        char *start = now_str;
-        while (is_ident_char(*now_str)) {
-          now_str++;
-        }
-        int len = now_str - start;
-        ret = new_token(TK_IDENT, ret, start, len);
-        continue;
-      }
-      printf("%s", now_str);
-      errorf(ER_TOKENIZE, "Unexpected tokenize");
+  char *now_str = source_str;
+  int now_loc = 0;
+  while (*now_str) {
+    if (isspace(*now_str)) {
+      now_str++;
+      now_loc++;
+      continue;
     }
-    now_line = now_line->next;
+
+    bool check = false;
+
+    // Check punctuators
+    for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
+      int panct_len = strlen(permit_panct[i]);
+      if (memcmp(now_str, permit_panct[i], panct_len) == 0) {
+        ret = new_token(TK_PUNCT, ret, now_str, panct_len, now_loc);
+        now_str += panct_len;
+        now_loc += panct_len;
+        check = true;
+        break;
+      }
+    }
+
+    if (check) {
+      continue;
+    }
+
+    // Check keywords
+    for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
+      int keyword_len = strlen(permit_keywords[i]);
+      if (memcmp(now_str, permit_keywords[i], keyword_len) == 0) {
+        ret = new_token(TK_KEYWORD, ret, now_str, keyword_len, now_loc);
+        now_str += keyword_len;
+        now_loc += keyword_len;
+        check = true;
+        break;
+      }
+    }
+
+    if (check) {
+      continue;
+    }
+
+    if (isdigit(*now_str)) {
+      char *tmp = now_str;
+      ret = new_token(TK_NUM_INT, ret, now_str, now_str - tmp, now_loc);
+      ret->val = strtol(now_str, &now_str, 10);
+      ret->str_len = now_str - tmp;
+      now_loc += ret->str_len;
+      continue;
+    }
+
+    if (is_useable_char(*now_str)) {
+      char *start = now_str;
+      while (is_ident_char(*now_str)) {
+        now_str++;
+      }
+      int ident_len = now_str - start;
+      ret = new_token(TK_IDENT, ret, start, ident_len, now_loc);
+      now_loc += ident_len;
+      continue;
+    }
+    printf("%s", now_str);
+    errorf(ER_TOKENIZE, "Unexpected tokenize");
   }
-  new_token(TK_EOF, ret, NULL, 1);
+  new_token(TK_EOF, ret, NULL, 1, now_loc);
   source_token = head.next;
 }

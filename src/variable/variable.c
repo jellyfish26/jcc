@@ -109,15 +109,13 @@ void add_scope_var(Var *var) {
 }
 
 Var *find_var(char *str, int str_len) {
-  char *var_name = calloc(sizeof(char), 1);
-  memcpy(var_name, str, str_len);
   for (ScopeVars *now_scope = define_vars; now_scope; now_scope = now_scope->upper) {
     for (Var *now_var = now_scope->vars; now_var; now_var = now_var->next) {
       if (now_var->len != str_len) {
         continue;
       }
 
-      if (memcmp(var_name, now_var->str, str_len) == 0) {
+      if (memcmp(str, now_var->str, str_len) == 0) {
         return now_var;
       }
     }
@@ -126,13 +124,12 @@ Var *find_var(char *str, int str_len) {
 }
 
 bool check_already_define(char *str, int str_len) {
-  char *var_name = calloc(sizeof(char), 1);
   for (Var *now_var = define_vars->vars; now_var; now_var = now_var->next) {
     if (now_var->len != str_len) {
       continue;
     }
 
-    if (memcmp(var_name, now_var->str, str_len) == 0) {
+    if (memcmp(str, now_var->str, str_len) == 0) {
       return true;
     }
   }
