@@ -677,3 +677,19 @@ int main() {
   return *a + b + c + d;
 }
 "
+
+assert 2 "
+int main() {
+  char c = 2;
+  return c;
+}
+"
+
+assert 7 "
+int main() {
+  char a = 2;
+  int b = 5;
+  return a + b;
+
+}
+"

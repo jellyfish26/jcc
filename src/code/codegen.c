@@ -46,6 +46,8 @@ const char *get_reg(RegKind reg_kind, RegSizeKind reg_size) {
 
 RegSizeKind convert_type_to_size(TypeKind var_type) {
   switch (var_type) {
+    case TY_CHAR:
+      return REG_SIZE_1;
     case TY_INT:
       return REG_SIZE_4;
     default:

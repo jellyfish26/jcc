@@ -7,7 +7,11 @@
 
 Type *new_general_type(TypeKind kind) {
   Type *ret = calloc(sizeof(Type), 1);
+  ret->kind = kind;
   switch(kind) {
+    case TY_CHAR:
+      ret->var_size = 1;
+      break;
     case TY_INT:
       ret->var_size = 4;
       break;

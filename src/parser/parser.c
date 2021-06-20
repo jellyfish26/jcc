@@ -30,14 +30,17 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
 }
 
 Type *new_type() {
-  Token *tkn = consume(TK_KEYWORD, "int");
+  Token *tkn = consume(TK_KEYWORD, "char");
+  if (tkn) {
+    return new_general_type(TY_CHAR);
+  }
+  tkn = consume(TK_KEYWORD, "int");
   if (tkn) {
     return new_general_type(TY_INT);
   }
   tkn = consume(TK_KEYWORD, "long");
   if (tkn) {
-    while (consume(TK_KEYWORD, "long"))
-      ;
+    while (consume(TK_KEYWORD, "long"));
     consume(TK_KEYWORD, "int");
     return new_general_type(TY_LONG);
   }

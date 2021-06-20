@@ -2,6 +2,7 @@
 #include <stdbool.h>
 
 typedef enum {
+  TY_CHAR,  // "char" type
   TY_INT,   // "int" type
   TY_LONG,  // "long" type
   TY_PTR,   // Pointer type

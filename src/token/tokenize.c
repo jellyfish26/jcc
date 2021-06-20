@@ -165,8 +165,8 @@ char *permit_panct[] = {
     "-=",  "-",  "*=", "*",  "/=", "/",  "%=", "%",   "&=", "&&", "&",
     "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~"};
 
-char *permit_keywords[] = {"return", "if",       "else", "for", "while",
-                           "break",  "continue", "int",  "long"};
+char *permit_keywords[] = {
+  "return", "if", "else", "for", "while", "break", "continue", "char", "int", "long"};
 
 // Update source token
 void tokenize(char *file_name) {
