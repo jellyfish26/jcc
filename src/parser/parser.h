@@ -51,6 +51,7 @@ typedef enum {
   ND_PREFIX_DEC,  // Prefix decrement
   ND_SUFFIX_INC,  // Suffix increment
   ND_SUFFIX_DEC,  // Suffix decrement
+  ND_SIZEOF,      // "sizeof"
 } NodeKind;
 
 struct Node {

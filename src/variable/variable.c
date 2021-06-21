@@ -83,6 +83,10 @@ int pointer_movement_size(Var *var) {
   return var->var_type->content->var_size;
 }
 
+int get_sizeof(Var *var) {
+  return var->var_type->var_size;
+}
+
 ScopeVars *define_vars;
 Var *used_vars;
 

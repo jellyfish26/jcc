@@ -1,4 +1,5 @@
 #include "code/codegen.h"
+#include "parser/parser.h"
 #include "variable/variable.h"
 
 #include <stdio.h>
@@ -588,6 +589,11 @@ void compile_node(Node *node) {
           REG_RDI,
           REG_SIZE_8,
           (1<<1));
+      printf("  push rax\n");
+      return;
+    }
+    case ND_SIZEOF: {
+      printf("  mov rax, %d\n", get_sizeof(node->var));
       printf("  push rax\n");
       return;
     }

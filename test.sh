@@ -693,3 +693,63 @@ int main() {
 
 }
 "
+
+assert 4 "
+int main() {
+  int x = 9;
+  return sizeof(x);
+}
+"
+
+assert 4 "
+int main() {
+  int x = 9;
+  return sizeof(x + 2);
+}
+"
+
+assert 8 "
+int main() {
+  long x = 4;
+  return sizeof(x);
+}
+"
+
+assert 8 "
+int main() {
+  int x = 3;
+  int *y = &x;
+  return sizeof(y);
+}
+"
+
+assert 4 "
+int main() {
+  int x = 3;
+  int *y = &x;
+  return sizeof(*y);
+}
+"
+
+assert 32 "
+int main() {
+  int x[8];
+  x[2] = 4;
+  return sizeof(x);
+}
+"
+
+assert 4 "
+int main() {
+  int x[8];
+  x[2] = 4;
+  return sizeof(x[2]);
+}
+"
+
+assert 32 "
+int main() {
+  long x[2][2];
+  return sizeof(x);
+}
+"

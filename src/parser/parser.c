@@ -55,13 +55,11 @@ Type *get_type_for_node(Node *target) {
 }
 
 void raise_type_for_node(Node *target) {
-  if (target->lhs->var && (get_type_for_node(target->lhs)->kind == TY_PTR ||
-                           get_type_for_node(target->lhs)->kind == TY_ARRAY)) {
+  if (target->lhs && target->lhs->var) {
     target->var = target->lhs->var;
   }
 
-  if (target->rhs->var && (get_type_for_node(target->rhs)->kind == TY_PTR ||
-                           get_type_for_node(target->rhs)->kind == TY_ARRAY)) {
+  if (target->rhs && target->rhs->var) {
     target->var = target->rhs->var;
   }
 }
@@ -612,21 +610,26 @@ Node *mul() {
   return ret;
 }
 
-// unary = address_op |
-//         ("+" | "-" | "!" | "~") unary
+// unary = "sizeof" unary
+//         ("+" | "-" | "!" | "~")? address_op
 Node *unary() {
+  if (consume(TK_KEYWORD, "sizeof")) {
+    Node *ret = new_node(ND_SIZEOF, unary(), NULL);
+    raise_type_for_node(ret);
+    return ret;
+  }
   if (consume(TK_PUNCT, "+")) {
-    Node *ret = new_node(ND_ADD, new_node_int(0), unary());
+    Node *ret = new_node(ND_ADD, new_node_int(0), address_op());
     raise_type_for_node(ret);
     return ret;
   } else if (consume(TK_PUNCT, "-")) {
-    Node *ret = new_node(ND_SUB, new_node_int(0), unary());
+    Node *ret = new_node(ND_SUB, new_node_int(0), address_op());
     raise_type_for_node(ret);
     return ret;
   } else if (consume(TK_PUNCT, "!")) {
-    return new_node(ND_LOGICALNOT, unary(), NULL);
+    return new_node(ND_LOGICALNOT, address_op(), NULL);
   } else if (consume(TK_PUNCT, "~")) {
-    return new_node(ND_BITWISENOT, unary(), NULL);
+    return new_node(ND_BITWISENOT, address_op(), NULL);
   }
   return address_op();
 }
