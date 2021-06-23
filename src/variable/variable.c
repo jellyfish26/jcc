@@ -112,6 +112,7 @@ void out_scope_definition() {
 }
 
 void add_scope_var(Var *var) {
+  var->global = (define_vars->depth == 0);
   var->next = define_vars->vars;
   define_vars->vars = var;
 }

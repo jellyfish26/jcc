@@ -32,6 +32,7 @@ struct Var {
   char *str;  // Variable name
   int len;    // Length of name
   int offset; // Offset
+  bool global; // Global variable if this variable is true
 };
 
 Var *new_general_var(Type *var_type, char *str, int str_len);

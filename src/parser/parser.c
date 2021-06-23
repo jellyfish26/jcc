@@ -103,6 +103,7 @@ Function *exp_func;
 void program() {
   define_vars = NULL;
   used_vars = NULL;
+  new_scope_definition();
   int i = 0;
   while (!is_eof()) {
     if (exp_func) {
@@ -121,7 +122,6 @@ void program() {
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
 void function(Function *target) {
-  new_scope_definition();
   Type *ret_type = new_type();
 
   if (ret_type) {
@@ -130,13 +130,19 @@ void function(Function *target) {
     errorf_at(ER_COMPILE, source_token, "Undefined type.");
   }
 
-  Token *function_ident = consume(TK_IDENT, NULL);
-  if (function_ident) {
+  Token *global_ident = consume(TK_IDENT, NULL);
+  if (global_ident) {
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token,
-                "Define function must start with \"(\".");
+      restore(); // ident restore
+      restore(); // type restore
+      target->stmt = define_var(false);
+      target->global_var_define = true;
+      consume(TK_PUNCT, ";");
+      return;
     }
 
+    // Function define
+    new_scope_definition();
     bool is_variable_defined = true;
     if (consume(TK_PUNCT, ")")) {
       is_variable_defined = false;
@@ -175,8 +181,8 @@ void function(Function *target) {
                   "Define function must end with \")\".");
       }
     }
-    target->func_name = function_ident->str;
-    target->func_name_len = function_ident->str_len;
+    target->func_name = global_ident->str;
+    target->func_name_len = global_ident->str_len;
     target->stmt = statement(false);
     out_scope_definition();
     target->vars_size = init_offset();
@@ -190,9 +196,9 @@ Node *inside_roop; // inside for or while
 
 // statement = { statement* } |
 //             ("return")? assign ";" |
-//             "if" "(" define_var(true) ")" statement ("else" statement)? |
-//             "for" "(" define_var(true)? ";" assign? ";" assign?")" statement |
-//             "while" "(" define_var(true) ")" statement |
+//             "if" "(" define_var(true, NULL) ")" statement ("else" statement)? |
+//             "for" "(" define_var(true, NULL)? ";" assign? ";" assign?")" statement |
+//             "while" "(" define_var(true, NULL) ")" statement |
 //             "break;" |
 //             "continue;" |
 //             define_var(false) ";"

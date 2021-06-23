@@ -97,6 +97,8 @@ struct Function {
   Node *func_args; // Function arguments
   int func_argc;   // Count of function arguments
   int vars_size;
+
+  bool global_var_define;
 };
 
 extern Function *top_func; // parse.c

@@ -34,6 +34,13 @@ Token *consume(TokenKind kind, char *op) {
   return ret;
 }
 
+void restore() {
+  if (before_token != NULL) {
+    before_token = before_token->before;
+  }
+  source_token = source_token->before;
+}
+
 bool is_eof() {
   return source_token->kind == TK_EOF;
 }
@@ -134,6 +141,7 @@ Token *new_token(TokenKind kind, Token *connect, char *str, int len, int loc) {
   ret->loc = loc;
   if (connect) {
     connect->next = ret;
+    ret->before = connect;
   }
   return ret;
 }

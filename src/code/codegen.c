@@ -3,6 +3,8 @@
 #include "variable/variable.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 //
 // About assembly
@@ -711,10 +713,41 @@ void compile_node(Node *node) {
   printf("  push rax\n");
 }
 
+void gen_global_var_define(Var *var) {
+  char *global_var_name = calloc(var->len + 1, sizeof(char));
+  memcpy(global_var_name, var->str, var->len);
+  printf("%s:\n", global_var_name);
+  switch (var->var_type->kind) {
+    case TY_CHAR:
+      printf("  .zero 1\n");
+      break;
+    case TY_INT:
+      printf("  .zero 4\n");
+      break;
+    case TY_LONG:
+    case TY_PTR:
+      printf("  .zero 8\n");
+      break;
+    case TY_ARRAY:
+      printf("  .zero %d\n", var->var_type->var_size);
+      break;
+    default:
+      return;
+  }
+}
+
 void codegen() {
   printf(".intel_syntax noprefix\n");
 
   for (Function *now_func = top_func; now_func; now_func = now_func->next) {
+    if (now_func->global_var_define) {
+      for (Node *define_node = now_func->stmt; define_node != NULL; define_node = define_node->next_stmt) {
+        gen_global_var_define(define_node->var);
+      }
+      continue;
+    }
+
+
     char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
     memcpy(func_name, now_func->func_name, now_func->func_name_len);
     printf(".global %s\n", func_name);

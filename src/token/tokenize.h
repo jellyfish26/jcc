@@ -21,6 +21,7 @@ typedef struct Token Token;
 
 struct Token {
   TokenKind kind; // Type of Token
+  Token *before;  // Before token
   Token *next;    // Next token
   char *str;      // Token String
   int str_len;    // Token length
@@ -50,4 +51,5 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...);
 //
 
 Token *consume(TokenKind kind, char *op);
+void restore();
 bool is_eof();

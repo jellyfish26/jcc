@@ -753,3 +753,10 @@ int main() {
   return sizeof(x);
 }
 "
+
+assert 0 "
+int a[2][2];
+int main() {
+  return 0;
+}
+"
