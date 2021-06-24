@@ -39,21 +39,23 @@ RegSizeKind convert_type_to_size(TypeKind var_kind);
 void gen_compare(char *comp, TypeKind var_kind);
 void gen_var_address(Node *node);
 
+typedef enum {
+  OP_MOV,
+  OP_ADD,
+  OP_SUB,
+  OP_MUL,
+  OP_DIV,
+  OP_REMAINDER,
+  OP_LEFT_SHIFT,
+  OP_RIGHT_SHIFT,
+  OP_BITWISE_AND,
+  OP_BITWISE_XOR,
+  OP_BITWISE_OR,
+  OP_BITWISE_NOT,
+} OpKind;
+
 // If the return value is true, the generation succeeded,
 // and if it is negative, the generation failed.
-bool gen_instruction_mov(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
-bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
-bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
-bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size);
-bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder);
-bool gen_instruction_bitwise_shift(RegKind left_reg,
-                                   RegKind right_reg,
-                                   RegSizeKind reg_size,
-                                   bool shift_left);
-bool gen_instruction_bitwise_operation(RegKind left_reg,
-                                       RegKind right_reg,
-                                       RegSizeKind reg_size,
-                                       int operation);
-
+bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, OpKind op);
 void codegen();
 

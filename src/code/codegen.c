@@ -66,6 +66,7 @@ void gen_compare(char *comp_op, TypeKind var_kind) {
   printf("  movzx rax, al\n");
 }
 
+
 void gen_var_address(Node *node) {
   if (node->kind != ND_VAR && node->kind != ND_ADDR) {
     errorf(ER_COMPILE, "Not variable");
@@ -83,139 +84,87 @@ void gen_var_address(Node *node) {
   printf("  push rax\n");
 }
 
-// left_reg = right_reg
-bool gen_instruction_mov(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
-  if (left_reg == REG_MEM && right_reg == REG_MEM) {
-    return false;
-  }
-  printf("  mov %s, %s\n",
-      get_reg(left_reg, reg_size),
-      get_reg(right_reg, reg_size));
-  return true;
-}
+// OP_MOV: left_reg = right_reg
+// OP_ADD: left_reg = left_reg + right_reg
+// OP_SUB: left_reg = left_reg - right_reg
+// OP_MUL: left_reg = left_reg * right_reg (Cannot use REG_MEM both left_reg and right_reg)
+// OP_DIV: left_reg = left_reg / right_reg (Overwrite rax and rdx registers)
+// OP_REMAINDER: left_reg = left_reg % right_reg (Overwrite rax and rdx registers)
+// OP_BITWISE_SHIFT_LEFT: left_reg = left_reg << right_reg (Overwrite rcx register)
+// OP_BITWISE_SHIFT_RIGHT: left_reg = left_reg >> right_reg (overwrite rcx register)
+// OP_BITWISE_(AND | XOR | OR | NOT): left_reg = left_reg = (and | xor | or | not) right_reg
+bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, OpKind op) {
 
-// left_reg = left_reg + right_reg
-bool gen_instruction_add(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
-  if (left_reg == REG_MEM && right_reg == REG_MEM) {
-    return false;
-  }
-  printf("  add %s, %s\n",
-      get_reg(left_reg, reg_size),
-      get_reg(right_reg, reg_size));
-  return true;
-}
-
-// left_reg = left_reg - right_reg
-bool gen_instruction_sub(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
-  if (left_reg == REG_MEM && right_reg == REG_MEM) {
-    return false;
-  }
-
-  printf("  sub %s, %s\n",
-      get_reg(left_reg, reg_size),
-      get_reg(right_reg, reg_size));
-  return true;
-}
-
-// left_reg = left_reg * right_reg
-bool gen_instruction_mul(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size) {
-  if (left_reg == REG_MEM) {
-    return false;
-  }
-  if (reg_size == REG_SIZE_1) {
-    if (right_reg == REG_MEM) {
-      return false;
+  // normal operation
+  switch (op) {
+    case OP_MOV:
+      printf("  mov %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_ADD:
+      printf("  add %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_SUB:
+      printf("  sub %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_MUL: {
+      if (left_reg == REG_MEM) {
+        return false;
+      }
+      if (reg_size == REG_SIZE_1) {
+        reg_size = REG_SIZE_2;
+      }
+      printf("  imul %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
     }
-    reg_size = REG_SIZE_2;
+    case OP_DIV:
+    case OP_REMAINDER: {
+      if (left_reg == REG_MEM) {
+        printf("  push %s\n", get_reg(REG_RAX, REG_SIZE_8));
+      }
+      if (left_reg != REG_RAX) {
+        gen_operation(REG_RAX, left_reg, reg_size, OP_MOV);
+      }
+      if (reg_size == REG_SIZE_8) {
+        printf("  cqo\n");
+      } else {
+        printf("  cdq\n");
+      }
+      printf("  idiv %s\n", get_reg(right_reg, reg_size));
+      if (op == OP_DIV) {
+        gen_operation(REG_RDX, REG_RAX, reg_size, OP_MOV);
+      }
+      if (left_reg == REG_MEM) {
+        printf("  pop %s\n", get_reg(REG_RAX, REG_SIZE_8));
+      }
+      gen_operation(left_reg, REG_RDX, reg_size, OP_MOV);
+      return true;
+    }
+    case OP_LEFT_SHIFT:
+    case OP_RIGHT_SHIFT: {
+      if (right_reg != REG_RCX) {
+        gen_operation(REG_RCX, right_reg, reg_size, OP_MOV);
+      }
+      if (op == OP_LEFT_SHIFT) {
+        printf("  sal %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, reg_size));
+      } else {
+        printf("  sar %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, reg_size));
+      }
+      return true;
+    }
+    case OP_BITWISE_AND:
+      printf("  and %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_BITWISE_XOR:
+      printf("  xor %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_BITWISE_OR:
+      printf("  or %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_BITWISE_NOT:
+      printf("  not %s\n", get_reg(left_reg, reg_size));
+      return true;
   }
-
-  printf("  imul %s, %s\n",
-      get_reg(left_reg, reg_size),
-      get_reg(right_reg, reg_size));
-  return true;
-}
-
-// left_reg = left_reg / right_reg
-// left_reg = left_reg % right_reg
-// This function overwrites rax and rdx registers
-bool gen_instruction_div(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, bool is_remainder) {
-  if (left_reg == REG_MEM) {
-    printf("  push %s\n", get_reg(REG_RAX, REG_SIZE_8));
-  }
-  if (left_reg != REG_RAX) {
-    gen_instruction_mov(
-        REG_RAX,
-        left_reg,
-        reg_size);
-  }
-
-  if (reg_size == REG_SIZE_8) {
-    printf("  cqo\n");
-  } else {
-    printf("  cdq\n");
-  }
-
-  printf("  idiv %s\n", get_reg(right_reg, reg_size));
-  if (!is_remainder) {
-    gen_instruction_mov(REG_RDX, REG_RAX, reg_size);
-  }
-
-  if (left_reg == REG_MEM) {
-    printf("  pop %s\n", get_reg(REG_RAX, REG_SIZE_8));
-  }
-  gen_instruction_mov(left_reg, REG_RDX, reg_size);
-  return true;
-}
-
-// left_reg = left_reg << right_reg
-// left_reg = left_reg >> right_reg
-// This function overwrites rcx register
-bool gen_instruction_bitwise_shift(RegKind left_reg,
-                                   RegKind right_reg,
-                                   RegSizeKind reg_size,
-                                   bool shift_left) {
-  if (right_reg != REG_RCX) {
-    gen_instruction_mov(
-        REG_RCX,
-        right_reg,
-        reg_size);
-  }
-
-  if (shift_left) {
-    printf("  sal %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, REG_SIZE_1));
-  } else {
-    printf("  sar %s, %s\n", get_reg(left_reg, reg_size), get_reg(REG_RCX, REG_SIZE_1));
-  }
-  return true;
-}
-
-// left_reg = left_reg ("&" | "^" | "|") right_reg
-// left_reg = "~" left_reg
-// In the case of AND, operation is 0001
-// In the case of XOR, operation is 0010
-// In the case of OR, operation is 0100
-// In the case of NOT, operation is 1000
-bool gen_instruction_bitwise_operation(RegKind left_reg,
-                                       RegKind right_reg,
-                                       RegSizeKind reg_size,
-                                       int operation) {
-  if (left_reg == REG_MEM && right_reg == REG_MEM) {
-    return false;
-  }
-
-  if (operation == (1<<0)) {
-    printf("  and %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-  } else if (operation == (1<<1)) {
-    printf("  xor %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-  } else if (operation == (1<<2)) {
-    printf("  or %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-  } else if (operation == (1<<3)) {
-    printf("  not %s\n", get_reg(left_reg, reg_size));
-  } else {
-    return false;
-  }
-
-  return true;
+  return false;
 }
 
 int label = 0;
@@ -233,10 +182,7 @@ void expand_variable(Node *node) {
   printf("  pop rax\n");
   Type *var_type = node->var->var_type;
   if (var_type->kind != TY_ARRAY) {
-    gen_instruction_mov(
-        REG_RAX,
-        REG_MEM,
-        convert_type_to_size(var_type->kind));
+    gen_operation(REG_RAX, REG_MEM, convert_type_to_size(var_type->kind), OP_MOV);
   }
   printf("  push rax\n");
 }
@@ -273,93 +219,61 @@ void expand_assign(Node *node) {
       printf("  pop rdi\n");
   }
   printf("  pop rax\n");
+  RegSizeKind type_size = convert_type_to_size(var_type_kind);
 
   switch (node->assign_type) {
     case ND_ADD: {
-      gen_instruction_add(REG_RDI, REG_MEM, convert_type_to_size(var_type_kind));
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_ADD);
       break;
     }
     case ND_SUB: {
       printf("  push rax\n");
-      gen_instruction_mov(
-          REG_RAX,
-          REG_MEM,
-          convert_type_to_size(var_type_kind));
-      gen_instruction_sub(
-          REG_RAX,
-          REG_RDI,
-          convert_type_to_size(var_type_kind));
-      gen_instruction_mov(
-          REG_RDI,
-          REG_RAX,
-          convert_type_to_size(var_type_kind));
+      gen_operation(REG_RAX, REG_MEM, type_size, OP_MOV);
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_SUB);
+      gen_operation(REG_RDI, REG_RAX, type_size, OP_MOV);
       printf("  pop rax\n");
       break;
     }
     case ND_MUL: {
-      gen_instruction_mul(
-          REG_RDI,
-          REG_MEM,
-          convert_type_to_size(var_type_kind));
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MUL);
       break;
     }
     case ND_DIV:
     case ND_REMAINDER: {
       printf("  push rax\n");
-      gen_instruction_div(
-          REG_MEM,
-          REG_RDI,
-          convert_type_to_size(var_type_kind),
-          node->assign_type == ND_REMAINDER);
+      if (node->assign_type == ND_DIV) {
+        gen_operation(REG_MEM, REG_RDI, type_size, OP_DIV);
+      } else {
+        gen_operation(REG_MEM, REG_RDI, type_size, OP_REMAINDER);
+      }
       printf("  pop rax\n");
-      gen_instruction_mov(
-          REG_RDI,
-          REG_MEM,
-          convert_type_to_size(var_type_kind));
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
       break;
     }
     case ND_LEFTSHIFT:
+      gen_operation(REG_MEM, REG_RDI, type_size, OP_LEFT_SHIFT);
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
+      break;
     case ND_RIGHTSHIFT:
-      gen_instruction_bitwise_shift(
-          REG_MEM,
-          REG_RDI,
-          convert_type_to_size(var_type_kind),
-          node->assign_type == ND_LEFTSHIFT);
-      gen_instruction_mov(
-          REG_RDI,
-          REG_MEM,
-          convert_type_to_size(var_type_kind));
+      gen_operation(REG_MEM, REG_RDI, type_size, OP_RIGHT_SHIFT);
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
       break;
     case ND_BITWISEAND:
-    case ND_BITWISEXOR:
-    case ND_BITWISEOR: {
-      int operation = 0;
-      if (node->assign_type == ND_BITWISEAND) {
-        operation = (1<<0);
-      } else if (node->assign_type == ND_BITWISEXOR) {
-        operation = (1<<1);
-      } else {
-        operation = (1<<2);
-      }
-      gen_instruction_bitwise_operation(
-          REG_MEM,
-          REG_RDI,
-          convert_type_to_size(var_type_kind),
-          operation);
-      gen_instruction_mov(
-          REG_RDI,
-          REG_MEM,
-          convert_type_to_size(var_type_kind));
+      gen_operation(REG_MEM, REG_RDI, type_size, OP_BITWISE_AND);
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
       break;
-    }
+    case ND_BITWISEXOR:
+      gen_operation(REG_MEM, REG_RDI, type_size, OP_BITWISE_XOR);
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
+      break;
+    case ND_BITWISEOR:
+      gen_operation(REG_MEM, REG_RDI, type_size, OP_BITWISE_OR);
+      gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
+      break;
     default:
       break;
   }
-
-  gen_instruction_mov(
-      REG_MEM,
-      REG_RDI,
-      convert_type_to_size(var_type_kind));
+  gen_operation(REG_MEM, REG_RDI, type_size, OP_MOV);
 }
 
 void expand_logical_and(Node *node, int label) {
@@ -546,15 +460,9 @@ void compile_node(Node *node) {
       printf("  mov rdi, 1\n");
       printf("  pop rax\n");
       if (node->kind == ND_PREFIX_INC) {
-        gen_instruction_add(
-            REG_MEM,
-            REG_RDI,
-            convert_type_to_size(node->lhs->var->var_type->kind));
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_ADD);
       } else {
-        gen_instruction_sub(
-            REG_MEM,
-            REG_RDI,
-            convert_type_to_size(node->lhs->var->var_type->kind));
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_SUB);
       }
       compile_node(node->lhs);
       return;
@@ -566,26 +474,16 @@ void compile_node(Node *node) {
       printf("  mov rdi, 1\n");
       printf("  pop rax\n");
       if (node->kind == ND_SUFFIX_INC) {
-        gen_instruction_add(
-            REG_MEM,
-            REG_RDI,
-            convert_type_to_size(node->lhs->var->var_type->kind));
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_ADD);
       } else {
-        gen_instruction_sub(
-            REG_MEM,
-            REG_RDI,
-            convert_type_to_size(node->lhs->var->var_type->kind));
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_SUB);
       }
       return;
     }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
       printf("  pop rax\n");
-      gen_instruction_bitwise_operation(
-          REG_RAX,
-          REG_RAX,
-          convert_type_to_size(node->lhs->var->var_type->kind),
-          (1<<3));
+      gen_operation(REG_RAX, REG_RAX, convert_type_to_size(node->lhs->var->var_type->kind), OP_BITWISE_NOT);
       printf("  push rax\n");
       return;
     }
@@ -593,11 +491,7 @@ void compile_node(Node *node) {
       compile_node(node->lhs);
       printf("  pop rax\n");
       printf("  mov rdi, 1\n");
-      gen_instruction_bitwise_operation(
-          REG_RAX,
-          REG_RDI,
-          REG_SIZE_8,
-          (1<<1));
+      gen_operation(REG_RAX, REG_RDI, REG_SIZE_8, OP_BITWISE_XOR);
       printf("  push rax\n");
       return;
     }
@@ -649,51 +543,39 @@ void compile_node(Node *node) {
     printf("  imul rax, %d\n", pointer_movement_size(node->rhs->var));
   }
 
+  RegSizeKind type_size = convert_type_to_size(formula_type_kind);
+
   // calculation
   switch (node->kind) {
     case ND_ADD:
-      gen_instruction_add(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_ADD);
       break;
     case ND_SUB:
-      gen_instruction_sub(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_SUB);
       break;
     case ND_MUL:
-      gen_instruction_mul(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind));
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_MUL);
       break;
     case ND_DIV:
-      gen_instruction_div(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind), false);
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_DIV);
       break;
     case ND_REMAINDER:
-      gen_instruction_div(REG_RAX, REG_RDI, convert_type_to_size(formula_type_kind), true);
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_REMAINDER);
       break;
     case ND_LEFTSHIFT:
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_LEFT_SHIFT);
+      break;
     case ND_RIGHTSHIFT:
-      gen_instruction_bitwise_shift(
-          REG_RAX,
-          REG_RDI,
-          convert_type_to_size(formula_type_kind),
-          node->kind == ND_LEFTSHIFT);
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_RIGHT_SHIFT);
       break;
     case ND_BITWISEAND:
-      gen_instruction_bitwise_operation(
-          REG_RAX,
-          REG_RDI,
-          convert_type_to_size(formula_type_kind),
-          (1<<0));
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_BITWISE_AND);
       break;
     case ND_BITWISEXOR:
-      gen_instruction_bitwise_operation(
-          REG_RAX,
-          REG_RDI,
-          convert_type_to_size(formula_type_kind),
-          (1<<1));
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_BITWISE_XOR);
       break;
     case ND_BITWISEOR:
-      gen_instruction_bitwise_operation(
-          REG_RAX,
-          REG_RDI,
-          convert_type_to_size(formula_type_kind),
-          (1<<2));
+      gen_operation(REG_RAX, REG_RDI, type_size, OP_BITWISE_OR);
       break;
     case ND_EQ:
       gen_compare("sete", formula_type_kind);
@@ -774,10 +656,7 @@ void codegen() {
       if (arg_count < 6) {
         gen_var_address(arg);
         printf("  pop rax\n");
-        gen_instruction_mov(
-            REG_MEM,
-            args_reg[arg_count],
-            convert_type_to_size(arg->var->var_type->kind));
+        gen_operation(REG_MEM, args_reg[arg_count], convert_type_to_size(arg->var->var_type->kind), OP_MOV);
       }
       arg_count--;
     }
@@ -790,10 +669,7 @@ void codegen() {
         printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  mov rdi, rax\n");
         printf("  pop rax\n");
-        gen_instruction_mov(
-            REG_MEM,
-            REG_RDI,
-            convert_type_to_size(arg->var->var_type->kind));
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(arg->var->var_type->kind), OP_MOV);
       }
       arg_count--;
     }
