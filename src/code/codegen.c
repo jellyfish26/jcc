@@ -47,8 +47,8 @@ const char *get_reg(RegKind reg_kind, RegSizeKind reg_size) {
   };
 }
 
-RegSizeKind convert_type_to_size(TypeKind var_type) {
-  switch (var_type) {
+RegSizeKind convert_type_to_size(TypeKind var_kind) {
+  switch (var_kind) {
     case TY_CHAR:
       return REG_SIZE_1;
     case TY_INT:
@@ -58,10 +58,10 @@ RegSizeKind convert_type_to_size(TypeKind var_type) {
   };
 }
 
-void gen_compare(char *comp_op, TypeKind type_kind) {
+void gen_compare(char *comp_op, TypeKind var_kind) {
   printf("  cmp %s, %s\n", 
-      get_reg(REG_RAX, convert_type_to_size(type_kind)),
-      get_reg(REG_RDI, convert_type_to_size(type_kind)));
+      get_reg(REG_RAX, convert_type_to_size(var_kind)),
+      get_reg(REG_RDI, convert_type_to_size(var_kind)));
   printf("  %s al\n", comp_op);
   printf("  movzx rax, al\n");
 }
@@ -70,9 +70,16 @@ void gen_var_address(Node *node) {
   if (node->kind != ND_VAR && node->kind != ND_ADDR) {
     errorf(ER_COMPILE, "Not variable");
   }
+  Var *var = node->var;
 
-  printf("  mov rax, rbp\n");
-  printf("  sub rax, %d\n", node->var->offset);
+  if (var->global) {
+    char *var_name = calloc(var->len + 1, sizeof(char));
+    memcpy(var_name, var->str, var->len);
+    printf("  mov rax, offset %s\n", var_name);
+  } else {
+    printf("  mov rax, rbp\n");
+    printf("  sub rax, %d\n", node->var->offset);
+  }
   printf("  push rax\n");
 }
 
@@ -224,12 +231,12 @@ void expand_logical_or(Node *node, int label);
 void expand_variable(Node *node) {
   gen_var_address(node);
   printf("  pop rax\n");
-  TypeKind var_type_kind = node->var->var_type->kind;
-  if (var_type_kind != TY_ARRAY) {
+  Type *var_type = node->var->var_type;
+  if (var_type->kind != TY_ARRAY) {
     gen_instruction_mov(
         REG_RAX,
         REG_MEM,
-        convert_type_to_size(var_type_kind));
+        convert_type_to_size(var_type->kind));
   }
   printf("  push rax\n");
 }
@@ -716,6 +723,7 @@ void compile_node(Node *node) {
 void gen_global_var_define(Var *var) {
   char *global_var_name = calloc(var->len + 1, sizeof(char));
   memcpy(global_var_name, var->str, var->len);
+  printf(".data\n");
   printf("%s:\n", global_var_name);
   switch (var->var_type->kind) {
     case TY_CHAR:
@@ -751,6 +759,7 @@ void codegen() {
     char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
     memcpy(func_name, now_func->func_name, now_func->func_name_len);
     printf(".global %s\n", func_name);
+    printf(".text\n");
     printf("%s:\n", func_name);
 
     // Prologue

@@ -1,5 +1,6 @@
 #pragma once
 #include "parser/parser.h"
+#include "variable/variable.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,9 +34,9 @@ typedef enum {
 } RegSizeKind;
 
 const char *get_reg(RegKind reg_kind, RegSizeKind reg_size);
-RegSizeKind convert_type_to_size(TypeKind var_type);
+RegSizeKind convert_type_to_size(TypeKind var_kind);
 
-void gen_compare(char *comp, TypeKind var_type_kind);
+void gen_compare(char *comp, TypeKind var_kind);
 void gen_var_address(Node *node);
 
 // If the return value is true, the generation succeeded,

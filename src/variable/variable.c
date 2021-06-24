@@ -92,6 +92,11 @@ Var *used_vars;
 
 void new_scope_definition() {
   ScopeVars *new_scope = calloc(sizeof(ScopeVars), 1);
+  if (define_vars == NULL) {
+    new_scope->depth = 0;
+  } else {
+    new_scope->depth = define_vars->depth + 1;
+  }
   new_scope->upper = define_vars;
   define_vars = new_scope;
 }

@@ -754,9 +754,33 @@ int main() {
 }
 "
 
-assert 0 "
-int a[2][2];
+assert 2 "
+int a;
 int main() {
-  return 0;
+  a = 2;
+  return a;
 }
 "
+
+assert 10 "
+int a;
+int b;
+int main() {
+  a = 5;
+  b = 5;
+  return a + b;
+}
+"
+
+assert 4 "
+int a[2][2];
+int main() {
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
+      a[i][j] = i + j;
+    }
+  }
+  return a[0][0] + a[1][1] + a[0][1] + a[1][0];
+}
+"
+
