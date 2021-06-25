@@ -47,21 +47,24 @@ const char *get_reg(RegKind reg_kind, RegSizeKind reg_size) {
   };
 }
 
-RegSizeKind convert_type_to_size(TypeKind var_kind) {
-  switch (var_kind) {
+RegSizeKind convert_type_to_size(Type *var_type) {
+  switch (var_type->kind) {
     case TY_CHAR:
       return REG_SIZE_1;
     case TY_INT:
       return REG_SIZE_4;
+    case TY_LONG:
+      return REG_SIZE_8;
     default:
       return REG_SIZE_8;
-  };
+  }
 }
 
-void gen_compare(char *comp_op, TypeKind var_kind) {
+
+void gen_compare(char *comp_op, Type *var_type) {
   printf("  cmp %s, %s\n", 
-      get_reg(REG_RAX, convert_type_to_size(var_kind)),
-      get_reg(REG_RDI, convert_type_to_size(var_kind)));
+      get_reg(REG_RAX, convert_type_to_size(var_type)),
+      get_reg(REG_RDI, convert_type_to_size(var_type)));
   printf("  %s al\n", comp_op);
   printf("  movzx rax, al\n");
 }
@@ -182,33 +185,27 @@ void expand_variable(Node *node) {
   printf("  pop rax\n");
   Type *var_type = node->var->var_type;
   if (var_type->kind != TY_ARRAY) {
-    gen_operation(REG_RAX, REG_MEM, convert_type_to_size(var_type->kind), OP_MOV);
+    gen_operation(REG_RAX, REG_MEM, convert_type_to_size(var_type), OP_MOV);
   }
   printf("  push rax\n");
 }
 
 // If left node is a direct variable, get the address of the variable.
 // If left node is a indirect, get original address.
-TypeKind gen_assignable_address(Node *node) {
+Type *gen_assignable_address(Node *node) {
   if (node->kind == ND_VAR) {
     gen_var_address(node);
-    return node->var->var_type->kind;
   } else if (node->kind == ND_CONTENT) {
     compile_node(node->lhs);
-    if (node->lhs->var) {
-      return node->lhs->var->var_type->kind;
-    }
   } else {
     errorf(ER_COMPILE, "Cannot assign");
   }
-  return TY_PTR;
+  return node->var->var_type;
 }
 
 void expand_assign(Node *node) {
-  TypeKind var_type_kind = TY_PTR;
-
   // The left node must be assignable.
-  var_type_kind = gen_assignable_address(node->lhs);
+  Type *var_type = gen_assignable_address(node->lhs);
 
   switch (node->rhs->kind) {
     case ND_ASSIGN:
@@ -219,7 +216,7 @@ void expand_assign(Node *node) {
       printf("  pop rdi\n");
   }
   printf("  pop rax\n");
-  RegSizeKind type_size = convert_type_to_size(var_type_kind);
+  RegSizeKind type_size = convert_type_to_size(var_type);
 
   switch (node->assign_type) {
     case ND_ADD: {
@@ -460,9 +457,9 @@ void compile_node(Node *node) {
       printf("  mov rdi, 1\n");
       printf("  pop rax\n");
       if (node->kind == ND_PREFIX_INC) {
-        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_ADD);
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type), OP_ADD);
       } else {
-        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_SUB);
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type), OP_SUB);
       }
       compile_node(node->lhs);
       return;
@@ -474,16 +471,16 @@ void compile_node(Node *node) {
       printf("  mov rdi, 1\n");
       printf("  pop rax\n");
       if (node->kind == ND_SUFFIX_INC) {
-        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_ADD);
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type), OP_ADD);
       } else {
-        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type->kind), OP_SUB);
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->lhs->var->var_type), OP_SUB);
       }
       return;
     }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
       printf("  pop rax\n");
-      gen_operation(REG_RAX, REG_RAX, convert_type_to_size(node->lhs->var->var_type->kind), OP_BITWISE_NOT);
+      gen_operation(REG_RAX, REG_RAX, convert_type_to_size(node->lhs->var->var_type), OP_BITWISE_NOT);
       printf("  push rax\n");
       return;
     }
@@ -528,11 +525,12 @@ void compile_node(Node *node) {
   printf("  pop rdi\n");
   printf("  pop rax\n");
 
-  TypeKind formula_type_kind;
+  Type *formula_type;
   if (node->lhs->var) {
-    formula_type_kind = node->lhs->var->var_type->kind;
+    formula_type = node->lhs->var->var_type;
   } else {
-    formula_type_kind = TY_INT;
+    formula_type = calloc(1, sizeof(Type));
+    formula_type->kind = TY_INT;
   }
 
   if (node->lhs->var && pointer_movement_size(node->lhs->var) != 1) {
@@ -543,7 +541,7 @@ void compile_node(Node *node) {
     printf("  imul rax, %d\n", pointer_movement_size(node->rhs->var));
   }
 
-  RegSizeKind type_size = convert_type_to_size(formula_type_kind);
+  RegSizeKind type_size = convert_type_to_size(formula_type);
 
   // calculation
   switch (node->kind) {
@@ -578,22 +576,22 @@ void compile_node(Node *node) {
       gen_operation(REG_RAX, REG_RDI, type_size, OP_BITWISE_OR);
       break;
     case ND_EQ:
-      gen_compare("sete", formula_type_kind);
+      gen_compare("sete", formula_type);
       break;
     case ND_NEQ:
-      gen_compare("setne", formula_type_kind);
+      gen_compare("setne", formula_type);
       break;
     case ND_LC:
-      gen_compare("setl", formula_type_kind);
+      gen_compare("setl", formula_type);
       break;
     case ND_LEC:
-      gen_compare("setle", formula_type_kind);
+      gen_compare("setle", formula_type);
       break;
     case ND_RC:
-      gen_compare("setg", formula_type_kind);
+      gen_compare("setg", formula_type);
       break;
     case ND_REC:
-      gen_compare("setge", formula_type_kind);
+      gen_compare("setge", formula_type);
       break;
     default:
       break;
@@ -656,7 +654,7 @@ void codegen() {
       if (arg_count < 6) {
         gen_var_address(arg);
         printf("  pop rax\n");
-        gen_operation(REG_MEM, args_reg[arg_count], convert_type_to_size(arg->var->var_type->kind), OP_MOV);
+        gen_operation(REG_MEM, args_reg[arg_count], convert_type_to_size(arg->var->var_type), OP_MOV);
       }
       arg_count--;
     }
@@ -669,7 +667,7 @@ void codegen() {
         printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  mov rdi, rax\n");
         printf("  pop rax\n");
-        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(arg->var->var_type->kind), OP_MOV);
+        gen_operation(REG_MEM, REG_RDI, convert_type_to_size(arg->var->var_type), OP_MOV);
       }
       arg_count--;
     }

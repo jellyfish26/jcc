@@ -34,9 +34,9 @@ typedef enum {
 } RegSizeKind;
 
 const char *get_reg(RegKind reg_kind, RegSizeKind reg_size);
-RegSizeKind convert_type_to_size(TypeKind var_kind);
+RegSizeKind convert_type_to_size(Type *var_type);
 
-void gen_compare(char *comp, TypeKind var_kind);
+void gen_compare(char *comp, Type *var_type);
 void gen_var_address(Node *node);
 
 typedef enum {

@@ -772,6 +772,16 @@ int main() {
 }
 "
 
+assert 5 "
+int a, b;
+int main() {
+  b = 1;
+  int *c = &a;
+  *c = 4;
+  return a + b;
+}
+"
+
 assert 4 "
 int a[2][2];
 int main() {
