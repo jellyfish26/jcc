@@ -2,9 +2,9 @@
 #include "token/tokenize.h"
 #include "variable/variable.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 
 Type *compare_type(Type *left, Type *right) {
@@ -61,32 +61,16 @@ Type *new_type() {
   }
   tkn = consume(TK_KEYWORD, "long");
   if (tkn) {
-    while (consume(TK_KEYWORD, "long"));
+    while (consume(TK_KEYWORD, "long"))
+      ;
     consume(TK_KEYWORD, "int");
     return new_general_type(TY_LONG, true);
   }
   return NULL;
 }
 
-Type *get_type_for_node(Node *target) {
-  if (!target->var) {
-    errorf(ER_INTERNAL, "The Node(%x) do not have variable", target);
-  }
-  return target->var->var_type;
-}
-
-void raise_type_for_node(Node *target) {
-  if (target->lhs && target->lhs->var) {
-    target->var = target->lhs->var;
-  }
-
-  if (target->rhs && target->rhs->var) {
-    target->var = target->rhs->var;
-  }
-}
-
 void link_var_to_node(Node *target, Var *var) {
-  target->var = var;
+  target->use_var = var;
   target->equation_type = var->var_type;
 }
 
@@ -187,7 +171,8 @@ void function(Function *target) {
           errorf_at(ER_COMPILE, before_token,
                     "This variable already definition.");
         }
-        Var *local_var = new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
+        Var *local_var =
+            new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
         add_scope_var(local_var);
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
         link_var_to_node(target->func_args, local_var);
@@ -222,9 +207,9 @@ Node *inside_roop; // inside for or while
 
 // statement = { statement* } |
 //             ("return")? assign ";" |
-//             "if" "(" define_var(true, NULL) ")" statement ("else" statement)? |
-//             "for" "(" define_var(true, NULL)? ";" assign? ";" assign?")" statement |
-//             "while" "(" define_var(true, NULL) ")" statement |
+//             "if" "(" define_var(true, NULL) ")" statement ("else" statement)?
+//             | "for" "(" define_var(true, NULL)? ";" assign? ";" assign?")"
+//             statement | "while" "(" define_var(true, NULL) ")" statement |
 //             "break;" |
 //             "continue;" |
 //             define_var(false) ";"
@@ -432,8 +417,7 @@ Node *define_ident(Type *define_type) {
   }
 
   if (check_already_define(tkn->str, tkn->str_len)) {
-    errorf_at(ER_COMPILE, before_token,
-              "This variable is already definition.");
+    errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
   }
   Var *define_var = new_general_var(now_type, tkn->str, tkn->str_len);
 
@@ -621,10 +605,8 @@ Node *add() {
   Node *ret = mul();
   if (consume(TK_PUNCT, "+")) {
     ret = new_node(ND_ADD, ret, add());
-    raise_type_for_node(ret);
   } else if (consume(TK_PUNCT, "-")) {
     ret = new_node(ND_SUB, ret, add());
-    raise_type_for_node(ret);
   }
   return ret;
 }
@@ -647,16 +629,13 @@ Node *mul() {
 Node *unary() {
   if (consume(TK_KEYWORD, "sizeof")) {
     Node *ret = new_node(ND_SIZEOF, unary(), NULL);
-    raise_type_for_node(ret);
     return ret;
   }
   if (consume(TK_PUNCT, "+")) {
     Node *ret = new_node(ND_ADD, new_node_int(0), address_op());
-    raise_type_for_node(ret);
     return ret;
   } else if (consume(TK_PUNCT, "-")) {
     Node *ret = new_node(ND_SUB, new_node_int(0), address_op());
-    raise_type_for_node(ret);
     return ret;
   } else if (consume(TK_PUNCT, "!")) {
     return new_node(ND_LOGICALNOT, address_op(), NULL);
@@ -684,9 +663,6 @@ Node *indirection() {
     Node *ret = new_node(ND_CONTENT, indirection(), NULL);
     if (ret->equation_type) {
       ret->equation_type = ret->equation_type->content;
-    }
-    if (ret->lhs->var) {
-      ret->var = new_content_var(ret->lhs->var);
     }
     return ret;
   }
@@ -774,11 +750,9 @@ Node *priority() {
     link_var_to_node(ret, use_var);
     while (consume(TK_PUNCT, "[")) {
       ret = new_node(ND_ADD, ret, assign());
-      ret->equation_type = ret->equation_type->content;
-      ret->var = new_content_var(ret->lhs->var);
 
       ret = new_node(ND_CONTENT, ret, NULL);
-      ret->var = ret->lhs->var;
+      ret->equation_type = ret->equation_type->content;
       if (!consume(TK_PUNCT, "]")) {
         errorf_at(ER_COMPILE, source_token, "Must use \"[\".");
       }

@@ -26,6 +26,7 @@ struct Type {
 Type *new_general_type(TypeKind kind, bool is_real);
 Type *new_pointer_type(Type *content_type);
 Type *new_array_dimension_type(Type *content_type, int dimension_size);
+int pointer_movement_size(Type *var_type);
 
 struct Var {
   Type *var_type;
@@ -42,7 +43,6 @@ void new_pointer_var(Var *var);
 void new_array_dimension_var(Var *var, int dimension_size);
 Var *new_content_var(Var *var);
 Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len);
-int pointer_movement_size(Var *var);
 int get_sizeof(Var *var);
 
 struct ScopeVars {

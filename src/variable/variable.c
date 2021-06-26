@@ -43,6 +43,13 @@ Type *new_array_dimension_type(Type *content_type, int dimension_size) {
   return ret;
 }
 
+int pointer_movement_size(Type *var_type) {
+  if (!var_type->content) {
+    return 1;
+  }
+  return var_type->content->var_size;
+}
+
 Var *new_general_var(Type *var_type, char *str, int str_len) {
   Var *ret = calloc(sizeof(Var), 1);
   ret->var_type = var_type;
@@ -76,17 +83,6 @@ Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
   Var *ret = new_general_var(var_type, str, str_len);
   ret->next = top_var;
   return ret;
-}
-
-int pointer_movement_size(Var *var) {
-  if (!var->var_type->content) {
-    return 1;
-  }
-  return var->var_type->content->var_size;
-}
-
-int get_sizeof(Var *var) {
-  return var->var_type->var_size;
 }
 
 ScopeVars *define_vars;

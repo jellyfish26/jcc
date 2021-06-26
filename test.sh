@@ -795,3 +795,8 @@ int main() {
 }
 "
 
+assert 4 "
+int main() {
+  return sizeof(1);
+}
+"

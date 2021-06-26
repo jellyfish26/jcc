@@ -60,7 +60,7 @@ struct Node {
   Node *rhs;     // Right side node
 
   Type *equation_type; // Size of equation
-  Var *var; // Variable type if kind is ND_VAR
+  Var *use_var; // Use target
 
   Node *judge;     // judge ("if" statement, "for" statement, "while" statement)
   Node *exec_if;   // exec ("if" statement)
