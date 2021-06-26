@@ -59,6 +59,7 @@ struct Node {
   Node *lhs;     // Left side node
   Node *rhs;     // Right side node
 
+  Type *equation_type; // Size of equation
   Var *var; // Variable type if kind is ND_VAR
 
   Node *judge;     // judge ("if" statement, "for" statement, "while" statement)

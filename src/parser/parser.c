@@ -64,6 +64,11 @@ void raise_type_for_node(Node *target) {
   }
 }
 
+void link_var_to_node(Node *target, Var *var) {
+  target->var = var;
+  target->equation_type = var->var_type;
+}
+
 Node *last_stmt(Node *now) {
   while (now->next_stmt) {
     now = now->next_stmt;
@@ -164,7 +169,7 @@ void function(Function *target) {
         Var *local_var = new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
         add_scope_var(local_var);
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
-        target->func_args->var = local_var;
+        link_var_to_node(target->func_args, local_var);
         target->func_argc++;
       } else {
         errorf_at(ER_COMPILE, source_token, "Must declare variable.");
@@ -399,7 +404,6 @@ Node *define_ident(Type *define_type) {
   }
 
   Token *tkn = consume(TK_IDENT, NULL);
-  Node *ret = new_node(ND_VAR, NULL, NULL);
 
   if (!tkn) {
     errorf_at(ER_COMPILE, source_token,
@@ -410,9 +414,7 @@ Node *define_ident(Type *define_type) {
     errorf_at(ER_COMPILE, before_token,
               "This variable is already definition.");
   }
-  Var *result = new_general_var(now_type, tkn->str, tkn->str_len);
-  ret->var = result;
-  add_scope_var(result);
+  Var *define_var = new_general_var(now_type, tkn->str, tkn->str_len);
 
   // Size needs to be viewed from the end.
   typedef struct ArraySize ArraySize;
@@ -440,13 +442,16 @@ Node *define_ident(Type *define_type) {
   }
 
   while (top) {
-    new_array_dimension_var(ret->var, top->array_size);
+    new_array_dimension_var(define_var, top->array_size);
     top = top->before;
   }
 
   for (int i = 0; i < ptr_cnt; ++i) {
-    new_pointer_var(ret->var);
+    new_pointer_var(define_var);
   }
+  Node *ret = new_node(ND_VAR, NULL, NULL);
+  link_var_to_node(ret, define_var);
+  add_scope_var(define_var);
 
   if (consume(TK_PUNCT, "=")) {
     ret = new_assign_node(ND_ASSIGN, ret, assign());
@@ -732,14 +737,14 @@ Node *priority() {
     }
   }
 
-  // used variable
+  // use variable
   if (tkn) {
-    Var *target = find_var(tkn->str, tkn->str_len);
-    if (!target) {
+    Var *use_var = find_var(tkn->str, tkn->str_len);
+    if (!use_var) {
       errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
     }
     Node *ret = new_node(ND_VAR, NULL, NULL);
-    ret->var = target;
+    link_var_to_node(ret, use_var);
     while (consume(TK_PUNCT, "[")) {
       ret = new_node(ND_ADD, ret, assign());
       ret->var = new_content_var(ret->lhs->var);

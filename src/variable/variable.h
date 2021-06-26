@@ -7,7 +7,6 @@ typedef enum {
   TY_LONG,  // "long" type
   TY_PTR,   // Pointer type
   TY_ARRAY, // Array type
-  TY_ADDR,  // Base address
 } TypeKind;
 
 typedef struct Type Type;
