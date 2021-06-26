@@ -60,7 +60,6 @@ RegSizeKind convert_type_to_size(Type *var_type) {
   }
 }
 
-
 void gen_compare(char *comp_op, Type *var_type) {
   printf("  cmp %s, %s\n", 
       get_reg(REG_RAX, convert_type_to_size(var_type)),
@@ -192,7 +191,7 @@ void expand_variable(Node *node) {
 
 // If left node is a direct variable, get the address of the variable.
 // If left node is a indirect, get original address.
-Type *gen_assignable_address(Node *node) {
+void gen_assignable_address(Node *node) {
   if (node->kind == ND_VAR) {
     gen_var_address(node);
   } else if (node->kind == ND_CONTENT) {
@@ -200,13 +199,11 @@ Type *gen_assignable_address(Node *node) {
   } else {
     errorf(ER_COMPILE, "Cannot assign");
   }
-  return node->var->var_type;
 }
 
 void expand_assign(Node *node) {
   // The left node must be assignable.
-  Type *var_type = gen_assignable_address(node->lhs);
-
+  gen_assignable_address(node->lhs);
   switch (node->rhs->kind) {
     case ND_ASSIGN:
       expand_assign(node->rhs);
@@ -216,7 +213,7 @@ void expand_assign(Node *node) {
       printf("  pop rdi\n");
   }
   printf("  pop rax\n");
-  RegSizeKind type_size = convert_type_to_size(var_type);
+  RegSizeKind type_size = convert_type_to_size(node->lhs->equation_type);
 
   switch (node->assign_type) {
     case ND_ADD: {
@@ -422,7 +419,7 @@ void compile_node(Node *node) {
     }
     case ND_CONTENT: {
       compile_node(node->lhs);
-      if (!node->var || (node->var && node->var->var_type->kind != TY_ARRAY)) {
+      if (node->equation_type->kind != TY_ARRAY) {
         printf("  pop rax\n");
         printf("  mov rax, QWORD PTR [rax]\n");
         printf("  push rax\n");
@@ -614,9 +611,6 @@ void gen_global_var_define(Var *var) {
       break;
     case TY_LONG:
     case TY_PTR:
-      printf("  .zero 8\n");
-      break;
-    case TY_ARRAY:
       printf("  .zero %d\n", var->var_type->var_size);
       break;
     default:

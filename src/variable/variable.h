@@ -1,10 +1,12 @@
 #pragma once
 #include <stdbool.h>
 
+// Define in order of decreasing size
 typedef enum {
   TY_CHAR,  // "char" type
   TY_INT,   // "int" type
   TY_LONG,  // "long" type
+  TY_ADDR,  // Address value
   TY_PTR,   // Pointer type
   TY_ARRAY, // Array type
 } TypeKind;
@@ -17,10 +19,11 @@ struct Type {
   TypeKind kind;
   Type *content; // Content of variable if kind is TY_PTR
 
-  int var_size; // Variable size
+  int var_size;  // Variable size
+  bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
 };
 
-Type *new_general_type(TypeKind kind);
+Type *new_general_type(TypeKind kind, bool is_real);
 Type *new_pointer_type(Type *content_type);
 Type *new_array_dimension_type(Type *content_type, int dimension_size);
 

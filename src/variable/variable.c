@@ -5,9 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-Type *new_general_type(TypeKind kind) {
+Type *new_general_type(TypeKind kind, bool is_real) {
   Type *ret = calloc(sizeof(Type), 1);
   ret->kind = kind;
+  ret->is_real = is_real;
   switch(kind) {
     case TY_CHAR:
       ret->var_size = 1;
@@ -17,6 +18,7 @@ Type *new_general_type(TypeKind kind) {
       break;
     case TY_LONG:
     case TY_PTR:
+    case TY_ADDR:
       ret->var_size = 8;
       break;
     default:
@@ -26,16 +28,16 @@ Type *new_general_type(TypeKind kind) {
 }
 
 Type *new_pointer_type(Type *content_type) {
-  Type *ret = calloc(sizeof(Type), 1);
-  ret->kind = TY_PTR;
+  Type *ret = new_general_type(TY_PTR, true);
   ret->content = content_type;
-  ret->var_size = 8;
+  content_type->is_real = false;
   return ret;
 }
 
 Type *new_array_dimension_type(Type *content_type, int dimension_size) {
   Type *ret = calloc(sizeof(Type), 1);
   ret->kind = TY_ARRAY;
+  ret->is_real = false;
   ret->content = content_type;
   ret->var_size = dimension_size * content_type->var_size;
   return ret;

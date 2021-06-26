@@ -7,11 +7,31 @@
 #include <stdbool.h>
 #include <string.h>
 
+Type *compare_type(Type *left, Type *right) {
+  if (left == NULL || right == NULL) {
+    if (left < right) {
+      return right;
+    }
+    return left;
+  }
+  if (left->kind < right->kind) {
+    return right;
+  }
+  return left;
+}
+
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = kind;
   ret->lhs = lhs;
   ret->rhs = rhs;
+  if (lhs != NULL && rhs != NULL) {
+    ret->equation_type = compare_type(lhs->equation_type, rhs->equation_type);
+  } else if (lhs != NULL) {
+    ret->equation_type = lhs->equation_type;
+  } else if (rhs != NULL) {
+    ret->equation_type = rhs->equation_type;
+  }
   return ret;
 }
 
@@ -19,6 +39,7 @@ Node *new_node_int(int val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->val = val;
+  ret->equation_type = new_general_type(TY_INT, false);
   return ret;
 }
 
@@ -32,17 +53,17 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
 Type *new_type() {
   Token *tkn = consume(TK_KEYWORD, "char");
   if (tkn) {
-    return new_general_type(TY_CHAR);
+    return new_general_type(TY_CHAR, true);
   }
   tkn = consume(TK_KEYWORD, "int");
   if (tkn) {
-    return new_general_type(TY_INT);
+    return new_general_type(TY_INT, true);
   }
   tkn = consume(TK_KEYWORD, "long");
   if (tkn) {
     while (consume(TK_KEYWORD, "long"));
     consume(TK_KEYWORD, "int");
-    return new_general_type(TY_LONG);
+    return new_general_type(TY_LONG, true);
   }
   return NULL;
 }
@@ -649,6 +670,9 @@ Node *unary() {
 Node *address_op() {
   if (consume(TK_PUNCT, "&")) {
     Node *ret = new_node(ND_ADDR, indirection(), NULL);
+    Type *addr_type = new_general_type(TY_ADDR, false);
+    addr_type->content = ret->equation_type;
+    ret->equation_type = addr_type;
     return ret;
   }
   return indirection();
@@ -658,6 +682,9 @@ Node *address_op() {
 Node *indirection() {
   if (consume(TK_PUNCT, "*")) {
     Node *ret = new_node(ND_CONTENT, indirection(), NULL);
+    if (ret->equation_type) {
+      ret->equation_type = ret->equation_type->content;
+    }
     if (ret->lhs->var) {
       ret->var = new_content_var(ret->lhs->var);
     }
@@ -747,6 +774,7 @@ Node *priority() {
     link_var_to_node(ret, use_var);
     while (consume(TK_PUNCT, "[")) {
       ret = new_node(ND_ADD, ret, assign());
+      ret->equation_type = ret->equation_type->content;
       ret->var = new_content_var(ret->lhs->var);
 
       ret = new_node(ND_CONTENT, ret, NULL);
