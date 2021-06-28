@@ -4,6 +4,7 @@
 // Define in order of decreasing size
 typedef enum {
   TY_CHAR,  // "char" type
+  TY_SHORT, // "short" type
   TY_INT,   // "int" type
   TY_LONG,  // "long" type
   TY_ADDR,  // Address value

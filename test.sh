@@ -800,3 +800,50 @@ int main() {
   return sizeof(1);
 }
 "
+
+assert 3 "
+int main() {
+  short a = 2;
+  short b = 1;
+  short c = a + b;
+  return c;
+}
+"
+
+assert 4 "
+int main() {
+  short a = 2;
+  short b = 1;
+  b *= a;
+  return a + b;
+}
+"
+
+assert 3 "
+int main() {
+  short a[2];
+  a[0] = 1;
+  a[1] = 2;
+  return a[0] + a[1];
+}
+"
+
+assert 12 "
+int main() {
+  short a[2][2];
+  short b = 2;
+  for (short i = 0; i < 4; ++i) {
+    a[i / 2][i % 2] = i * b;
+  }
+  return a[0][0] + a[0][1] + a[1][0] + a[1][1];
+}
+"
+
+assert 10 "
+short c;
+int main() {
+  short a = 2;
+  c = a + 3;
+  return c * a;
+}
+"

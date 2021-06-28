@@ -35,7 +35,7 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   return ret;
 }
 
-Node *new_node_int(int val) {
+Node *new_node_num(int val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->val = val;
@@ -54,6 +54,10 @@ Type *new_type() {
   Token *tkn = consume(TK_KEYWORD, "char");
   if (tkn) {
     return new_general_type(TY_CHAR, true);
+  }
+  tkn = consume(TK_KEYWORD, "short");
+  if (tkn) {
+    return new_general_type(TY_SHORT, true);
   }
   tkn = consume(TK_KEYWORD, "int");
   if (tkn) {
@@ -632,10 +636,10 @@ Node *unary() {
     return ret;
   }
   if (consume(TK_PUNCT, "+")) {
-    Node *ret = new_node(ND_ADD, new_node_int(0), address_op());
+    Node *ret = new_node(ND_ADD, new_node_num(0), address_op());
     return ret;
   } else if (consume(TK_PUNCT, "-")) {
-    Node *ret = new_node(ND_SUB, new_node_int(0), address_op());
+    Node *ret = new_node(ND_SUB, new_node_num(0), address_op());
     return ret;
   } else if (consume(TK_PUNCT, "!")) {
     return new_node(ND_LOGICALNOT, address_op(), NULL);
@@ -768,5 +772,5 @@ Node *num() {
   if (!tkn) {
     errorf_at(ER_COMPILE, source_token, "Not value.");
   }
-  return new_node_int(tkn->val);
+  return new_node_num(tkn->val);
 }

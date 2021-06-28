@@ -51,6 +51,8 @@ RegSizeKind convert_type_to_size(Type *var_type) {
   switch (var_type->kind) {
     case TY_CHAR:
       return REG_SIZE_1;
+    case TY_SHORT:
+      return REG_SIZE_2;
     case TY_INT:
       return REG_SIZE_4;
     case TY_LONG:
@@ -60,10 +62,22 @@ RegSizeKind convert_type_to_size(Type *var_type) {
   }
 }
 
-void gen_compare(char *comp_op, Type *var_type) {
-  printf("  cmp %s, %s\n", 
-      get_reg(REG_RAX, convert_type_to_size(var_type)),
-      get_reg(REG_RDI, convert_type_to_size(var_type)));
+RegSizeKind max_regsize_kind(RegSizeKind left, RegSizeKind right) {
+  if (left < right) {
+    return right;
+  }
+  return left;
+}
+
+RegSizeKind min_regsize_kind(RegSizeKind left, RegSizeKind right) {
+  if (left < right) {
+    return left;
+  }
+  return right;
+}
+
+void gen_compare(char *comp_op, RegSizeKind reg_size) {
+  printf("  cmp %s, %s\n", get_reg(REG_RAX, reg_size), get_reg(REG_RDI, reg_size));
   printf("  %s al\n", comp_op);
   printf("  movzx rax, al\n");
 }
@@ -87,6 +101,7 @@ void gen_var_address(Node *node) {
 }
 
 // OP_MOV: left_reg = right_reg
+// OP_MOVSX: left_reg = right_reg (Move with Sign-Extension, Size of left_reg is REG_SIZE_4)
 // OP_ADD: left_reg = left_reg + right_reg
 // OP_SUB: left_reg = left_reg - right_reg
 // OP_MUL: left_reg = left_reg * right_reg (Cannot use REG_MEM both left_reg and right_reg)
@@ -101,6 +116,9 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, Op
   switch (op) {
     case OP_MOV:
       printf("  mov %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      return true;
+    case OP_MOVSX:
+      printf("  movsx %s, %s\n", get_reg(left_reg, REG_SIZE_4), get_reg(right_reg, reg_size));
       return true;
     case OP_ADD:
       printf("  add %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
@@ -123,7 +141,9 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, Op
       if (left_reg == REG_MEM) {
         printf("  push %s\n", get_reg(REG_RAX, REG_SIZE_8));
       }
-      if (left_reg != REG_RAX) {
+      if (reg_size <= REG_SIZE_2) {
+        gen_operation(REG_RAX, left_reg, reg_size, OP_MOVSX);
+      } else if (left_reg != REG_RAX) {
         gen_operation(REG_RAX, left_reg, reg_size, OP_MOV);
       }
       if (reg_size == REG_SIZE_8) {
@@ -131,9 +151,9 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, Op
       } else {
         printf("  cdq\n");
       }
-      printf("  idiv %s\n", get_reg(right_reg, reg_size));
+      printf("  idiv %s\n", get_reg(right_reg, max_regsize_kind(REG_SIZE_4, reg_size)));
       if (op == OP_DIV) {
-        gen_operation(REG_RDX, REG_RAX, reg_size, OP_MOV);
+        gen_operation(REG_RDX, REG_RAX, REG_SIZE_8, OP_MOV);
       }
       if (left_reg == REG_MEM) {
         printf("  pop %s\n", get_reg(REG_RAX, REG_SIZE_8));
@@ -421,7 +441,7 @@ void compile_node(Node *node) {
       compile_node(node->lhs);
       if (node->equation_type->kind != TY_ARRAY) {
         printf("  pop rax\n");
-        printf("  mov rax, QWORD PTR [rax]\n");
+        gen_operation(REG_RAX, REG_MEM, convert_type_to_size(node->equation_type), OP_MOV);
         printf("  push rax\n");
       }
       return;
@@ -527,6 +547,13 @@ void compile_node(Node *node) {
   }
 
   RegSizeKind type_size = convert_type_to_size(node->equation_type);
+  RegSizeKind min_type_size = REG_SIZE_8;
+  if (node->lhs->equation_type != NULL) {
+    min_type_size = min_regsize_kind(min_type_size, convert_type_to_size(node->lhs->equation_type));
+  }
+  if (node->rhs->equation_type != NULL) {
+    min_type_size = min_regsize_kind(min_type_size, convert_type_to_size(node->rhs->equation_type));
+  }
 
   // calculation
   switch (node->kind) {
@@ -540,10 +567,10 @@ void compile_node(Node *node) {
       gen_operation(REG_RAX, REG_RDI, type_size, OP_MUL);
       break;
     case ND_DIV:
-      gen_operation(REG_RAX, REG_RDI, type_size, OP_DIV);
+      gen_operation(REG_RAX, REG_RDI, min_type_size, OP_DIV);
       break;
     case ND_REMAINDER:
-      gen_operation(REG_RAX, REG_RDI, type_size, OP_REMAINDER);
+      gen_operation(REG_RAX, REG_RDI, min_type_size, OP_REMAINDER);
       break;
     case ND_LEFTSHIFT:
       gen_operation(REG_RAX, REG_RDI, type_size, OP_LEFT_SHIFT);
@@ -561,22 +588,22 @@ void compile_node(Node *node) {
       gen_operation(REG_RAX, REG_RDI, type_size, OP_BITWISE_OR);
       break;
     case ND_EQ:
-      gen_compare("sete", node->equation_type);
+      gen_compare("sete", min_type_size);
       break;
     case ND_NEQ:
-      gen_compare("setne", node->equation_type);
+      gen_compare("setne", min_type_size);
       break;
     case ND_LC:
-      gen_compare("setl", node->equation_type);
+      gen_compare("setl", min_type_size);
       break;
     case ND_LEC:
-      gen_compare("setle", node->equation_type);
+      gen_compare("setle", min_type_size);
       break;
     case ND_RC:
-      gen_compare("setg", node->equation_type);
+      gen_compare("setg", min_type_size);
       break;
     case ND_REC:
-      gen_compare("setge", node->equation_type);
+      gen_compare("setge", min_type_size);
       break;
     default:
       break;
@@ -593,6 +620,9 @@ void gen_global_var_define(Var *var) {
   switch (var->var_type->kind) {
     case TY_CHAR:
       printf("  .zero 1\n");
+      break;
+    case TY_SHORT:
+      printf("  .zero 2\n");
       break;
     case TY_INT:
       printf("  .zero 4\n");

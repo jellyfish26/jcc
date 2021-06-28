@@ -27,20 +27,18 @@ typedef enum {
 } RegKind;
 
 typedef enum {
-  REG_SIZE_8,  // 8-byte register (64bit)
-  REG_SIZE_4,  // 4-byte register (32bit)
+  REG_SIZE_1,  // 1-byte register (8bit)
   REG_SIZE_2,  // 2-byte register (16bit)
-  REG_SIZE_1   // 1-byte register (8bit)
+  REG_SIZE_4,  // 4-byte register (32bit)
+  REG_SIZE_8,  // 8-byte register (64bit)
 } RegSizeKind;
 
 const char *get_reg(RegKind reg_kind, RegSizeKind reg_size);
 RegSizeKind convert_type_to_size(Type *var_type);
 
-void gen_compare(char *comp, Type *var_type);
-void gen_var_address(Node *node);
-
 typedef enum {
   OP_MOV,
+  OP_MOVSX,
   OP_ADD,
   OP_SUB,
   OP_MUL,

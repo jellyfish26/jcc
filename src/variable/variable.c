@@ -13,6 +13,9 @@ Type *new_general_type(TypeKind kind, bool is_real) {
     case TY_CHAR:
       ret->var_size = 1;
       break;
+    case TY_SHORT:
+      ret->var_size = 2;
+      break;
     case TY_INT:
       ret->var_size = 4;
       break;
