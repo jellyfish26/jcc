@@ -847,3 +847,16 @@ int main() {
   return c * a;
 }
 "
+
+assert 10 "
+short c;
+int main() {
+  short a = 2;
+  c = a + 3;
+  // a = 5;
+  /* c = 8;
+  */
+  return c * a;
+}
+"
+

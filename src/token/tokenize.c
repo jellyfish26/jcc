@@ -192,6 +192,10 @@ void tokenize(char *file_name) {
   for (int i = 0; i < file_len; ++i) {
     *(source_str + i) = fgetc(fp);
   }
+  // Insert a new line at the end
+  if (*(source_str + file_len - 1) != '\n') {
+    *(source_str + file_len - 1) = '\n';
+  }
   fclose(fp);
 
   Token head;
@@ -200,6 +204,22 @@ void tokenize(char *file_name) {
   char *now_str = source_str;
   int now_loc = 0;
   while (*now_str) {
+    if (memcmp(now_str, "//", 2) == 0) {
+      while (*now_str != '\n') {
+        now_str += 1;
+        now_loc += 1;
+      }
+      now_str += 1;
+      now_loc += 1;
+    }
+    if (memcmp(now_str, "/*", 2) == 0) {
+      while (memcmp(now_str, "*/", 2) != 0) {
+        now_str += 1;
+        now_loc += 1;
+      }
+      now_str += 2;
+      now_loc += 2;
+    }
     if (isspace(*now_str)) {
       now_str++;
       now_loc++;
@@ -211,6 +231,9 @@ void tokenize(char *file_name) {
     // Check punctuators
     for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
       int panct_len = strlen(permit_panct[i]);
+      if (now_loc + panct_len >= file_len) {
+        continue;
+      }
       if (memcmp(now_str, permit_panct[i], panct_len) == 0) {
         ret = new_token(TK_PUNCT, ret, now_str, panct_len, now_loc);
         now_str += panct_len;
