@@ -177,6 +177,34 @@ char *permit_keywords[] = {
   "return", "if", "else", "for", "while", "break", "continue",
   "sizeof", "char", "short", "int", "long"};
 
+char read_char(char *str, char **end_ptr) {
+  if (*str == 92) {
+    *end_ptr = str + 2;
+    switch (*(str + 1)) {
+      case '0':
+        return '\0';
+      case 'a':
+        return '\a';
+      case 'b':
+        return '\b';
+      case 't':
+        return '\t';
+      case 'n':
+        return '\n';
+      case 'v':
+        return '\v';
+      case 'f':
+        return '\f';
+      case 'r':
+        return '\r';
+      default:
+        return *(str + 1);
+    }
+  }
+  *end_ptr = str + 1;
+  return *str;
+}
+
 // Update source token
 void tokenize(char *file_name) {
   FILE *fp;
@@ -204,6 +232,7 @@ void tokenize(char *file_name) {
   char *now_str = source_str;
   int now_loc = 0;
   while (*now_str) {
+    // Comment out of line
     if (memcmp(now_str, "//", 2) == 0) {
       while (*now_str != '\n') {
         now_str += 1;
@@ -212,6 +241,8 @@ void tokenize(char *file_name) {
       now_str += 1;
       now_loc += 1;
     }
+    
+    // Comment out of block
     if (memcmp(now_str, "/*", 2) == 0) {
       while (memcmp(now_str, "*/", 2) != 0) {
         now_str += 1;
@@ -220,6 +251,7 @@ void tokenize(char *file_name) {
       now_str += 2;
       now_loc += 2;
     }
+
     if (isspace(*now_str)) {
       now_str++;
       now_loc++;
@@ -244,6 +276,22 @@ void tokenize(char *file_name) {
     }
 
     if (check) {
+      continue;
+    }
+
+    // Check str
+    if (*now_str == '\'') {
+      char *s_pos = now_str;
+      ret = new_token(TK_CHAR, ret, now_str, 3, now_loc);
+      ret->c_lit = read_char(now_str + 1, &now_str);
+      if (*now_str != '\'') {
+        ret->str = now_str;
+        ret->loc = now_loc + (now_str - s_pos);
+        ret->str_len = 1;
+        errorf_at(ER_COMPILE, ret, "The char must be a single character.");
+      }
+      now_str += 1;
+      now_loc += now_str - s_pos;
       continue;
     }
 

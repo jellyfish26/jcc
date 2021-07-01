@@ -769,8 +769,12 @@ Node *priority() {
 
 Node *num() {
   Token *tkn = consume(TK_NUM_INT, NULL);
+  if (tkn) {
+    return new_node_num(tkn->val);
+  }
+  tkn = consume(TK_CHAR, NULL);
   if (!tkn) {
     errorf_at(ER_COMPILE, source_token, "Not value.");
   }
-  return new_node_num(tkn->val);
+  return new_node_num(tkn->c_lit);
 }

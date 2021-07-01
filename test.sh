@@ -860,3 +860,17 @@ int main() {
 }
 "
 
+
+assert 97 "
+int main() {
+  char c = 'a';
+  return c;
+}
+"
+
+assert 10 "
+int main() {
+  char c = '\n';
+  return c;
+}
+"

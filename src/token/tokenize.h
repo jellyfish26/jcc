@@ -14,6 +14,7 @@ typedef enum {
   TK_PUNCT,   // Punctuators
   TK_KEYWORD, // Keywords
   TK_IDENT,   // Ident (etc. variable)
+  TK_CHAR,    // Char literal
   TK_EOF,     // End of File
 } TokenKind;
 
@@ -27,6 +28,7 @@ struct Token {
   int str_len;    // Token length
   int val;        // Value if kind is TK_NUM_INT
   int loc;        // Location from the beginning of the file
+  char c_lit;     // Char literal
 };
 
 extern Token *source_token; // Warn: Don't operate it directly.
