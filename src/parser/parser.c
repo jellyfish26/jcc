@@ -88,8 +88,8 @@ Node *last_stmt(Node *now) {
 // Prototype
 void program();
 Node *statement(bool new_scope);
-Node *define_var(bool once);
-Node *define_ident();
+Node *define_var(bool once, bool is_global);
+Node *define_ident(Type *define_ident, bool is_global);
 Node *assign();
 Node *ternary();
 Node *logical_or();
@@ -115,9 +115,9 @@ Function *top_func;
 Function *exp_func;
 
 void program() {
-  define_vars = NULL;
+  local_vars = NULL;
+  global_vars = NULL;
   used_vars = NULL;
-  new_scope_definition();
   int i = 0;
   while (!is_eof()) {
     if (exp_func) {
@@ -149,7 +149,7 @@ void function(Function *target) {
     if (!consume(TK_PUNCT, "(")) {
       restore(); // ident restore
       restore(); // type restore
-      target->stmt = define_var(false);
+      target->stmt = define_var(false, true);
       target->global_var_define = true;
       consume(TK_PUNCT, ";");
       return;
@@ -171,13 +171,13 @@ void function(Function *target) {
 
       Token *var_tkn = consume(TK_IDENT, NULL);
       if (var_tkn) {
-        if (check_already_define(var_tkn->str, var_tkn->str_len)) {
+        if (check_already_define(var_tkn->str, var_tkn->str_len, false)) {
           errorf_at(ER_COMPILE, before_token,
                     "This variable already definition.");
         }
         Var *local_var =
             new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
-        add_scope_var(local_var);
+        add_local_var(local_var);
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
         link_var_to_node(target->func_args, local_var);
         target->func_argc++;
@@ -249,17 +249,17 @@ Node *statement(bool new_scope) {
     if (!consume(TK_PUNCT, "(")) {
       errorf_at(ER_COMPILE, source_token, "If statement must start with \"(\"");
     }
-    ret->judge = define_var(true);
-    Var *top_var = define_vars->vars;
+    ret->judge = define_var(true, false);
+    Var *top_var = local_vars->vars;
     if (!consume(TK_PUNCT, ")")) {
       errorf_at(ER_COMPILE, source_token, "If statement must end with \")\".");
     }
     ret->exec_if = statement(false);
     // Transfer varaibles
-    if (top_var && define_vars->vars == top_var) {
-      define_vars->vars = NULL;
+    if (top_var && local_vars->vars == top_var) {
+      local_vars->vars = NULL;
     } else if (top_var) {
-      for (Var *now_var = define_vars->vars; now_var; now_var = now_var->next) {
+      for (Var *now_var = local_vars->vars; now_var; now_var = now_var->next) {
         if (now_var->next == top_var) {
           now_var->next = NULL;
           break;
@@ -270,7 +270,7 @@ Node *statement(bool new_scope) {
     if (consume(TK_KEYWORD, "else")) {
       new_scope_definition();
       if (top_var) {
-        add_scope_var(top_var);
+        add_local_var(top_var);
       }
       ret->exec_else = statement(false);
       out_scope_definition();
@@ -290,7 +290,7 @@ Node *statement(bool new_scope) {
     }
 
     if (!consume(TK_PUNCT, ";")) {
-      ret->init_for = define_var(true);
+      ret->init_for = define_var(true, false);
       if (!consume(TK_PUNCT, ";")) {
         errorf_at(ER_COMPILE, source_token,
                   "After defining an expression, it must end with \";\". ");
@@ -375,7 +375,7 @@ Node *statement(bool new_scope) {
     return ret;
   }
 
-  ret = define_var(false);
+  ret = define_var(false, false);
   if (!consume(TK_PUNCT, ";")) {
     errorf_at(ER_COMPILE, source_token, "Expression must end with \";\".");
   }
@@ -385,14 +385,14 @@ Node *statement(bool new_scope) {
 
 // define_var = base_type define_ident (once is false: ("," define_ident)*) |
 //              assign
-Node *define_var(bool once) {
+Node *define_var(bool once, bool is_global) {
   Type *var_type = new_type();
   if (var_type) {
-    Node *first_var = define_ident(var_type);
+    Node *first_var = define_ident(var_type, is_global);
     if (!once) {
       Node *now_var = first_var;
       while (consume(TK_PUNCT, ",")) {
-        now_var->next_stmt = define_ident(var_type);
+        now_var->next_stmt = define_ident(var_type, is_global);
         now_var = now_var->next_stmt;
       }
     }
@@ -402,7 +402,7 @@ Node *define_var(bool once) {
 }
 
 // define_ident = "*"* ident ("[" num "]")*
-Node *define_ident(Type *define_type) {
+Node *define_ident(Type *define_type, bool is_global) {
   if (!define_type) {
     errorf(ER_INTERNAL, "Internal Error at define variable");
   }
@@ -420,7 +420,7 @@ Node *define_ident(Type *define_type) {
               "Variable definition must be identifier.");
   }
 
-  if (check_already_define(tkn->str, tkn->str_len)) {
+  if (check_already_define(tkn->str, tkn->str_len, is_global)) {
     errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
   }
   Var *define_var = new_general_var(now_type, tkn->str, tkn->str_len);
@@ -460,7 +460,11 @@ Node *define_ident(Type *define_type) {
   }
   Node *ret = new_node(ND_VAR, NULL, NULL);
   link_var_to_node(ret, define_var);
-  add_scope_var(define_var);
+  if (is_global) {
+    add_global_var(define_var);
+  } else {
+    add_local_var(define_var);
+  }
 
   if (consume(TK_PUNCT, "=")) {
     ret = new_assign_node(ND_ASSIGN, ret, assign());

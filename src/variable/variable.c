@@ -88,43 +88,58 @@ Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
   return ret;
 }
 
-ScopeVars *define_vars;
+ScopeVars *local_vars;
+Var *global_vars;
 Var *used_vars;
 
 void new_scope_definition() {
   ScopeVars *new_scope = calloc(sizeof(ScopeVars), 1);
-  if (define_vars == NULL) {
+  if (local_vars == NULL) {
     new_scope->depth = 0;
   } else {
-    new_scope->depth = define_vars->depth + 1;
+    new_scope->depth = local_vars->depth + 1;
   }
-  new_scope->upper = define_vars;
-  define_vars = new_scope;
+  new_scope->upper = local_vars;
+  local_vars = new_scope;
 }
 
 void out_scope_definition() {
-  if (!define_vars) {
+  if (!local_vars) {
     errorf(ER_INTERNAL, "Internal Error at scope");
   }
-  Var *used = define_vars->vars;
+  Var *used = local_vars->vars;
   while (used && used->next) {
     used = used->next;
   }
   if (used) {
     used->next = used_vars;
-    used_vars = define_vars->vars;
+    used_vars = local_vars->vars;
   }
-  define_vars = define_vars->upper;
+  local_vars = local_vars->upper;
 }
 
-void add_scope_var(Var *var) {
-  var->global = (define_vars->depth == 0);
-  var->next = define_vars->vars;
-  define_vars->vars = var;
+void add_local_var(Var *var) {
+  var->global = false;
+  var->next = local_vars->vars;
+  local_vars->vars = var;
+}
+
+void add_global_var(Var *var) {
+  var->global = true;
+  var->next = global_vars;
+  global_vars = var;
 }
 
 Var *find_var(char *str, int str_len) {
-  for (ScopeVars *now_scope = define_vars; now_scope; now_scope = now_scope->upper) {
+  for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
+    if (gvar->len != str_len) {
+      continue;
+    }
+    if (memcmp(str, gvar->str, str_len) == 0) {
+      return gvar;
+    }
+  }
+  for (ScopeVars *now_scope = local_vars; now_scope; now_scope = now_scope->upper) {
     for (Var *now_var = now_scope->vars; now_var; now_var = now_var->next) {
       if (now_var->len != str_len) {
         continue;
@@ -138,8 +153,22 @@ Var *find_var(char *str, int str_len) {
   return NULL;
 }
 
-bool check_already_define(char *str, int str_len) {
-  for (Var *now_var = define_vars->vars; now_var; now_var = now_var->next) {
+bool check_already_define(char *str, int str_len, bool is_global) {
+  if (is_global) {
+     for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
+      if (gvar->len != str_len) {
+        continue;
+      }
+      if (memcmp(str, gvar->str, str_len) == 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (local_vars == NULL) {
+    return false;
+  }
+  for (Var *now_var = local_vars->vars; now_var; now_var = now_var->next) {
     if (now_var->len != str_len) {
       continue;
     }
