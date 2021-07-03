@@ -1,6 +1,7 @@
 #include "token/tokenize.h"
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,7 +71,7 @@ void errorf(ERROR_TYPE type, char *fmt, ...) {
   exit(1);
 }
 
-void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
+void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   char *err_type;
@@ -85,45 +86,38 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
       err_type = "Internal Error";
       break;
   }
-  int line_cnt = 1;
-  int begin_line_loc = token->loc;
-  char *now_str = source_str;
+  int line_loc = 1;
+  char *begin_line_loc = source_str;
 
-  // Explore where the Token is on the line.
-  while (now_str < source_str + token->loc) {
-    if (*now_str == '\n') {
-      line_cnt++;
+  // Where char location belong line
+  for (char *now_loc = source_str; now_loc != loc; now_loc++) {
+    if (*now_loc == '\n') {
+      line_loc++;
+      begin_line_loc = now_loc + 1;
     }
-    now_str++;
-  }
-
-  // Go back to the beginning of the line
-  while (now_str != source_str && *(now_str - 1) != '\n') {
-    now_str--;
-    begin_line_loc--;
   }
 
   fprintf(stderr, "\x1b[31m[%s]\x1b[39m\n", err_type);
-
-  // Print source code
-  fprintf(stderr, "%d:", line_cnt);
-  while (*now_str != '\n' && *now_str != '\0') {
-    fprintf(stderr, "%c", *now_str);
-    now_str++;
+  // Prine line
+  fprintf(stderr, "%d:", line_loc);
+  for (char *now_loc = begin_line_loc; *now_loc != '\n' && *now_loc != '\0'; now_loc++) {
+    fprintf(stderr, "%c", *now_loc);
   }
   fprintf(stderr, "\n");
 
-  // Space of number
-  for (int i = line_cnt; i != 0; i /= 10) {
+  // Print space of line location print
+  for (int i = line_loc; i != 0; i /= 10) {
     fprintf(stderr, " ");
   }
-
-  // Space ": "
-  for (int i = begin_line_loc - 1; i < token->loc + token->str_len; i++) {
-    if (i < token->loc) {
-      fprintf(stderr, " ");
+  fprintf(stderr, " ");
+  for (char *now_loc = begin_line_loc;; now_loc++) {
+    if (now_loc == loc) {
+      for (int i = 0; i < underline_len; i++) {
+        fprintf(stderr, "^");
+      }
+      break;
     } else {
-      fprintf(stderr, "^");
+      fprintf(stderr, " ");
     }
   }
   fprintf(stderr, " ");
@@ -132,13 +126,18 @@ void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...) {
   exit(1);
 }
 
-Token *new_token(TokenKind kind, Token *connect, char *str, int len, int loc) {
+void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  errorf_loc(type, tkn->str, tkn->str_len, fmt, ap);
+}
+
+Token *new_token(TokenKind kind, Token *connect, char *str, int str_len) {
   Token *ret = calloc(1, sizeof(Token));
   // printf("%d\n", kind);
   ret->kind = kind;
   ret->str = str;
-  ret->str_len = len;
-  ret->loc = loc;
+  ret->str_len = str_len;
   if (connect) {
     connect->next = ret;
     ret->before = connect;
@@ -230,31 +229,27 @@ void tokenize(char *file_name) {
   Token *ret = &head;
 
   char *now_str = source_str;
-  int now_loc = 0;
   while (*now_str) {
     // Comment out of line
     if (memcmp(now_str, "//", 2) == 0) {
       while (*now_str != '\n') {
-        now_str += 1;
-        now_loc += 1;
+        now_str++;
       }
-      now_str += 1;
-      now_loc += 1;
+      now_str++;
+      continue;
     }
     
     // Comment out of block
     if (memcmp(now_str, "/*", 2) == 0) {
       while (memcmp(now_str, "*/", 2) != 0) {
-        now_str += 1;
-        now_loc += 1;
+        now_str++;
       }
       now_str += 2;
-      now_loc += 2;
+      continue;
     }
 
     if (isspace(*now_str)) {
       now_str++;
-      now_loc++;
       continue;
     }
 
@@ -263,13 +258,12 @@ void tokenize(char *file_name) {
     // Check punctuators
     for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
       int panct_len = strlen(permit_panct[i]);
-      if (now_loc + panct_len >= file_len) {
+      if (now_str + panct_len >= now_str + file_len) {
         continue;
       }
       if (memcmp(now_str, permit_panct[i], panct_len) == 0) {
-        ret = new_token(TK_PUNCT, ret, now_str, panct_len, now_loc);
+        ret = new_token(TK_PUNCT, ret, now_str, panct_len);
         now_str += panct_len;
-        now_loc += panct_len;
         check = true;
         break;
       }
@@ -282,16 +276,12 @@ void tokenize(char *file_name) {
     // Check str
     if (*now_str == '\'') {
       char *s_pos = now_str;
-      ret = new_token(TK_CHAR, ret, now_str, 3, now_loc);
+      ret = new_token(TK_CHAR, ret, now_str, 3);
       ret->c_lit = read_char(now_str + 1, &now_str);
       if (*now_str != '\'') {
-        ret->str = now_str;
-        ret->loc = now_loc + (now_str - s_pos);
-        ret->str_len = 1;
-        errorf_at(ER_COMPILE, ret, "The char must be a single character.");
+        errorf_loc(ER_COMPILE, now_str, 1, "The char must be a single character.");
       }
       now_str += 1;
-      now_loc += now_str - s_pos;
       continue;
     }
 
@@ -299,9 +289,8 @@ void tokenize(char *file_name) {
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
       if (memcmp(now_str, permit_keywords[i], keyword_len) == 0) {
-        ret = new_token(TK_KEYWORD, ret, now_str, keyword_len, now_loc);
+        ret = new_token(TK_KEYWORD, ret, now_str, keyword_len);
         now_str += keyword_len;
-        now_loc += keyword_len;
         check = true;
         break;
       }
@@ -313,10 +302,9 @@ void tokenize(char *file_name) {
 
     if (isdigit(*now_str)) {
       char *tmp = now_str;
-      ret = new_token(TK_NUM_INT, ret, now_str, now_str - tmp, now_loc);
+      ret = new_token(TK_NUM_INT, ret, now_str, now_str - tmp);
       ret->val = strtol(now_str, &now_str, 10);
       ret->str_len = now_str - tmp;
-      now_loc += ret->str_len;
       continue;
     }
 
@@ -326,13 +314,12 @@ void tokenize(char *file_name) {
         now_str++;
       }
       int ident_len = now_str - start;
-      ret = new_token(TK_IDENT, ret, start, ident_len, now_loc);
-      now_loc += ident_len;
+      ret = new_token(TK_IDENT, ret, start, ident_len);
       continue;
     }
     printf("%s", now_str);
     errorf(ER_TOKENIZE, "Unexpected tokenize");
   }
-  new_token(TK_EOF, ret, NULL, 1, now_loc);
+  new_token(TK_EOF, ret, NULL, 1);
   source_token = head.next;
 }

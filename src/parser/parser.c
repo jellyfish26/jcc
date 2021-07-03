@@ -141,7 +141,7 @@ void function(Function *target) {
   if (ret_type) {
     target->ret_type = ret_type;
   } else {
-    errorf_at(ER_COMPILE, source_token, "Undefined type.");
+    errorf_tkn(ER_COMPILE, source_token, "Undefined type.");
   }
 
   Token *global_ident = consume(TK_IDENT, NULL);
@@ -166,13 +166,13 @@ void function(Function *target) {
     while (is_variable_defined) {
       Type *arg_type = new_type();
       if (!arg_type) {
-        errorf_at(ER_COMPILE, source_token, "Undefined type.");
+        errorf_tkn(ER_COMPILE, source_token, "Undefined type.");
       }
 
       Token *var_tkn = consume(TK_IDENT, NULL);
       if (var_tkn) {
         if (check_already_define(var_tkn->str, var_tkn->str_len, false)) {
-          errorf_at(ER_COMPILE, before_token,
+          errorf_tkn(ER_COMPILE, before_token,
                     "This variable already definition.");
         }
         Var *local_var =
@@ -182,7 +182,7 @@ void function(Function *target) {
         link_var_to_node(target->func_args, local_var);
         target->func_argc++;
       } else {
-        errorf_at(ER_COMPILE, source_token, "Must declare variable.");
+        errorf_tkn(ER_COMPILE, source_token, "Must declare variable.");
       }
 
       if (consume(TK_PUNCT, ",")) {
@@ -192,7 +192,7 @@ void function(Function *target) {
       if (consume(TK_PUNCT, ")")) {
         break;
       } else {
-        errorf_at(ER_COMPILE, source_token,
+        errorf_tkn(ER_COMPILE, source_token,
                   "Define function must end with \")\".");
       }
     }
@@ -202,7 +202,7 @@ void function(Function *target) {
     out_scope_definition();
     target->vars_size = init_offset();
   } else {
-    errorf_at(ER_COMPILE, source_token,
+    errorf_tkn(ER_COMPILE, source_token,
               "Start the function with an identifier.");
   }
 }
@@ -247,12 +247,12 @@ Node *statement(bool new_scope) {
     ret = new_node(ND_IF, NULL, NULL);
 
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token, "If statement must start with \"(\"");
+      errorf_tkn(ER_COMPILE, source_token, "If statement must start with \"(\"");
     }
     ret->judge = define_var(true, false);
     Var *top_var = local_vars->vars;
     if (!consume(TK_PUNCT, ")")) {
-      errorf_at(ER_COMPILE, source_token, "If statement must end with \")\".");
+      errorf_tkn(ER_COMPILE, source_token, "If statement must end with \")\".");
     }
     ret->exec_if = statement(false);
     // Transfer varaibles
@@ -285,14 +285,14 @@ Node *statement(bool new_scope) {
     inside_roop = ret;
 
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token,
+      errorf_tkn(ER_COMPILE, source_token,
                 "For statement must start with \"(\".");
     }
 
     if (!consume(TK_PUNCT, ";")) {
       ret->init_for = define_var(true, false);
       if (!consume(TK_PUNCT, ";")) {
-        errorf_at(ER_COMPILE, source_token,
+        errorf_tkn(ER_COMPILE, source_token,
                   "After defining an expression, it must end with \";\". ");
       }
     }
@@ -300,7 +300,7 @@ Node *statement(bool new_scope) {
     if (!consume(TK_PUNCT, ";")) {
       ret->judge = assign();
       if (!consume(TK_PUNCT, ";")) {
-        errorf_at(ER_COMPILE, source_token,
+        errorf_tkn(ER_COMPILE, source_token,
                   "After defining an expression, it must end with \";\". ");
       }
     }
@@ -308,7 +308,7 @@ Node *statement(bool new_scope) {
     if (!consume(TK_PUNCT, ")")) {
       ret->repeat_for = assign();
       if (!consume(TK_PUNCT, ")")) {
-        errorf_at(ER_COMPILE, source_token,
+        errorf_tkn(ER_COMPILE, source_token,
                   "For statement must end with \")\".");
       }
     }
@@ -326,12 +326,12 @@ Node *statement(bool new_scope) {
     inside_roop = ret;
 
     if (!consume(TK_PUNCT, "(")) {
-      errorf_at(ER_COMPILE, source_token,
+      errorf_tkn(ER_COMPILE, source_token,
                 "While statement must start with \"(\".");
     }
     ret->judge = assign();
     if (!consume(TK_PUNCT, ")")) {
-      errorf_at(ER_COMPILE, source_token,
+      errorf_tkn(ER_COMPILE, source_token,
                 "While statement must end with \")\".");
     }
     ret->stmt_for = statement(false);
@@ -345,39 +345,39 @@ Node *statement(bool new_scope) {
     ret = new_node(ND_RETURN, assign(), NULL);
 
     if (!consume(TK_PUNCT, ";")) {
-      errorf_at(ER_COMPILE, source_token, "Expression must end with \";\".");
+      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
     }
     return ret;
   }
 
   if (consume(TK_KEYWORD, "break")) {
     if (!inside_roop) {
-      errorf_at(ER_COMPILE, before_token, "%s", "Not whithin loop");
+      errorf_tkn(ER_COMPILE, before_token, "%s", "Not whithin loop");
     }
     ret = new_node(ND_LOOPBREAK, NULL, NULL);
     ret->lhs = inside_roop;
     if (!consume(TK_PUNCT, ";")) {
-      errorf_at(ER_COMPILE, source_token, "Expression must end with \";\".");
+      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
     }
     return ret;
   }
 
   if (consume(TK_KEYWORD, "continue")) {
     if (!inside_roop) {
-      errorf_at(ER_COMPILE, before_token, "%s",
+      errorf_tkn(ER_COMPILE, before_token, "%s",
                 "continue statement not within loop");
     }
     ret = new_node(ND_CONTINUE, NULL, NULL);
     ret->lhs = inside_roop;
     if (!consume(TK_PUNCT, ";")) {
-      errorf_at(ER_COMPILE, source_token, "Expression must end with \";\".");
+      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
     }
     return ret;
   }
 
   ret = define_var(false, false);
   if (!consume(TK_PUNCT, ";")) {
-    errorf_at(ER_COMPILE, source_token, "Expression must end with \";\".");
+    errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
   }
 
   return ret;
@@ -416,12 +416,12 @@ Node *define_ident(Type *define_type, bool is_global) {
   Token *tkn = consume(TK_IDENT, NULL);
 
   if (!tkn) {
-    errorf_at(ER_COMPILE, source_token,
+    errorf_tkn(ER_COMPILE, source_token,
               "Variable definition must be identifier.");
   }
 
   if (check_already_define(tkn->str, tkn->str_len, is_global)) {
-    errorf_at(ER_COMPILE, before_token, "This variable is already definition.");
+    errorf_tkn(ER_COMPILE, before_token, "This variable is already definition.");
   }
   Var *define_var = new_general_var(now_type, tkn->str, tkn->str_len);
 
@@ -438,10 +438,10 @@ Node *define_ident(Type *define_type, bool is_global) {
   while (consume(TK_PUNCT, "[")) {
     Token *array_size = consume(TK_NUM_INT, NULL);
     if (!array_size) {
-      errorf_at(ER_COMPILE, source_token, "Specify the size of array.");
+      errorf_tkn(ER_COMPILE, source_token, "Specify the size of array.");
     }
     if (!consume(TK_PUNCT, "]")) {
-      errorf_at(ER_COMPILE, source_token, "Must end [");
+      errorf_tkn(ER_COMPILE, source_token, "Must end [");
     }
 
     ArraySize *now = calloc(sizeof(ArraySize), 1);
@@ -513,7 +513,7 @@ Node *ternary() {
     Node *tmp = new_node(ND_TERNARY, NULL, NULL);
     tmp->lhs = ternary();
     if (!consume(TK_PUNCT, ":")) {
-      errorf_at(ER_COMPILE, source_token,
+      errorf_tkn(ER_COMPILE, source_token,
                 "The ternary operator requires \":\".");
     }
     tmp->rhs = ternary();
@@ -707,7 +707,7 @@ Node *priority() {
     Node *ret = assign();
 
     if (!consume(TK_PUNCT, ")")) {
-      errorf_at(ER_COMPILE, source_token,
+      errorf_tkn(ER_COMPILE, source_token,
                 "\"(\" and \")\" should be written in pairs.");
     }
     return ret;
@@ -738,7 +738,7 @@ Node *priority() {
         }
 
         if (!consume(TK_PUNCT, ")")) {
-          errorf_at(ER_COMPILE, source_token,
+          errorf_tkn(ER_COMPILE, source_token,
                     "Function call must end with \")\".");
         }
         break;
@@ -752,7 +752,7 @@ Node *priority() {
   if (tkn) {
     Var *use_var = find_var(tkn->str, tkn->str_len);
     if (!use_var) {
-      errorf_at(ER_COMPILE, before_token, "This variable is not definition.");
+      errorf_tkn(ER_COMPILE, before_token, "This variable is not definition.");
     }
     Node *ret = new_node(ND_VAR, NULL, NULL);
     link_var_to_node(ret, use_var);
@@ -762,7 +762,7 @@ Node *priority() {
       ret = new_node(ND_CONTENT, ret, NULL);
       ret->equation_type = ret->equation_type->content;
       if (!consume(TK_PUNCT, "]")) {
-        errorf_at(ER_COMPILE, source_token, "Must use \"[\".");
+        errorf_tkn(ER_COMPILE, source_token, "Must use \"[\".");
       }
     }
     return ret;
@@ -778,7 +778,7 @@ Node *num() {
   }
   tkn = consume(TK_CHAR, NULL);
   if (!tkn) {
-    errorf_at(ER_COMPILE, source_token, "Not value.");
+    errorf_tkn(ER_COMPILE, source_token, "Not value.");
   }
   return new_node_num(tkn->c_lit);
 }

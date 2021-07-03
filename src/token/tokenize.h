@@ -27,7 +27,6 @@ struct Token {
   char *str;      // Token String
   int str_len;    // Token length
   int val;        // Value if kind is TK_NUM_INT
-  int loc;        // Location from the beginning of the file
   char c_lit;     // Char literal
 };
 
@@ -46,7 +45,8 @@ typedef enum {
 } ERROR_TYPE;
 
 void errorf(ERROR_TYPE type, char *format, ...);
-void errorf_at(ERROR_TYPE type, Token *token, char *fmt, ...);
+void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...);
+void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 
 //
 // operate.c
