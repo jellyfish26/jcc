@@ -19,6 +19,7 @@ Type *new_general_type(TypeKind kind, bool is_real) {
     case TY_INT:
       ret->var_size = 4;
       break;
+    case TY_STR:
     case TY_LONG:
     case TY_PTR:
     case TY_ADDR:
@@ -90,6 +91,7 @@ Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
 
 ScopeVars *local_vars;
 Var *global_vars;
+Var *tmp_vars;
 Var *used_vars;
 
 void new_scope_definition() {
@@ -128,6 +130,16 @@ void add_global_var(Var *var) {
   var->global = true;
   var->next = global_vars;
   global_vars = var;
+}
+
+void add_tmp_var(Var *var) {
+  var->next = tmp_vars;
+  if (tmp_vars == NULL) {
+    var->offset = 0;
+  } else {
+    var->offset = tmp_vars->offset + 1;
+  }
+  tmp_vars = var;
 }
 
 Var *find_var(char *str, int str_len) {

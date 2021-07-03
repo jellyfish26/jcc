@@ -44,7 +44,6 @@ typedef enum {
   ND_LOOPBREAK,   // "break" statement (only for and while)
   ND_CONTINUE,    // "continue" statement
   ND_FUNCCALL,    // Function call
-  ND_INT,         // Number (int)
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
   ND_PREFIX_INC,  // Prefix increment
@@ -52,6 +51,7 @@ typedef enum {
   ND_SUFFIX_INC,  // Suffix increment
   ND_SUFFIX_DEC,  // Suffix decrement
   ND_SIZEOF,      // "sizeof"
+  ND_INT,         // Number (int)
 } NodeKind;
 
 struct Node {
@@ -75,13 +75,16 @@ struct Node {
 
   NodeKind assign_type; // Type of assign
 
-  int val;   // value if kind is ND_INT
   int label; // label (only "for" or "while" statement)
 
   char *func_name;   // Function name
   int func_name_len; // Function name length
   Node *func_arg;    // Function arguments
   int func_args_idx; // Index of argument
+
+  int val;        // value if kind is ND_INT
+  char *str_lit;  // value if kind is ND_STR
+  int str_lit_label;
 };
 
 void program();
@@ -102,5 +105,5 @@ struct Function {
   bool global_var_define;
 };
 
-extern Function *top_func; // parse.c
+extern Function *top_func;
 extern Function *exp_func;

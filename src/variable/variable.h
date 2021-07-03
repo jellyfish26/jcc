@@ -3,6 +3,7 @@
 
 // Define in order of decreasing size
 typedef enum {
+  TY_STR,   // String literal type
   TY_CHAR,  // "char" type
   TY_SHORT, // "short" type
   TY_INT,   // "int" type
@@ -33,7 +34,7 @@ struct Var {
   Type *var_type;
   Var *next; // Next Var
 
-  char *str;  // Variable name
+  char *str;  // Variable name (String, if TY_STR)
   int len;    // Length of name
   int offset; // Offset
   bool global; // Global variable if this variable is true
@@ -54,12 +55,14 @@ struct ScopeVars {
 };
 
 extern ScopeVars *local_vars;
+extern Var *tmp_vars;
 extern Var *global_vars;
 extern Var *used_vars;
 
 void new_scope_definition();
 void out_scope_definition();
 void add_local_var(Var *var);
+void add_tmp_var(Var *var);
 void add_global_var(Var *var);
 Var *find_var(char *str, int str_len);
 bool check_already_define(char *str, int str_len, bool is_global);

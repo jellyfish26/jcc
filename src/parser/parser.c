@@ -697,6 +697,7 @@ Node *increment_and_decrement() {
 }
 
 // priority = num |
+//            String(literal) |
 //            "(" assign ")" |
 //            ident ("(" params? ")")? |
 //            ident ("[" assign "]")* |
@@ -713,7 +714,17 @@ Node *priority() {
     return ret;
   }
 
-  Token *tkn = consume(TK_IDENT, NULL);
+  // String literal
+  Token *tkn = consume(TK_STR, NULL);
+  if (tkn) {
+    Var *var = new_general_var(new_general_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+    Node *ret = new_node(ND_VAR, NULL, NULL);
+    link_var_to_node(ret, var);
+    add_tmp_var(var);
+    return ret;
+  }
+
+  tkn = consume(TK_IDENT, NULL);
 
   // function call
   if (tkn) {

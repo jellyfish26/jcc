@@ -89,7 +89,10 @@ void gen_var_address(Node *node) {
   }
   Var *use_var = node->use_var;
 
-  if (use_var->global) {
+  // String literal
+  if (use_var->var_type->kind == TY_STR) {
+    printf("  mov rax, offset .LC%d\n", use_var->offset);
+  } else if (use_var->global) {
     char *var_name = calloc(use_var->len + 1, sizeof(char));
     memcpy(var_name, use_var->str, use_var->len);
     printf("  mov rax, offset %s\n", var_name);
@@ -203,7 +206,7 @@ void expand_variable(Node *node) {
   gen_var_address(node);
   printf("  pop rax\n");
   Type *var_type = node->use_var->var_type;
-  if (var_type->kind != TY_ARRAY) {
+  if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
     gen_operation(REG_RAX, REG_MEM, convert_type_to_size(var_type), OP_MOV);
   }
   printf("  push rax\n");
@@ -637,11 +640,22 @@ void gen_global_var_define(Var *var) {
   }
 }
 
+void gen_tmp_var_define(Var *var) {
+  printf(".data\n");
+  printf(".LC%d:\n", var->offset);
+  printf("  .string \"%s\"\n", var->str);
+}
+
 void codegen() {
   printf(".intel_syntax noprefix\n");
   for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
     gen_global_var_define(gvar);
   }
+
+  for (Var *tvar = tmp_vars; tvar; tvar = tvar->next) {
+    gen_tmp_var_define(tvar);
+  }
+  
 
   for (Function *now_func = top_func; now_func; now_func = now_func->next) {
     if (now_func->global_var_define) {

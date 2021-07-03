@@ -204,6 +204,17 @@ char read_char(char *str, char **end_ptr) {
   return *str;
 }
 
+char *read_str(char *str, char **end_ptr) {
+  int str_len = 0;
+  for (char *now_loc = str; *now_loc != '"'; now_loc++) {
+    str_len++;
+  }
+  char *ret = calloc(str_len, sizeof(char));
+  memcpy(ret, str, str_len);
+  *end_ptr = str + str_len;
+  return ret;
+}
+
 // Update source token
 void tokenize(char *file_name) {
   FILE *fp;
@@ -273,7 +284,7 @@ void tokenize(char *file_name) {
       continue;
     }
 
-    // Check str
+    // Check char
     if (*now_str == '\'') {
       char *s_pos = now_str;
       ret = new_token(TK_CHAR, ret, now_str, 3);
@@ -281,7 +292,19 @@ void tokenize(char *file_name) {
       if (*now_str != '\'') {
         errorf_loc(ER_COMPILE, now_str, 1, "The char must be a single character.");
       }
-      now_str += 1;
+      now_str++;
+      continue;
+    }
+
+    if (*now_str == '"') {
+      char *s_pos = now_str;
+      ret = new_token(TK_STR, ret, now_str, 0);
+      ret->str_lit = read_str(now_str + 1, &now_str);
+      ret->str_len = (now_str - s_pos) - 2;
+      if (*now_str != '"') {
+        errorf_loc(ER_COMPILE, now_str, 1, "The string must end with \".");
+      }
+      now_str++;
       continue;
     }
 

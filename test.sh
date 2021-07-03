@@ -874,3 +874,17 @@ int main() {
   return c;
 }
 "
+
+assert 104 "
+int main() {
+  char *s = \"hogehoge\";
+  return *s;
+}
+"
+
+assert 111 "
+int main() {
+  char *s = \"hoge\\nhoge\";
+  return *(s + 6);
+}
+"
