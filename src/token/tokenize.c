@@ -341,7 +341,7 @@ void tokenize(char *file_name) {
       continue;
     }
     printf("%s", now_str);
-    errorf(ER_TOKENIZE, "Unexpected tokenize");
+    errorf_loc(ER_TOKENIZE, now_str, 1, "Unexpected tokenize");
   }
   new_token(TK_EOF, ret, NULL, 1);
   source_token = head.next;
