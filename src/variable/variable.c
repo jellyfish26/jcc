@@ -143,14 +143,6 @@ void add_tmp_var(Var *var) {
 }
 
 Var *find_var(char *str, int str_len) {
-  for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
-    if (gvar->len != str_len) {
-      continue;
-    }
-    if (memcmp(str, gvar->str, str_len) == 0) {
-      return gvar;
-    }
-  }
   for (ScopeVars *now_scope = local_vars; now_scope; now_scope = now_scope->upper) {
     for (Var *now_var = now_scope->vars; now_var; now_var = now_var->next) {
       if (now_var->len != str_len) {
@@ -160,6 +152,14 @@ Var *find_var(char *str, int str_len) {
       if (memcmp(str, now_var->str, str_len) == 0) {
         return now_var;
       }
+    }
+  }
+  for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
+    if (gvar->len != str_len) {
+      continue;
+    }
+    if (memcmp(str, gvar->str, str_len) == 0) {
+      return gvar;
     }
   }
   return NULL;
