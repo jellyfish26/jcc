@@ -82,6 +82,23 @@ void gen_compare(char *comp_op, RegSizeKind reg_size) {
   printf("  movzx rax, al\n");
 }
 
+int push_cnt = 0;
+
+void gen_push(RegKind reg) {
+  push_cnt++;
+  printf("  push %s\n", get_reg(reg, REG_SIZE_8));
+}
+
+void gen_pop(RegKind reg) {
+  push_cnt--;
+  printf("  pop %s\n", get_reg(reg, REG_SIZE_8));
+}
+
+void gen_emptypop(int num) {
+  push_cnt -= num;
+  printf("  add rsp, %d\n", num * 8);
+}
+
 
 void gen_var_address(Node *node) {
   if (node->kind != ND_VAR && node->kind != ND_ADDR) {
@@ -100,7 +117,7 @@ void gen_var_address(Node *node) {
     printf("  mov rax, rbp\n");
     printf("  sub rax, %d\n", node->use_var->offset);
   }
-  printf("  push rax\n");
+  gen_push(REG_RAX);
 }
 
 // OP_MOV: left_reg = right_reg
@@ -142,7 +159,7 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, Op
     case OP_DIV:
     case OP_REMAINDER: {
       if (left_reg == REG_MEM) {
-        printf("  push %s\n", get_reg(REG_RAX, REG_SIZE_8));
+        gen_push(REG_RAX);
       }
       if (reg_size <= REG_SIZE_2) {
         gen_operation(REG_RAX, left_reg, reg_size, OP_MOVSX);
@@ -159,7 +176,7 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, Op
         gen_operation(REG_RDX, REG_RAX, REG_SIZE_8, OP_MOV);
       }
       if (left_reg == REG_MEM) {
-        printf("  pop %s\n", get_reg(REG_RAX, REG_SIZE_8));
+        gen_pop(REG_RAX);
       }
       gen_operation(left_reg, REG_RDX, reg_size, OP_MOV);
       return true;
@@ -204,12 +221,12 @@ void expand_logical_or(Node *node, int label);
 
 void expand_variable(Node *node) {
   gen_var_address(node);
-  printf("  pop rax\n");
+  gen_pop(REG_RAX);
   Type *var_type = node->use_var->var_type;
   if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
     gen_operation(REG_RAX, REG_MEM, convert_type_to_size(var_type), OP_MOV);
   }
-  printf("  push rax\n");
+  gen_push(REG_RAX);
 }
 
 // If left node is a direct variable, get the address of the variable.
@@ -233,9 +250,9 @@ void expand_assign(Node *node) {
       break;
     default:
       compile_node(node->rhs);
-      printf("  pop rdi\n");
+      gen_pop(REG_RDI);
   }
-  printf("  pop rax\n");
+  gen_pop(REG_RAX);
   RegSizeKind type_size = convert_type_to_size(node->lhs->equation_type);
 
   switch (node->assign_type) {
@@ -244,11 +261,11 @@ void expand_assign(Node *node) {
       break;
     }
     case ND_SUB: {
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       gen_operation(REG_RAX, REG_MEM, type_size, OP_MOV);
       gen_operation(REG_RAX, REG_RDI, type_size, OP_SUB);
       gen_operation(REG_RDI, REG_RAX, type_size, OP_MOV);
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       break;
     }
     case ND_MUL: {
@@ -257,13 +274,13 @@ void expand_assign(Node *node) {
     }
     case ND_DIV:
     case ND_REMAINDER: {
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       if (node->assign_type == ND_DIV) {
         gen_operation(REG_MEM, REG_RDI, type_size, OP_DIV);
       } else {
         gen_operation(REG_MEM, REG_RDI, type_size, OP_REMAINDER);
       }
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       gen_operation(REG_RDI, REG_MEM, type_size, OP_MOV);
       break;
     }
@@ -295,7 +312,7 @@ void expand_assign(Node *node) {
 
 void expand_logical_and(Node *node, int label) {
   compile_node(node->lhs);
-  printf("  pop rax\n");
+  gen_pop(REG_RAX);
   printf("  cmp rax, 0\n");
   printf("  je .Lfalse%d\n", label);
 
@@ -303,7 +320,7 @@ void expand_logical_and(Node *node, int label) {
     expand_logical_and(node->rhs, label);
   } else {
     compile_node(node->rhs);
-    printf("  pop rax\n");
+    gen_pop(REG_RAX);
     printf("  cmp rax, 0\n");
     printf("  je .Lfalse%d\n", label);
   }
@@ -311,7 +328,7 @@ void expand_logical_and(Node *node, int label) {
 
 void expand_logical_or(Node *node, int label) {
   compile_node(node->lhs);
-  printf("  pop rax\n");
+  gen_pop(REG_RAX);
   printf("  cmp rax, 0\n");
   printf("  jne .Ltrue%d\n", label);
 
@@ -319,7 +336,7 @@ void expand_logical_or(Node *node, int label) {
     expand_logical_or(node->rhs, label);
   } else {
     compile_node(node->rhs);
-    printf("  pop rax\n");
+    gen_pop(REG_RAX);
     printf("  cmp rax, 0\n");
     printf("  jne .Ltrue%d\n", label);
   }
@@ -327,7 +344,7 @@ void expand_logical_or(Node *node, int label) {
 
 void expand_ternary(Node *node, int label) {
   compile_node(node->exec_if);
-  printf("  pop rax\n");
+  gen_pop(REG_RAX);
   printf("  cmp rax, 0\n");
   printf("  je .Lfalse%d\n", label);
 
@@ -342,13 +359,20 @@ void expand_ternary(Node *node, int label) {
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
     printf("  push %d\n", node->val);
+    push_cnt++;
     return;
   }
 
   if (node->kind == ND_BLOCK) {
+    int stack_cnt = push_cnt;
     for (Node *now_stmt = node->next_block; now_stmt;
          now_stmt = now_stmt->next_stmt) {
       compile_node(now_stmt);
+    }
+    if (push_cnt - stack_cnt > 1) {
+      gen_pop(REG_RAX);
+      gen_emptypop(push_cnt - stack_cnt);
+      gen_push(REG_RAX);
     }
     return;
   }
@@ -369,15 +393,15 @@ void compile_node(Node *node) {
       return;
     case ND_RETURN:
       compile_node(node->lhs);
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       printf("  mov rsp, rbp\n");
-      printf("  pop rbp\n");
+      gen_pop(REG_RBP);
       printf("  ret\n");
       return;
     case ND_IF: {
       int now_label = label++;
       compile_node(node->judge);
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       printf("  cmp rax, 0\n");
       printf("  je .Lelse%d\n", now_label);
 
@@ -413,7 +437,7 @@ void compile_node(Node *node) {
       // judege expr
       if (node->judge) {
         compile_node(node->judge);
-        printf("  pop rax\n");
+        gen_pop(REG_RAX);
         printf("  cmp rax, 0\n");
         printf("  je .Lend%d\n", now_label);
       }
@@ -443,9 +467,9 @@ void compile_node(Node *node) {
     case ND_CONTENT: {
       compile_node(node->lhs);
       if (node->equation_type->kind != TY_ARRAY) {
-        printf("  pop rax\n");
+        gen_pop(REG_RAX);
         gen_operation(REG_RAX, REG_MEM, convert_type_to_size(node->equation_type), OP_MOV);
-        printf("  push rax\n");
+        gen_push(REG_RAX);
       }
       return;
     }
@@ -457,7 +481,7 @@ void compile_node(Node *node) {
       printf(".Lfalse%d:\n", now_label);
       printf("  mov rax, 0\n");
       printf(".Lnext%d:\n", now_label);
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       return;
     }
     case ND_LOGICALOR: {
@@ -468,14 +492,14 @@ void compile_node(Node *node) {
       printf(".Ltrue%d:\n", now_label);
       printf("  mov rax, 1\n");
       printf(".Lnext%d:\n", now_label);
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       return;
     }
     case ND_PREFIX_INC:
     case ND_PREFIX_DEC: {
       gen_assignable_address(node->lhs);
       printf("  mov rdi, 1\n");
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       if (node->kind == ND_PREFIX_INC) {
         gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->equation_type), OP_ADD);
       } else {
@@ -489,7 +513,7 @@ void compile_node(Node *node) {
       compile_node(node->lhs);
       gen_assignable_address(node->lhs);
       printf("  mov rdi, 1\n");
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       if (node->kind == ND_SUFFIX_INC) {
         gen_operation(REG_MEM, REG_RDI, convert_type_to_size(node->equation_type), OP_ADD);
       } else {
@@ -499,22 +523,22 @@ void compile_node(Node *node) {
     }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       gen_operation(REG_RAX, REG_RAX, convert_type_to_size(node->equation_type), OP_BITWISE_NOT);
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       return;
     }
     case ND_LOGICALNOT: {
       compile_node(node->lhs);
-      printf("  pop rax\n");
+      gen_pop(REG_RAX);
       printf("  mov rdi, 1\n");
       gen_operation(REG_RAX, REG_RDI, REG_SIZE_8, OP_BITWISE_XOR);
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       return;
     }
     case ND_SIZEOF: {
       printf("  mov rax, %d\n", node->equation_type->var_size);
-      printf("  push rax\n");
+      gen_push(REG_RAX);
       return;
     }
     default:
@@ -531,19 +555,19 @@ void compile_node(Node *node) {
     }
 
     for (int arg_idx = 0; arg_idx < arg_count && arg_idx < 6; arg_idx++) {
-      printf("  pop %s\n", get_reg(args_reg[arg_idx], REG_SIZE_8));
+      gen_pop(args_reg[arg_idx]);
     }
 
     printf("  call %s\n", name);
-    printf("  push rax\n");
+    gen_push(REG_RAX);
     return;
   }
 
   compile_node(node->lhs);
   compile_node(node->rhs);
 
-  printf("  pop rdi\n");
-  printf("  pop rax\n");
+  gen_pop(REG_RDI);
+  gen_pop(REG_RAX);
 
   if (node->equation_type->kind >= TY_PTR) {
     printf("  imul rdi, %d\n", pointer_movement_size(node->equation_type));
@@ -670,7 +694,7 @@ void codegen() {
 
     // Prologue
     // Allocate variable size.
-    printf("  push rbp\n");
+    gen_push(REG_RBP);
     printf("  mov rbp, rsp\n");
     printf("  sub rsp, %d\n", now_func->vars_size);
 
@@ -679,7 +703,7 @@ void codegen() {
     for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
       if (arg_count < 6) {
         gen_var_address(arg);
-        printf("  pop rax\n");
+        gen_pop(REG_RAX);
         gen_operation(REG_MEM, args_reg[arg_count], convert_type_to_size(arg->use_var->var_type), OP_MOV);
       }
       arg_count--;
@@ -692,7 +716,7 @@ void codegen() {
         gen_var_address(arg);
         printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  mov rdi, rax\n");
-        printf("  pop rax\n");
+        gen_pop(REG_RAX);
         gen_operation(REG_MEM, REG_RDI, convert_type_to_size(arg->use_var->var_type), OP_MOV);
       }
       arg_count--;
@@ -701,7 +725,7 @@ void codegen() {
     compile_node(now_func->stmt);
 
     printf("  mov rsp, rbp\n");
-    printf("  pop rbp\n");
+    gen_pop(REG_RBP);
     printf("  ret \n");
   }
 }

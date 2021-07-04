@@ -697,6 +697,7 @@ Node *increment_and_decrement() {
 }
 
 // priority = num |
+//            "({" statement statement* "})" |
 //            String(literal) |
 //            "(" assign ")" |
 //            ident ("(" params? ")")? |
@@ -704,12 +705,28 @@ Node *increment_and_decrement() {
 // params = assign ("," assign)?
 // base_type is gen_type()
 Node *priority() {
+
   if (consume(TK_PUNCT, "(")) {
+    // GNU Statements and Declarations
+    if (consume(TK_PUNCT, "{")) {
+      restore();
+      Node *ret = statement(true);
+      restore();
+      if (!consume(TK_PUNCT, "}")) {
+        errorf_tkn(ER_COMPILE, source_token,
+                   "\"{\" and \"}\" should be written in pairs.");
+      }
+      if (!consume(TK_PUNCT, ")")) {
+        errorf_tkn(ER_COMPILE, source_token,
+                   "\"(\" and \")\" should be written in pairs.");
+      }
+      return ret;
+    }
     Node *ret = assign();
 
     if (!consume(TK_PUNCT, ")")) {
       errorf_tkn(ER_COMPILE, source_token,
-                "\"(\" and \")\" should be written in pairs.");
+                 "\"(\" and \")\" should be written in pairs.");
     }
     return ret;
   }

@@ -209,7 +209,7 @@ char *read_str(char *str, char **end_ptr) {
   for (char *now_loc = str; *now_loc != '"'; now_loc++) {
     str_len++;
   }
-  char *ret = calloc(str_len, sizeof(char));
+  char *ret = calloc(str_len + 1, sizeof(char));
   memcpy(ret, str, str_len);
   *end_ptr = str + str_len;
   return ret;
