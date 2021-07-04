@@ -18,7 +18,7 @@ compile:
 	$(CC) -static -o tmp tmp.s
 
 test: jcc
-	./test.sh
+	cd test && ./test.sh
 
 clean:
 	rm -f jcc ./src/*.o tmp* ./src/*/*.o
