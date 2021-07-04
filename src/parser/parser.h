@@ -61,6 +61,7 @@ struct Node {
 
   Type *equation_type; // Size of equation
   Var *use_var; // Use target
+  bool is_var_define_only;
 
   Node *judge;     // judge ("if" statement, "for" statement, "while" statement)
   Node *exec_if;   // exec ("if" statement)

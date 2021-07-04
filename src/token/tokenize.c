@@ -206,8 +206,12 @@ char read_char(char *str, char **end_ptr) {
 
 char *read_str(char *str, char **end_ptr) {
   int str_len = 0;
-  for (char *now_loc = str; *now_loc != '"'; now_loc++) {
-    str_len++;
+  {
+    char *now_loc = str;
+    while (*now_loc != '"') {
+      read_char(now_loc, &now_loc);
+    }
+    str_len = (int)(now_loc - str);
   }
   char *ret = calloc(str_len + 1, sizeof(char));
   memcpy(ret, str, str_len);

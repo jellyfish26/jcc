@@ -179,6 +179,7 @@ void function(Function *target) {
             new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
         add_local_var(local_var);
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
+        target->func_args->is_var_define_only = true;
         link_var_to_node(target->func_args, local_var);
         target->func_argc++;
       } else {
@@ -459,6 +460,7 @@ Node *define_ident(Type *define_type, bool is_global) {
     new_pointer_var(define_var);
   }
   Node *ret = new_node(ND_VAR, NULL, NULL);
+  ret->is_var_define_only = true;
   link_var_to_node(ret, define_var);
   if (is_global) {
     add_global_var(define_var);
@@ -736,6 +738,7 @@ Node *priority() {
   if (tkn) {
     Var *var = new_general_var(new_general_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
     Node *ret = new_node(ND_VAR, NULL, NULL);
+    ret->is_var_define_only = false;
     link_var_to_node(ret, var);
     add_tmp_var(var);
     return ret;
@@ -783,6 +786,7 @@ Node *priority() {
       errorf_tkn(ER_COMPILE, before_token, "This variable is not definition.");
     }
     Node *ret = new_node(ND_VAR, NULL, NULL);
+    ret->is_var_define_only = false;
     link_var_to_node(ret, use_var);
     while (consume(TK_PUNCT, "[")) {
       ret = new_node(ND_ADD, ret, assign());

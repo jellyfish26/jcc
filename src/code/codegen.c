@@ -2,6 +2,7 @@
 #include "parser/parser.h"
 #include "variable/variable.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -135,7 +136,11 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, Op
   // normal operation
   switch (op) {
     case OP_MOV:
-      printf("  mov %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      if (left_reg == REG_MEM || reg_size >= REG_SIZE_4) {
+        printf("  mov %s, %s\n", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
+      } else {
+        printf("  movzx %s, %s\n", get_reg(left_reg, REG_SIZE_8), get_reg(right_reg, reg_size));
+      }
       return true;
     case OP_MOVSX:
       printf("  movsx %s, %s\n", get_reg(left_reg, REG_SIZE_4), get_reg(right_reg, reg_size));
@@ -358,8 +363,8 @@ void expand_ternary(Node *node, int label) {
 
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
-    printf("  push %d\n", node->val);
-    push_cnt++;
+    printf("  mov rax, %d\n", node->val);
+    gen_push(REG_RAX);
     return;
   }
 
@@ -369,17 +374,14 @@ void compile_node(Node *node) {
          now_stmt = now_stmt->next_stmt) {
       compile_node(now_stmt);
     }
-    if (push_cnt - stack_cnt > 1) {
-      gen_pop(REG_RAX);
-      gen_emptypop(push_cnt - stack_cnt);
-      gen_push(REG_RAX);
-    }
     return;
   }
 
   switch (node->kind) {
     case ND_VAR:
-      expand_variable(node);
+      if (!node->is_var_define_only) {
+        expand_variable(node);
+      }
       return;
     case ND_ADDR:
       if (node->lhs->kind == ND_VAR) {
@@ -446,7 +448,11 @@ void compile_node(Node *node) {
 
       // repeat expr
       if (node->repeat_for) {
+        int stack_cnt = push_cnt;
         compile_node(node->repeat_for);
+        if (push_cnt - stack_cnt >= 1) {
+          gen_emptypop(push_cnt - stack_cnt);
+        }
       }
 
       // finally
@@ -635,8 +641,7 @@ void compile_node(Node *node) {
     default:
       break;
   }
-
-  printf("  push rax\n");
+  gen_push(REG_RAX);
 }
 
 void gen_global_var_define(Var *var) {
