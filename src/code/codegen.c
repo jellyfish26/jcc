@@ -565,6 +565,9 @@ void compile_node(Node *node) {
     }
 
     printf("  call %s\n", name);
+    if (arg_count > 6) {
+      gen_emptypop(arg_count - 6);
+    }
     gen_push(REG_RAX);
     return;
   }
@@ -719,7 +722,7 @@ void codegen() {
     for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
       if (arg_count >= 6) {
         gen_var_address(arg);
-        printf("  mov rax, [rbp + %d]\n", 8 + (arg_count - 5) * 8);
+        printf("  mov rax, QWORD PTR [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  mov rdi, rax\n");
         gen_pop(REG_RAX);
         gen_operation(REG_MEM, REG_RDI, convert_type_to_size(arg->use_var->var_type), OP_MOV);
