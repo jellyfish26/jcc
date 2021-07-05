@@ -17,7 +17,7 @@ int main() {
     }
     ar[0][0] + ar[1][1] + ar[0][1] + ar[1][0];
   }));
-  CHECK(10, ({short a = 2; s = a + 3; s;}));
+  CHECK(5, ({short a = 2; s = a + 3; s;}));
   CHECK(10, ({
     short a = 2;
     s = a + 3;
