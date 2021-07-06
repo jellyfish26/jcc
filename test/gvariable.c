@@ -22,9 +22,7 @@ int main() {
     short a = 2;
     s = a + 3;
     // a = 5;
-    /*
-     * c = 8;
-     */
+    /* c = 8; */
     s * a;
   }));
   return 0;
