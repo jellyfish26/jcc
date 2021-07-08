@@ -555,7 +555,7 @@ void compile_node(Node *node) {
     char *name = calloc(node->func_name_len + 1, sizeof(char));
     memcpy(name, node->func_name, node->func_name_len);
     int arg_count = 0;
-    for (Node *now_arg = node->func_arg; now_arg; now_arg = now_arg->func_arg) {
+    for (Node *now_arg = node->lhs->func_arg; now_arg; now_arg = now_arg->func_arg) {
       compile_node(now_arg);
       arg_count++;
     }
@@ -563,7 +563,6 @@ void compile_node(Node *node) {
     for (int arg_idx = 0; arg_idx < arg_count && arg_idx < 6; arg_idx++) {
       gen_pop(args_reg[arg_idx]);
     }
-
     printf("  call %s\n", name);
     if (arg_count > 6) {
       gen_emptypop(arg_count - 6);
