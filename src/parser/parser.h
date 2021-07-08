@@ -44,6 +44,7 @@ typedef enum {
   ND_LOOPBREAK,   // "break" statement (only for and while)
   ND_CONTINUE,    // "continue" statement
   ND_FUNCCALL,    // Function call
+  ND_FUNCARG,     // Function argument
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
   ND_PREFIX_INC,  // Prefix increment

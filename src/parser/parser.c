@@ -749,7 +749,7 @@ Node *priority() {
   // function call
   if (tkn) {
     if (consume(TK_PUNCT, "(")) {
-      Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
+      Node *ret = new_node(ND_FUNCCALL, new_node(ND_FUNCARG, NULL, NULL), NULL);
       ret->func_name = tkn->str;
       ret->func_name_len = tkn->str_len;
 
@@ -763,6 +763,7 @@ Node *priority() {
         Node *tmp = assign();
         tmp->func_arg = now_arg;
         now_arg = tmp;
+        argc++;
 
         if (consume(TK_PUNCT, ",")) {
           continue;
@@ -774,7 +775,7 @@ Node *priority() {
         }
         break;
       }
-      ret->func_arg = now_arg;
+      ret->lhs->func_arg = now_arg;
       return ret;
     }
   }
