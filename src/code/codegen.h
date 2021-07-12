@@ -27,16 +27,6 @@ typedef enum {
 } RegKind;
 
 typedef enum {
-  REG_SIZE_1,  // 1-byte register (8bit)
-  REG_SIZE_2,  // 2-byte register (16bit)
-  REG_SIZE_4,  // 4-byte register (32bit)
-  REG_SIZE_8,  // 8-byte register (64bit)
-} RegSizeKind;
-
-const char *get_reg(RegKind reg_kind, RegSizeKind reg_size);
-RegSizeKind convert_type_to_size(Type *var_type);
-
-typedef enum {
   OP_MOV,
   OP_MOVSX,
   OP_ADD,
@@ -52,8 +42,5 @@ typedef enum {
   OP_BITWISE_NOT,
 } OpKind;
 
-// If the return value is true, the generation succeeded,
-// and if it is negative, the generation failed.
-bool gen_operation(RegKind left_reg, RegKind right_reg, RegSizeKind reg_size, OpKind op);
 void codegen();
 
