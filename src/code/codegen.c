@@ -1,5 +1,6 @@
 #include "code/codegen.h"
 #include "parser/parser.h"
+#include "token/tokenize.h"
 #include "variable/variable.h"
 
 #include <stdbool.h>
@@ -34,6 +35,8 @@ const char *reg_1byte[] = {
   "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b",
   "BYTE PTR [rax]"
 };
+
+void compile_node(Node *node);
 
 const char *get_reg(RegKind reg, int reg_size) {
   switch (reg_size) {
@@ -88,26 +91,6 @@ void gen_emptypop(int num) {
   printf("  add rsp, %d\n", num * 8);
 }
 
-
-void gen_var_address(Node *node) {
-  if (node->kind != ND_VAR && node->kind != ND_ADDR) {
-    errorf(ER_COMPILE, "Not variable");
-  }
-  Var *use_var = node->use_var;
-
-  // String literal
-  if (use_var->var_type->kind == TY_STR) {
-    printf("  mov rax, offset .LC%d\n", use_var->offset);
-  } else if (use_var->global) {
-    char *var_name = calloc(use_var->len + 1, sizeof(char));
-    memcpy(var_name, use_var->str, use_var->len);
-    printf("  mov rax, offset %s\n", var_name);
-  } else {
-    printf("  mov rax, rbp\n");
-    printf("  sub rax, %d\n", node->use_var->offset);
-  }
-  gen_push(REG_RAX);
-}
 
 // OP_MOV: left_reg = right_reg
 // OP_MOVSX: left_reg = right_reg (Move with Sign-Extension, Size of left_reg is REG_SIZE_4)
@@ -208,22 +191,35 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op)
 
 int label = 0;
 
-const RegKind args_reg[] = {
-  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
-};
-
 void compile_node(Node *node);
 void expand_logical_and(Node *node, int label);
 void expand_logical_or(Node *node, int label);
 
+void gen_var_address(Node *node) {
+  if (node->kind != ND_VAR && node->kind != ND_ADDR) {
+    errorf(ER_COMPILE, "Not variable");
+  }
+  Var *use_var = node->use_var;
+
+  // String literal
+  if (use_var->var_type->kind == TY_STR) {
+    printf("  mov rax, offset .LC%d\n", use_var->offset);
+  } else if (use_var->global) {
+    char *var_name = calloc(use_var->len + 1, sizeof(char));
+    memcpy(var_name, use_var->str, use_var->len);
+    printf("  mov rax, offset %s\n", var_name);
+  } else {
+    printf("  mov rax, rbp\n");
+    printf("  sub rax, %d\n", node->use_var->offset);
+  }
+}
+
 void expand_variable(Node *node) {
   gen_var_address(node);
-  gen_pop(REG_RAX);
   Type *var_type = node->use_var->var_type;
   if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
     gen_operation(REG_RAX, REG_MEM, get_type_size(var_type), OP_MOV);
   }
-  gen_push(REG_RAX);
 }
 
 // If left node is a direct variable, get the address of the variable.
@@ -241,13 +237,14 @@ void gen_assignable_address(Node *node) {
 void expand_assign(Node *node) {
   // The left node must be assignable.
   gen_assignable_address(node->lhs);
+  gen_push(REG_RAX);
   switch (node->rhs->kind) {
     case ND_ASSIGN:
       expand_assign(node->rhs);
       break;
     default:
       compile_node(node->rhs);
-      gen_pop(REG_RDI);
+      gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
   }
   gen_pop(REG_RAX);
   int reg_size = get_type_size(node->lhs->equation_type);
@@ -309,7 +306,6 @@ void expand_assign(Node *node) {
 
 void expand_logical_and(Node *node, int label) {
   compile_node(node->lhs);
-  gen_pop(REG_RAX);
   printf("  cmp rax, 0\n");
   printf("  je .Lfalse%d\n", label);
 
@@ -317,7 +313,6 @@ void expand_logical_and(Node *node, int label) {
     expand_logical_and(node->rhs, label);
   } else {
     compile_node(node->rhs);
-    gen_pop(REG_RAX);
     printf("  cmp rax, 0\n");
     printf("  je .Lfalse%d\n", label);
   }
@@ -325,7 +320,6 @@ void expand_logical_and(Node *node, int label) {
 
 void expand_logical_or(Node *node, int label) {
   compile_node(node->lhs);
-  gen_pop(REG_RAX);
   printf("  cmp rax, 0\n");
   printf("  jne .Ltrue%d\n", label);
 
@@ -333,7 +327,6 @@ void expand_logical_or(Node *node, int label) {
     expand_logical_or(node->rhs, label);
   } else {
     compile_node(node->rhs);
-    gen_pop(REG_RAX);
     printf("  cmp rax, 0\n");
     printf("  jne .Ltrue%d\n", label);
   }
@@ -341,7 +334,6 @@ void expand_logical_or(Node *node, int label) {
 
 void expand_ternary(Node *node, int label) {
   compile_node(node->exec_if);
-  gen_pop(REG_RAX);
   printf("  cmp rax, 0\n");
   printf("  je .Lfalse%d\n", label);
 
@@ -353,10 +345,13 @@ void expand_ternary(Node *node, int label) {
   printf(".Lnext%d:\n", label);
 }
 
+const RegKind args_reg[] = {
+  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
+};
+
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
     printf("  mov rax, %d\n", node->val);
-    gen_push(REG_RAX);
     return;
   }
 
@@ -387,7 +382,6 @@ void compile_node(Node *node) {
       return;
     case ND_RETURN:
       compile_node(node->lhs);
-      gen_pop(REG_RAX);
       printf("  mov rsp, rbp\n");
       gen_pop(REG_RBP);
       printf("  ret\n");
@@ -395,7 +389,6 @@ void compile_node(Node *node) {
     case ND_IF: {
       int now_label = label++;
       compile_node(node->judge);
-      gen_pop(REG_RAX);
       printf("  cmp rax, 0\n");
       printf("  je .Lelse%d\n", now_label);
 
@@ -431,7 +424,6 @@ void compile_node(Node *node) {
       // judege expr
       if (node->judge) {
         compile_node(node->judge);
-        gen_pop(REG_RAX);
         printf("  cmp rax, 0\n");
         printf("  je .Lend%d\n", now_label);
       }
@@ -465,9 +457,7 @@ void compile_node(Node *node) {
     case ND_CONTENT: {
       compile_node(node->lhs);
       if (node->equation_type->kind != TY_ARRAY) {
-        gen_pop(REG_RAX);
         gen_operation(REG_RAX, REG_MEM, get_type_size(node->equation_type), OP_MOV);
-        gen_push(REG_RAX);
       }
       return;
     }
@@ -479,7 +469,6 @@ void compile_node(Node *node) {
       printf(".Lfalse%d:\n", now_label);
       printf("  mov rax, 0\n");
       printf(".Lnext%d:\n", now_label);
-      gen_push(REG_RAX);
       return;
     }
     case ND_LOGICALOR: {
@@ -490,14 +479,12 @@ void compile_node(Node *node) {
       printf(".Ltrue%d:\n", now_label);
       printf("  mov rax, 1\n");
       printf(".Lnext%d:\n", now_label);
-      gen_push(REG_RAX);
       return;
     }
     case ND_PREFIX_INC:
     case ND_PREFIX_DEC: {
       gen_assignable_address(node->lhs);
       printf("  mov rdi, 1\n");
-      gen_pop(REG_RAX);
       if (node->kind == ND_PREFIX_INC) {
         gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_ADD);
       } else {
@@ -509,34 +496,30 @@ void compile_node(Node *node) {
     case ND_SUFFIX_INC:
     case ND_SUFFIX_DEC: {
       compile_node(node->lhs);
+      gen_push(REG_RAX);
       gen_assignable_address(node->lhs);
       printf("  mov rdi, 1\n");
-      gen_pop(REG_RAX);
       if (node->kind == ND_SUFFIX_INC) {
         gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_ADD);
       } else {
         gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_SUB);
       }
+      gen_pop(REG_RAX);
       return;
     }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
-      gen_pop(REG_RAX);
       gen_operation(REG_RAX, REG_RAX, get_type_size(node->equation_type), OP_BITWISE_NOT);
-      gen_push(REG_RAX);
       return;
     }
     case ND_LOGICALNOT: {
       compile_node(node->lhs);
-      gen_pop(REG_RAX);
       printf("  mov rdi, 1\n");
       gen_operation(REG_RAX, REG_RDI, 8, OP_BITWISE_XOR);
-      gen_push(REG_RAX);
       return;
     }
     case ND_SIZEOF: {
       printf("  mov rax, %d\n", node->equation_type->var_size);
-      gen_push(REG_RAX);
       return;
     }
     default:
@@ -549,6 +532,7 @@ void compile_node(Node *node) {
     int arg_count = 0;
     for (Node *now_arg = node->lhs->func_arg; now_arg; now_arg = now_arg->func_arg) {
       compile_node(now_arg);
+      gen_push(REG_RAX);
       arg_count++;
     }
 
@@ -559,12 +543,13 @@ void compile_node(Node *node) {
     if (arg_count > 6) {
       gen_emptypop(arg_count - 6);
     }
-    gen_push(REG_RAX);
     return;
   }
 
   compile_node(node->lhs);
+  gen_push(REG_RAX);
   compile_node(node->rhs);
+  gen_push(REG_RAX);
 
   gen_pop(REG_RDI);
   gen_pop(REG_RAX);
@@ -636,7 +621,6 @@ void compile_node(Node *node) {
     default:
       break;
   }
-  gen_push(REG_RAX);
 }
 
 void gen_global_var_define(Var *var) {
@@ -703,7 +687,6 @@ void codegen() {
     for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
       if (arg_count < 6) {
         gen_var_address(arg);
-        gen_pop(REG_RAX);
         gen_operation(REG_MEM, args_reg[arg_count], get_type_size(arg->use_var->var_type), OP_MOV);
       }
       arg_count--;
@@ -714,6 +697,7 @@ void codegen() {
     for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
       if (arg_count >= 6) {
         gen_var_address(arg);
+        gen_push(REG_RAX);
         printf("  mov rax, QWORD PTR [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  mov rdi, rax\n");
         gen_pop(REG_RAX);
