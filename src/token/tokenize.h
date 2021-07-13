@@ -56,5 +56,6 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 
 bool consume(Token *ptr, Token **end_ptr, TokenKind kind, char *op);
 Token *consume_old(TokenKind kind, char *op);
-void restore();
+void restore(Token *tkn, Token **end_tkn);
+void restore_old();
 bool is_eof();

@@ -30,6 +30,10 @@ bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
   return true;
 }
 
+void restore(Token *tkn, Token **end_tkn) {
+  *end_tkn = tkn->before;
+}
+
 
 // If the token cannot be consumed, NULL is return value.
 // When a token is consumed, the source_token variable
@@ -58,7 +62,7 @@ Token *consume_old(TokenKind kind, char *op) {
   return ret;
 }
 
-void restore() {
+void restore_old() {
   if (before_token != NULL) {
     before_token = before_token->before;
   }

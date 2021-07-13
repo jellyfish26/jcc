@@ -50,24 +50,23 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
   return ret;
 }
 
-Type *new_type() {
-  Token *tkn = consume_old(TK_KEYWORD, "char");
-  if (tkn) {
+static Type *get_type(Token *tkn, Token **end_tkn) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "char")) {
+    *end_tkn = tkn;
     return new_general_type(TY_CHAR, true);
   }
-  tkn = consume_old(TK_KEYWORD, "short");
-  if (tkn) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "short")) {
+    *end_tkn = tkn;
     return new_general_type(TY_SHORT, true);
   }
-  tkn = consume_old(TK_KEYWORD, "int");
-  if (tkn) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "int")) {
+    *end_tkn = tkn;
     return new_general_type(TY_INT, true);
   }
-  tkn = consume_old(TK_KEYWORD, "long");
-  if (tkn) {
-    while (consume_old(TK_KEYWORD, "long"))
-      ;
-    consume_old(TK_KEYWORD, "int");
+  if (consume(tkn, &tkn, TK_KEYWORD, "long")) {
+    while (consume(tkn, &tkn, TK_KEYWORD, "long"));
+    consume(tkn, &tkn, TK_KEYWORD, "int");
+    *end_tkn = tkn;
     return new_general_type(TY_LONG, true);
   }
   return NULL;
@@ -87,6 +86,7 @@ Node *last_stmt(Node *now) {
 
 // Prototype
 void program(Token *tkn);
+static void function(Function *target, Token *tkn, Token **end_tkn);
 Node *statement(bool new_scope);
 Node *define_var(bool once, bool is_global);
 Node *define_ident(Type *define_ident, bool is_global);
@@ -109,7 +109,6 @@ Node *increment_and_decrement();
 Node *priority();
 Node *num();
 
-void function();
 
 Function *top_func;
 Function *exp_func;
@@ -123,89 +122,93 @@ void program(Token *tkn) {
     if (exp_func) {
       exp_func->next = calloc(1, sizeof(Function));
       exp_func = exp_func->next;
-      function(exp_func);
+      function(exp_func, tkn, &tkn);
     } else {
       exp_func = calloc(1, sizeof(Function));
       top_func = exp_func;
-      function(exp_func);
+      function(exp_func, tkn, &tkn);
     }
+    source_token = tkn; // Warning of refactoring
   }
 }
 
 // function = base_type ident "(" params?")" statement
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
-void function(Function *target) {
-  Type *ret_type = new_type();
-
+static void function(Function *target, Token *tkn, Token **end_tkn) {
+  Type *ret_type = get_type(tkn, &tkn);
   if (ret_type) {
     target->ret_type = ret_type;
   } else {
-    errorf_tkn(ER_COMPILE, source_token, "Undefined type.");
+    errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
   }
 
-  Token *global_ident = consume_old(TK_IDENT, NULL);
-  if (global_ident) {
-    if (!consume_old(TK_PUNCT, "(")) {
-      restore(); // ident restore
-      restore(); // type restore
+  // Global variable define
+  Token *global_ident = tkn;
+  if (consume(tkn, &tkn, TK_IDENT, NULL)) {
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      restore(tkn, &tkn);
+      restore(tkn, &tkn);
+      source_token = tkn;
       target->stmt = define_var(false, true);
       target->global_var_define = true;
-      consume_old(TK_PUNCT, ";");
+      tkn = source_token; // Warn
+      consume(tkn, &tkn, TK_PUNCT, ";");
+      *end_tkn = tkn;
       return;
     }
 
     // Function define
     new_scope_definition();
-    bool is_variable_defined = true;
-    if (consume_old(TK_PUNCT, ")")) {
-      is_variable_defined = false;
+    bool is_var_defined = true;
+    if (consume(tkn, &tkn, TK_PUNCT, ")")) {
+      is_var_defined = false;
     }
 
     // Set arguments
-    while (is_variable_defined) {
-      Type *arg_type = new_type();
+    while (is_var_defined) {
+      Type *arg_type = get_type(tkn, &tkn);
       if (!arg_type) {
-        errorf_tkn(ER_COMPILE, source_token, "Undefined type.");
+        errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
       }
 
-      Token *var_tkn = consume_old(TK_IDENT, NULL);
-      if (var_tkn) {
-        if (check_already_define(var_tkn->str, var_tkn->str_len, false)) {
-          errorf_tkn(ER_COMPILE, before_token,
-                    "This variable already definition.");
+      // Variable define in function arguments
+      if (consume(tkn, &tkn, TK_IDENT, NULL)) {
+        Token *ident_tkn = tkn->before;
+        if (check_already_define(ident_tkn->str, ident_tkn->str_len, false)) {
+          errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
         }
-        Var *local_var =
-            new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
+        Var *local_var = new_general_var(arg_type, ident_tkn->str, ident_tkn->str_len);
         add_local_var(local_var);
         target->func_args = new_node(ND_VAR, target->func_args, NULL);
         target->func_args->is_var_define_only = true;
         link_var_to_node(target->func_args, local_var);
         target->func_argc++;
       } else {
-        errorf_tkn(ER_COMPILE, source_token, "Must declare variable.");
+        errorf_tkn(ER_COMPILE, tkn, "Must declare variable.");
       }
 
-      if (consume_old(TK_PUNCT, ",")) {
+      if (consume(tkn, &tkn, TK_PUNCT, ",")) {
         continue;
       }
 
-      if (consume_old(TK_PUNCT, ")")) {
+      if (consume(tkn, &tkn, TK_PUNCT, ")")) {
         break;
       } else {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "Define function must end with \")\".");
+        errorf_tkn(ER_COMPILE, tkn, "Define function must tend with \")\".");
       }
     }
     target->func_name = global_ident->str;
     target->func_name_len = global_ident->str_len;
+    source_token = tkn; // Warn
     target->stmt = statement(false);
+    tkn = source_token; // Warn
     out_scope_definition();
     target->vars_size = init_offset();
   } else {
-    errorf_tkn(ER_COMPILE, source_token,
-              "Start the function with an identifier.");
+    errorf_tkn(ER_COMPILE, tkn, "Start the function with an identifier.");
   }
+  *end_tkn = tkn;
 }
 
 Node *inside_roop; // inside for or while
@@ -387,7 +390,7 @@ Node *statement(bool new_scope) {
 // define_var = base_type define_ident (once is false: ("," define_ident)*) |
 //              assign
 Node *define_var(bool once, bool is_global) {
-  Type *var_type = new_type();
+  Type *var_type = get_type(source_token, &source_token);
   if (var_type) {
     Node *first_var = define_ident(var_type, is_global);
     if (!once) {
@@ -711,9 +714,9 @@ Node *priority() {
   if (consume_old(TK_PUNCT, "(")) {
     // GNU Statements and Declarations
     if (consume_old(TK_PUNCT, "{")) {
-      restore();
+      restore_old();
       Node *ret = statement(true);
-      restore();
+      restore_old();
       if (!consume_old(TK_PUNCT, "}")) {
         errorf_tkn(ER_COMPILE, source_token,
                    "\"{\" and \"}\" should be written in pairs.");
