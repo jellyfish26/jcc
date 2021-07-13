@@ -87,7 +87,7 @@ Node *last_stmt(Node *now) {
 // Prototype
 void program(Token *tkn);
 static void function(Function *target, Token *tkn, Token **end_tkn);
-Node *statement(bool new_scope);
+static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
 static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
 Node *assign();
@@ -198,9 +198,7 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
     }
     target->func_name = global_ident->str;
     target->func_name_len = global_ident->str_len;
-    source_token = tkn; // Warn
-    target->stmt = statement(false);
-    tkn = source_token; // Warn
+    target->stmt = statement(tkn, &tkn, false);
     out_scope_definition();
     target->vars_size = init_offset();
   } else {
@@ -219,21 +217,21 @@ Node *inside_roop; // inside for or while
 //             "break;" |
 //             "continue;" |
 //             define_var(false) ";"
-Node *statement(bool new_scope) {
+Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   Node *ret;
 
   // Block statement
-  if (consume_old(TK_PUNCT, "{")) {
+  if (consume(tkn, &tkn, TK_PUNCT, "{")) {
     if (new_scope) {
       new_scope_definition();
     }
     ret = new_node(ND_BLOCK, NULL, NULL);
     Node *now = NULL;
-    while (!consume_old(TK_PUNCT, "}")) {
+    while (!consume(tkn, &tkn, TK_PUNCT, "}")) {
       if (now) {
-        now->next_stmt = statement(true);
+        now->next_stmt = statement(tkn, &tkn, true);
       } else {
-        now = statement(true);
+        now = statement(tkn, &tkn, true);
         ret->next_block = now;
       }
       now = last_stmt(now);
@@ -241,22 +239,23 @@ Node *statement(bool new_scope) {
     if (new_scope) {
       out_scope_definition();
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume_old(TK_KEYWORD, "if")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "if")) {
     new_scope_definition();
     ret = new_node(ND_IF, NULL, NULL);
 
-    if (!consume_old(TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, source_token, "If statement must start with \"(\"");
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      errorf_tkn(ER_COMPILE, tkn, "If statement must start with \"(\"");
     }
-    ret->judge = define_var(source_token, &source_token, true, false);
+    ret->judge = define_var(tkn, &tkn, true, false);
     Var *top_var = local_vars->vars;
-    if (!consume_old(TK_PUNCT, ")")) {
-      errorf_tkn(ER_COMPILE, source_token, "If statement must end with \")\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      errorf_tkn(ER_COMPILE, tkn, "If statement must end with \")\".");
     }
-    ret->exec_if = statement(false);
+    ret->exec_if = statement(tkn, &tkn, false);
     // Transfer varaibles
     if (top_var && local_vars->vars == top_var) {
       local_vars->vars = NULL;
@@ -269,119 +268,128 @@ Node *statement(bool new_scope) {
       }
     }
     out_scope_definition();
-    if (consume_old(TK_KEYWORD, "else")) {
+    if (consume(tkn, &tkn, TK_KEYWORD, "else")) {
       new_scope_definition();
       if (top_var) {
         add_local_var(top_var);
       }
-      ret->exec_else = statement(false);
+      ret->exec_else = statement(tkn, &tkn, false);
       out_scope_definition();
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume_old(TK_KEYWORD, "for")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "for")) {
     new_scope_definition();
     Node *roop_state = inside_roop;
     ret = new_node(ND_FOR, NULL, NULL);
     inside_roop = ret;
 
-    if (!consume_old(TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, source_token,
-                "For statement must start with \"(\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      errorf_tkn(ER_COMPILE, tkn, "For statement must start with \"(\".");
     }
 
-    if (!consume_old(TK_PUNCT, ";")) {
-      ret->init_for = define_var(source_token, &source_token, true, false);
-      if (!consume_old(TK_PUNCT, ";")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "After defining an expression, it must end with \";\". ");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      ret->init_for = define_var(tkn, &tkn, true, false);
+      if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+        errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
     }
 
-    if (!consume_old(TK_PUNCT, ";")) {
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      source_token = tkn;
       ret->judge = assign();
-      if (!consume_old(TK_PUNCT, ";")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "After defining an expression, it must end with \";\". ");
+      tkn = source_token;
+      if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+        errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
     }
 
-    if (!consume_old(TK_PUNCT, ")")) {
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      source_token = tkn;
       ret->repeat_for = assign();
-      if (!consume_old(TK_PUNCT, ")")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "For statement must end with \")\".");
+      tkn = source_token;
+      if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+        errorf_tkn(ER_COMPILE, tkn, "For statement must end with \")\".");
       }
     }
-    ret->stmt_for = statement(false);
+    ret->stmt_for = statement(tkn, &tkn, false);
     out_scope_definition();
 
     inside_roop = roop_state;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume_old(TK_KEYWORD, "while")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "while")) {
     new_scope_definition();
     Node *roop_state = inside_roop;
     ret = new_node(ND_WHILE, NULL, NULL);
     inside_roop = ret;
 
-    if (!consume_old(TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, source_token,
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      errorf_tkn(ER_COMPILE, tkn,
                 "While statement must start with \"(\".");
     }
+    source_token = tkn;
     ret->judge = assign();
-    if (!consume_old(TK_PUNCT, ")")) {
-      errorf_tkn(ER_COMPILE, source_token,
+    tkn = source_token;
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      errorf_tkn(ER_COMPILE, tkn,
                 "While statement must end with \")\".");
     }
-    ret->stmt_for = statement(false);
+    ret->stmt_for = statement(tkn, &tkn, false);
 
     inside_roop = roop_state;
     out_scope_definition();
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume_old(TK_KEYWORD, "return")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "return")) {
+    source_token = tkn;
     ret = new_node(ND_RETURN, assign(), NULL);
+    tkn = source_token;
 
-    if (!consume_old(TK_PUNCT, ";")) {
-      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume_old(TK_KEYWORD, "break")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "break")) {
     if (!inside_roop) {
-      errorf_tkn(ER_COMPILE, before_token, "%s", "Not whithin loop");
+      errorf_tkn(ER_COMPILE, tkn, "%s", "Not whithin loop");
     }
     ret = new_node(ND_LOOPBREAK, NULL, NULL);
     ret->lhs = inside_roop;
-    if (!consume_old(TK_PUNCT, ";")) {
-      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume_old(TK_KEYWORD, "continue")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "continue")) {
     if (!inside_roop) {
-      errorf_tkn(ER_COMPILE, before_token, "%s",
-                "continue statement not within loop");
+      errorf_tkn(ER_COMPILE, tkn, "%s", "continue statement not within loop");
     }
     ret = new_node(ND_CONTINUE, NULL, NULL);
     ret->lhs = inside_roop;
-    if (!consume_old(TK_PUNCT, ";")) {
-      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  ret = define_var(source_token, &source_token, false, false);
-  if (!consume_old(TK_PUNCT, ";")) {
-    errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+  ret = define_var(tkn, &tkn, false, false);
+  if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+    errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
   }
-
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
@@ -724,7 +732,7 @@ Node *priority() {
     // GNU Statements and Declarations
     if (consume_old(TK_PUNCT, "{")) {
       restore_old();
-      Node *ret = statement(true);
+      Node *ret = statement(source_token, &source_token, true);
       restore_old();
       if (!consume_old(TK_PUNCT, "}")) {
         errorf_tkn(ER_COMPILE, source_token,
