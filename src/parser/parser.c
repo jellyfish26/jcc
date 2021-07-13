@@ -88,8 +88,8 @@ Node *last_stmt(Node *now) {
 void program(Token *tkn);
 static void function(Function *target, Token *tkn, Token **end_tkn);
 Node *statement(bool new_scope);
-Node *define_var(bool once, bool is_global);
-Node *define_ident(Type *define_ident, bool is_global);
+static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
+static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
 Node *assign();
 Node *ternary();
 Node *logical_or();
@@ -149,12 +149,10 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
     if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
       restore(tkn, &tkn);
       restore(tkn, &tkn);
-      source_token = tkn;
-      target->stmt = define_var(false, true);
+      target->stmt = define_var(tkn, &tkn, false, true);
       target->global_var_define = true;
-      tkn = source_token; // Warn
       consume(tkn, &tkn, TK_PUNCT, ";");
-      *end_tkn = tkn;
+      if (end_tkn != NULL) *end_tkn = tkn;
       return;
     }
 
@@ -208,7 +206,7 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
   } else {
     errorf_tkn(ER_COMPILE, tkn, "Start the function with an identifier.");
   }
-  *end_tkn = tkn;
+  if (end_tkn != NULL) *end_tkn = tkn;
 }
 
 Node *inside_roop; // inside for or while
@@ -253,7 +251,7 @@ Node *statement(bool new_scope) {
     if (!consume_old(TK_PUNCT, "(")) {
       errorf_tkn(ER_COMPILE, source_token, "If statement must start with \"(\"");
     }
-    ret->judge = define_var(true, false);
+    ret->judge = define_var(source_token, &source_token, true, false);
     Var *top_var = local_vars->vars;
     if (!consume_old(TK_PUNCT, ")")) {
       errorf_tkn(ER_COMPILE, source_token, "If statement must end with \")\".");
@@ -294,7 +292,7 @@ Node *statement(bool new_scope) {
     }
 
     if (!consume_old(TK_PUNCT, ";")) {
-      ret->init_for = define_var(true, false);
+      ret->init_for = define_var(source_token, &source_token, true, false);
       if (!consume_old(TK_PUNCT, ";")) {
         errorf_tkn(ER_COMPILE, source_token,
                   "After defining an expression, it must end with \";\". ");
@@ -379,7 +377,7 @@ Node *statement(bool new_scope) {
     return ret;
   }
 
-  ret = define_var(false, false);
+  ret = define_var(source_token, &source_token, false, false);
   if (!consume_old(TK_PUNCT, ";")) {
     errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
   }
@@ -389,45 +387,52 @@ Node *statement(bool new_scope) {
 
 // define_var = base_type define_ident (once is false: ("," define_ident)*) |
 //              assign
-Node *define_var(bool once, bool is_global) {
-  Type *var_type = get_type(source_token, &source_token);
+static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global) {
+  Type *var_type = get_type(tkn, &tkn);
   if (var_type) {
-    Node *first_var = define_ident(var_type, is_global);
+    Node *first_var = define_ident(tkn, &tkn, var_type, is_global);
     if (!once) {
       Node *now_var = first_var;
-      while (consume_old(TK_PUNCT, ",")) {
-        now_var->next_stmt = define_ident(var_type, is_global);
+      while (consume(tkn, &tkn, TK_PUNCT, ",")) {
+        now_var->next_stmt = define_ident(tkn, &tkn, var_type, is_global);
         now_var = now_var->next_stmt;
       }
     }
+    if (end_tkn != NULL) {
+      *end_tkn = tkn;
+    }
     return first_var;
   }
-  return assign();
+  source_token = tkn; // Warn 
+  Node *ret = assign();
+  if (end_tkn != NULL) {
+    *end_tkn = source_token;
+  }
+  return ret;
 }
 
 // define_ident = "*"* ident ("[" num "]")*
-Node *define_ident(Type *define_type, bool is_global) {
+Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool is_global) {
   if (!define_type) {
     errorf(ER_INTERNAL, "Internal Error at define variable");
   }
   Type *now_type = calloc(sizeof(Type), 1);
   memcpy(now_type, define_type, sizeof(Type));
   int ptr_cnt = 0;
-  while (consume_old(TK_PUNCT, "*")) {
+  while (consume(tkn, &tkn, TK_PUNCT, "*")) {
     ++ptr_cnt;
   }
 
-  Token *tkn = consume_old(TK_IDENT, NULL);
-
-  if (!tkn) {
-    errorf_tkn(ER_COMPILE, source_token,
+  if (!consume(tkn, NULL, TK_IDENT, NULL)) {
+    errorf_tkn(ER_COMPILE, tkn,
               "Variable definition must be identifier.");
   }
 
   if (check_already_define(tkn->str, tkn->str_len, is_global)) {
-    errorf_tkn(ER_COMPILE, before_token, "This variable is already definition.");
+    errorf_tkn(ER_COMPILE, tkn, "This variable is already definition.");
   }
-  Var *define_var = new_general_var(now_type, tkn->str, tkn->str_len);
+  Var *new_var = new_general_var(now_type, tkn->str, tkn->str_len);
+  consume(tkn, &tkn, TK_IDENT, NULL);
 
   // Size needs to be viewed from the end.
   typedef struct ArraySize ArraySize;
@@ -439,41 +444,45 @@ Node *define_ident(Type *define_type, bool is_global) {
 
   ArraySize *top = NULL;
 
-  while (consume_old(TK_PUNCT, "[")) {
-    Token *array_size = consume_old(TK_NUM_INT, NULL);
-    if (!array_size) {
-      errorf_tkn(ER_COMPILE, source_token, "Specify the size of array.");
+  while (consume(tkn, &tkn, TK_PUNCT, "[")) {
+    if (!consume(tkn, NULL, TK_NUM_INT, NULL)) {
+      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
     }
-    if (!consume_old(TK_PUNCT, "]")) {
-      errorf_tkn(ER_COMPILE, source_token, "Must end [");
+    int array_size = tkn->val;
+    consume(tkn, &tkn, TK_NUM_INT, NULL);
+    if (!consume(tkn, &tkn, TK_PUNCT, "]")) {
+      errorf_tkn(ER_COMPILE, tkn, "Must end [");
     }
 
     ArraySize *now = calloc(sizeof(ArraySize), 1);
-    now->array_size = array_size->val;
+    now->array_size = array_size;
     now->before = top;
     top = now;
   }
 
   while (top) {
-    new_array_dimension_var(define_var, top->array_size);
+    new_array_dimension_var(new_var, top->array_size);
     top = top->before;
   }
 
   for (int i = 0; i < ptr_cnt; ++i) {
-    new_pointer_var(define_var);
+    new_pointer_var(new_var);
   }
   Node *ret = new_node(ND_VAR, NULL, NULL);
   ret->is_var_define_only = true;
-  link_var_to_node(ret, define_var);
+  link_var_to_node(ret, new_var);
   if (is_global) {
-    add_global_var(define_var);
+    add_global_var(new_var);
   } else {
-    add_local_var(define_var);
+    add_local_var(new_var);
   }
 
-  if (consume_old(TK_PUNCT, "=")) {
+  if (consume(tkn, &tkn, TK_PUNCT, "=")) {
+    source_token = tkn;
     ret = new_assign_node(ND_ASSIGN, ret, assign());
+    tkn = source_token;
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 

@@ -17,21 +17,21 @@ bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
   // Panctuator consume or Ketword consume
   if (kind == TK_PUNCT || kind == TK_KEYWORD) {
     if (op == NULL) {
-      *end_tkn = tkn;
+      if (end_tkn != NULL) *end_tkn = tkn;
       return false;
     }
 
     if (tkn->str_len != strlen(op) || memcmp(tkn->str, op, strlen(op))) {
-      *end_tkn = tkn;
+      if (end_tkn != NULL) *end_tkn = tkn;
       return false;
     }
   }
-  *end_tkn = tkn->next;
+  if (end_tkn != NULL) *end_tkn = tkn->next;
   return true;
 }
 
 void restore(Token *tkn, Token **end_tkn) {
-  *end_tkn = tkn->before;
+  if (end_tkn != NULL) *end_tkn = tkn->before;
 }
 
 
