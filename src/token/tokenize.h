@@ -34,7 +34,7 @@ struct Token {
 
 extern Token *source_token; // Warn: Don't operate it directly.
 extern Token *before_token; // before source_token
-void tokenize(char *file_name);
+Token *tokenize(char *file_name);
 
 //
 // error.c
@@ -54,6 +54,7 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 // operate.c
 //
 
-Token *consume(TokenKind kind, char *op);
+bool consume(Token *ptr, Token **end_ptr, TokenKind kind, char *op);
+Token *consume_old(TokenKind kind, char *op);
 void restore();
 bool is_eof();

@@ -8,10 +8,33 @@
 
 char *source_str;
 
+bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
+  if (tkn->kind != kind) {
+    *end_tkn = tkn;
+    return false;
+  }
+
+  // Panctuator consume or Ketword consume
+  if (kind == TK_PUNCT || kind == TK_KEYWORD) {
+    if (op == NULL) {
+      *end_tkn = tkn;
+      return false;
+    }
+
+    if (tkn->str_len != strlen(op) || memcmp(tkn->str, op, strlen(op))) {
+      *end_tkn = tkn;
+      return false;
+    }
+  }
+  *end_tkn = tkn->next;
+  return true;
+}
+
+
 // If the token cannot be consumed, NULL is return value.
 // When a token is consumed, the source_token variable
 // will point to the next token.
-Token *consume(TokenKind kind, char *op) {
+Token *consume_old(TokenKind kind, char *op) {
   if (source_token->kind != kind) {
     return NULL;
   }
@@ -220,7 +243,7 @@ char *read_str(char *str, char **end_ptr) {
 }
 
 // Update source token
-void tokenize(char *file_name) {
+Token *tokenize(char *file_name) {
   FILE *fp;
   if ((fp = fopen(file_name, "r")) == NULL) {
     fprintf(stderr, "Failed to open the file: %s\n", file_name);
@@ -349,4 +372,5 @@ void tokenize(char *file_name) {
   }
   new_token(TK_EOF, ret, NULL, 1);
   source_token = head.next;
+  return source_token;
 }

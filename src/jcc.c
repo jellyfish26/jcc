@@ -3,7 +3,7 @@
 #include "token/tokenize.h"
 
 int main(int argc, char **argv) {
-  tokenize(argv[1]);
-  program();
+  Token *tkn = tokenize(argv[1]);
+  program(tkn);
   codegen();
 }

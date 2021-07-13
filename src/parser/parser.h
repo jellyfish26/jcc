@@ -89,7 +89,7 @@ struct Node {
   int str_lit_label;
 };
 
-void program();
+void program(Token *tkn);
 
 struct Function {
   char *func_name;   // Function name
