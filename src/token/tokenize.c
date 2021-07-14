@@ -8,6 +8,9 @@
 
 char *source_str;
 
+// If the token cannot be consumed, false is return value.
+// When a token is consumed, the end_tkn variable
+// will point to the next token.
 bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
   if (tkn->kind != kind) {
     *end_tkn = tkn;
@@ -34,43 +37,8 @@ void restore(Token *tkn, Token **end_tkn) {
   if (end_tkn != NULL) *end_tkn = tkn->before;
 }
 
-
-// If the token cannot be consumed, NULL is return value.
-// When a token is consumed, the source_token variable
-// will point to the next token.
-Token *consume_old(TokenKind kind, char *op) {
-  if (source_token->kind != kind) {
-    return NULL;
-  }
-
-  // Panctuator consume or Keyword consume
-  if (kind == TK_PUNCT || kind == TK_KEYWORD) {
-    if (op == NULL) {
-      return NULL;
-    }
-
-    if (source_token->str_len != strlen(op) ||
-        memcmp(source_token->str, op, strlen(op))) {
-      return NULL;
-    }
-  }
-
-  // Move token
-  Token *ret = source_token;
-  before_token = source_token;
-  source_token = source_token->next;
-  return ret;
-}
-
-void restore_old() {
-  if (before_token != NULL) {
-    before_token = before_token->before;
-  }
-  source_token = source_token->before;
-}
-
-bool is_eof() {
-  return source_token->kind == TK_EOF;
+bool is_eof(Token *tkn) {
+  return tkn->kind == TK_EOF;
 }
 
 //
@@ -183,9 +151,6 @@ bool is_useable_char(char c) {
 bool is_ident_char(char c) {
   return is_useable_char(c) || ('0' <= c && c <= '9');
 }
-
-Token *before_token;
-Token *source_token;
 
 bool str_check(char *top_str, char *comp_str) {
   int comp_len = strlen(comp_str);
@@ -375,6 +340,5 @@ Token *tokenize(char *file_name) {
     errorf_loc(ER_TOKENIZE, now_str, 1, "Unexpected tokenize");
   }
   new_token(TK_EOF, ret, NULL, 1);
-  source_token = head.next;
-  return source_token;
+  return head.next;
 }

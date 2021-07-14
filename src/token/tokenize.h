@@ -32,8 +32,6 @@ struct Token {
   char *str_lit;  // String literal
 };
 
-extern Token *source_token; // Warn: Don't operate it directly.
-extern Token *before_token; // before source_token
 Token *tokenize(char *file_name);
 
 //
@@ -55,7 +53,5 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 //
 
 bool consume(Token *ptr, Token **end_ptr, TokenKind kind, char *op);
-Token *consume_old(TokenKind kind, char *op);
 void restore(Token *tkn, Token **end_tkn);
-void restore_old();
-bool is_eof();
+bool is_eof(Token *tkn);
