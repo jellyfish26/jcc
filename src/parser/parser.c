@@ -90,7 +90,7 @@ static void function(Function *target, Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
 static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
-Node *assign();
+static Node *assign(Token *tkn, Token **end_tkn);
 Node *ternary();
 Node *logical_or();
 Node *logical_and();
@@ -298,18 +298,14 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     }
 
     if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
-      source_token = tkn;
-      ret->judge = assign();
-      tkn = source_token;
+      ret->judge = assign(tkn, &tkn);
       if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
         errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
     }
 
     if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
-      source_token = tkn;
-      ret->repeat_for = assign();
-      tkn = source_token;
+      ret->repeat_for = assign(tkn, &tkn);
       if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
         errorf_tkn(ER_COMPILE, tkn, "For statement must end with \")\".");
       }
@@ -332,9 +328,7 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
       errorf_tkn(ER_COMPILE, tkn,
                 "While statement must start with \"(\".");
     }
-    source_token = tkn;
-    ret->judge = assign();
-    tkn = source_token;
+    ret->judge = assign(tkn, &tkn);
     if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
       errorf_tkn(ER_COMPILE, tkn,
                 "While statement must end with \")\".");
@@ -348,9 +342,7 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   }
 
   if (consume(tkn, &tkn, TK_KEYWORD, "return")) {
-    source_token = tkn;
-    ret = new_node(ND_RETURN, assign(), NULL);
-    tkn = source_token;
+    ret = new_node(ND_RETURN, assign(tkn, &tkn), NULL);
 
     if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
       errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
@@ -411,11 +403,8 @@ static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global) 
     }
     return first_var;
   }
-  source_token = tkn; // Warn 
-  Node *ret = assign();
-  if (end_tkn != NULL) {
-    *end_tkn = source_token;
-  }
+  Node *ret = assign(tkn, &tkn);
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
@@ -486,9 +475,7 @@ Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool is_globa
   }
 
   if (consume(tkn, &tkn, TK_PUNCT, "=")) {
-    source_token = tkn;
-    ret = new_assign_node(ND_ASSIGN, ret, assign());
-    tkn = source_token;
+    ret = new_assign_node(ND_ASSIGN, ret, assign(tkn, &tkn));
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
@@ -498,32 +485,35 @@ Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool is_globa
 //                   "*=" assign | "/=" assign | "%=" assign
 //                   "<<=" assign | ">>=" assign
 //                   "&=" assign | "^=" assign | "|=" assign)?
-Node *assign() {
+static Node *assign(Token *tkn, Token **end_tkn) {
+  source_token = tkn;
   Node *ret = ternary();
+  tkn = source_token;
 
-  if (consume_old(TK_PUNCT, "=")) {
-    ret = new_assign_node(ND_ASSIGN, ret, assign());
-  } else if (consume_old(TK_PUNCT, "+=")) {
-    ret = new_assign_node(ND_ADD, ret, assign());
-  } else if (consume_old(TK_PUNCT, "-=")) {
-    ret = new_assign_node(ND_SUB, ret, assign());
-  } else if (consume_old(TK_PUNCT, "*=")) {
-    ret = new_assign_node(ND_MUL, ret, assign());
-  } else if (consume_old(TK_PUNCT, "/=")) {
-    ret = new_assign_node(ND_DIV, ret, assign());
-  } else if (consume_old(TK_PUNCT, "%=")) {
-    ret = new_assign_node(ND_REMAINDER, ret, assign());
-  } else if (consume_old(TK_PUNCT, "<<=")) {
-    ret = new_assign_node(ND_LEFTSHIFT, ret, assign());
-  } else if (consume_old(TK_PUNCT, ">>=")) {
-    ret = new_assign_node(ND_RIGHTSHIFT, ret, assign());
-  } else if (consume_old(TK_PUNCT, "&=")) {
-    ret = new_assign_node(ND_BITWISEAND, ret, assign());
-  } else if (consume_old(TK_PUNCT, "^=")) {
-    ret = new_assign_node(ND_BITWISEXOR, ret, assign());
-  } else if (consume_old(TK_PUNCT, "|=")) {
-    ret = new_assign_node(ND_BITWISEOR, ret, assign());
+  if (consume(tkn, &tkn, TK_PUNCT, "=")) {
+    ret = new_assign_node(ND_ASSIGN, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "+=")) {
+    ret = new_assign_node(ND_ADD, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "-=")) {
+    ret = new_assign_node(ND_SUB, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "*=")) {
+    ret = new_assign_node(ND_MUL, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "/=")) {
+    ret = new_assign_node(ND_DIV, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "%=")) {
+    ret = new_assign_node(ND_REMAINDER, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "<<=")) {
+    ret = new_assign_node(ND_LEFTSHIFT, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, ">>=")) {
+    ret = new_assign_node(ND_RIGHTSHIFT, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "&=")) {
+    ret = new_assign_node(ND_BITWISEAND, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "^=")) {
+    ret = new_assign_node(ND_BITWISEXOR, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "|=")) {
+    ret = new_assign_node(ND_BITWISEOR, ret, assign(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
@@ -744,7 +734,7 @@ Node *priority() {
       }
       return ret;
     }
-    Node *ret = assign();
+    Node *ret = assign(source_token, &source_token);
 
     if (!consume_old(TK_PUNCT, ")")) {
       errorf_tkn(ER_COMPILE, source_token,
@@ -780,7 +770,7 @@ Node *priority() {
       int argc = 0;
       Node *now_arg = NULL;
       while (true) {
-        Node *tmp = assign();
+        Node *tmp = assign(source_token, &source_token);
         tmp->func_arg = now_arg;
         now_arg = tmp;
         argc++;
@@ -810,7 +800,7 @@ Node *priority() {
     ret->is_var_define_only = false;
     link_var_to_node(ret, use_var);
     while (consume_old(TK_PUNCT, "[")) {
-      ret = new_node(ND_ADD, ret, assign());
+      ret = new_node(ND_ADD, ret, assign(source_token, &source_token));
 
       ret = new_node(ND_CONTENT, ret, NULL);
       ret->equation_type = ret->equation_type->content;
