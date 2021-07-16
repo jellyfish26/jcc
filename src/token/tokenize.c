@@ -13,7 +13,7 @@ char *source_str;
 // will point to the next token.
 bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
   if (tkn->kind != kind) {
-    *end_tkn = tkn;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return false;
   }
 
@@ -31,10 +31,6 @@ bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
   }
   if (end_tkn != NULL) *end_tkn = tkn->next;
   return true;
-}
-
-void restore(Token *tkn, Token **end_tkn) {
-  if (end_tkn != NULL) *end_tkn = tkn->before;
 }
 
 bool is_eof(Token *tkn) {

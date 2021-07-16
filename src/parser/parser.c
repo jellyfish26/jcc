@@ -135,6 +135,7 @@ void program(Token *tkn) {
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
 static void function(Function *target, Token *tkn, Token **end_tkn) {
+  Token *type_tkn = tkn;
   Type *ret_type = get_type(tkn, &tkn);
   if (ret_type) {
     target->ret_type = ret_type;
@@ -146,9 +147,7 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
   Token *global_ident = tkn;
   if (consume(tkn, &tkn, TK_IDENT, NULL)) {
     if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
-      restore(tkn, &tkn);
-      restore(tkn, &tkn);
-      target->stmt = define_var(tkn, &tkn, false, true);
+      target->stmt = define_var(type_tkn, &tkn, false, true);
       target->global_var_define = true;
       consume(tkn, &tkn, TK_PUNCT, ";");
       if (end_tkn != NULL) *end_tkn = tkn;
@@ -743,16 +742,10 @@ static Node *increment_and_decrement(Token *tkn, Token **end_tkn) {
 // params = assign ("," assign)?
 // base_type is gen_type()
 static Node *priority(Token *tkn, Token **end_tkn) {
-
   if (consume(tkn, &tkn, TK_PUNCT, "(")) {
     // GNU Statements and Declarations
-    if (consume(tkn, &tkn, TK_PUNCT, "{")) {
-      restore(tkn, &tkn);
+    if (consume(tkn, NULL, TK_PUNCT, "{")) {
       Node *ret = statement(tkn, &tkn, true);
-      restore(tkn, &tkn);
-      if (!consume(tkn, &tkn, TK_PUNCT, "}")) {
-        errorf_tkn(ER_COMPILE, tkn, "\"{\" and \"}\" should be written in pairs.");
-      }
       if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
         errorf_tkn(ER_COMPILE, tkn, "\"(\" and \")\" should be written in pairs.");
       }
