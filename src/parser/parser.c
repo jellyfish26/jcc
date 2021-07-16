@@ -85,7 +85,6 @@ Node *last_stmt(Node *now) {
 }
 
 // Prototype
-void program(Token *tkn);
 static void function(Function *target, Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
@@ -109,26 +108,24 @@ static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
 
-
-Function *top_func;
-Function *exp_func;
-
-void program(Token *tkn) {
+Function *program(Token *tkn) {
   local_vars = NULL;
   global_vars = NULL;
   used_vars = NULL;
-  int i = 0;
+  Function head;
+  Function *end = NULL;
   while (!is_eof(tkn)) {
-    if (exp_func) {
-      exp_func->next = calloc(1, sizeof(Function));
-      exp_func = exp_func->next;
-      function(exp_func, tkn, &tkn);
+    if (end != NULL) {
+      end->next = calloc(1, sizeof(Function));
+      end = end->next;
+      function(end, tkn, &tkn);
     } else {
-      exp_func = calloc(1, sizeof(Function));
-      top_func = exp_func;
-      function(exp_func, tkn, &tkn);
+      end = calloc(1, sizeof(Function));
+      head.next = end;
+      function(end, tkn, &tkn);
     }
   }
+  return head.next;
 }
 
 // function = base_type ident "(" params?")" statement

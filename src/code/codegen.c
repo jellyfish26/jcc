@@ -654,7 +654,7 @@ void gen_tmp_var_define(Var *var) {
   printf("  .string \"%s\"\n", var->str);
 }
 
-void codegen() {
+void codegen(Function *head_func) {
   printf(".intel_syntax noprefix\n");
   for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
     gen_global_var_define(gvar);
@@ -665,7 +665,7 @@ void codegen() {
   }
   
 
-  for (Function *now_func = top_func; now_func; now_func = now_func->next) {
+  for (Function *now_func = head_func; now_func; now_func = now_func->next) {
     if (now_func->global_var_define) {
       continue;
     }

@@ -89,7 +89,7 @@ struct Node {
   int str_lit_label;
 };
 
-void program(Token *tkn);
+Function *program(Token *tkn);
 
 struct Function {
   char *func_name;   // Function name
@@ -106,6 +106,3 @@ struct Function {
 
   bool global_var_define;
 };
-
-extern Function *top_func;
-extern Function *exp_func;
