@@ -166,8 +166,9 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
       }
 
       // Variable define in function arguments
-      if (consume(tkn, &tkn, TK_IDENT, NULL)) {
-        Token *ident_tkn = tkn->before;
+      if (consume(tkn, NULL, TK_IDENT, NULL)) {
+        Token *ident_tkn = tkn;
+        tkn = tkn->next;
         if (check_already_define(ident_tkn->str, ident_tkn->str_len, false)) {
           errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
         }
@@ -759,8 +760,9 @@ static Node *priority(Token *tkn, Token **end_tkn) {
   }
 
   // String literal
-  if (consume(tkn, &tkn, TK_STR, NULL)) {
-    Var *var = new_general_var(new_general_type(TY_STR, false), tkn->before->str_lit, strlen(tkn->before->str_lit));
+  if (consume(tkn, NULL, TK_STR, NULL)) {
+    Var *var = new_general_var(new_general_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+    tkn = tkn->next;
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->is_var_define_only = false;
     link_var_to_node(ret, var);
@@ -769,8 +771,9 @@ static Node *priority(Token *tkn, Token **end_tkn) {
     return ret;
   }
 
-  if (consume(tkn, &tkn, TK_IDENT, NULL)) {
-    Token *ident = tkn->before;
+  if (consume(tkn, NULL, TK_IDENT, NULL)) {
+    Token *ident = tkn;
+    tkn = tkn->next;
     // function call
     if (consume(tkn, &tkn, TK_PUNCT, "(")) {
       Node *ret = new_node(ND_FUNCCALL, new_node(ND_FUNCARG, NULL, NULL), NULL);
@@ -831,13 +834,13 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 }
 
 static Node *num(Token *tkn, Token **end_tkn) {
-  if (consume(tkn, &tkn, TK_NUM_INT, NULL)) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return new_node_num(tkn->before->val);
+  if (consume(tkn, NULL, TK_NUM_INT, NULL)) {
+    if (end_tkn != NULL) *end_tkn = tkn->next;
+    return new_node_num(tkn->val);
   }
-  if (!consume(tkn, &tkn, TK_CHAR, NULL)) {
+  if (!consume(tkn, NULL, TK_CHAR, NULL)) {
     errorf_tkn(ER_COMPILE, tkn, "Not value.");
   }
-  if (end_tkn != NULL) *end_tkn = tkn; 
-  return new_node_num(tkn->before->c_lit);
+  if (end_tkn != NULL) *end_tkn = tkn->next;
+  return new_node_num(tkn->c_lit);
 }

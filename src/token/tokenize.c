@@ -131,7 +131,6 @@ Token *new_token(TokenKind kind, Token *connect, char *str, int str_len) {
   ret->str_len = str_len;
   if (connect) {
     connect->next = ret;
-    ret->before = connect;
   }
   return ret;
 }

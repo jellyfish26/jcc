@@ -23,7 +23,6 @@ typedef struct Token Token;
 
 struct Token {
   TokenKind kind; // Type of Token
-  Token *before;  // Before token
   Token *next;    // Next token
   char *str;      // Token String
   int str_len;    // Token length
