@@ -656,20 +656,16 @@ void gen_tmp_var_define(Var *var) {
 
 void codegen(Function *head_func) {
   printf(".intel_syntax noprefix\n");
-  for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
+  for (Var *gvar = gvars; gvar; gvar = gvar->next) {
     gen_global_var_define(gvar);
   }
 
   for (Var *tvar = tmp_vars; tvar; tvar = tvar->next) {
     gen_tmp_var_define(tvar);
   }
-  
+
 
   for (Function *now_func = head_func; now_func; now_func = now_func->next) {
-    if (now_func->global_var_define) {
-      continue;
-    }
-
     char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
     memcpy(func_name, now_func->func_name, now_func->func_name_len);
     printf(".global %s\n", func_name);

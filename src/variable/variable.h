@@ -54,16 +54,16 @@ struct ScopeVars {
   Var *vars;
 };
 
-extern ScopeVars *local_vars;
+extern ScopeVars *lvars;
 extern Var *tmp_vars;
-extern Var *global_vars;
+extern Var *gvars;
 extern Var *used_vars;
 
 void new_scope_definition();
 void out_scope_definition();
-void add_local_var(Var *var);
+void add_lvar(Var *var);
 void add_tmp_var(Var *var);
-void add_global_var(Var *var);
+void add_gvar(Var *var);
 Var *find_var(char *str, int str_len);
 bool check_already_define(char *str, int str_len, bool is_global);
 int init_offset();

@@ -89,47 +89,47 @@ Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
   return ret;
 }
 
-ScopeVars *local_vars;
-Var *global_vars;
+ScopeVars *lvars;
+Var *gvars;
 Var *tmp_vars;
 Var *used_vars;
 
 void new_scope_definition() {
   ScopeVars *new_scope = calloc(sizeof(ScopeVars), 1);
-  if (local_vars == NULL) {
+  if (lvars == NULL) {
     new_scope->depth = 0;
   } else {
-    new_scope->depth = local_vars->depth + 1;
+    new_scope->depth = lvars->depth + 1;
   }
-  new_scope->upper = local_vars;
-  local_vars = new_scope;
+  new_scope->upper = lvars;
+  lvars = new_scope;
 }
 
 void out_scope_definition() {
-  if (!local_vars) {
+  if (!lvars) {
     errorf(ER_INTERNAL, "Internal Error at scope");
   }
-  Var *used = local_vars->vars;
+  Var *used = lvars->vars;
   while (used && used->next) {
     used = used->next;
   }
   if (used) {
     used->next = used_vars;
-    used_vars = local_vars->vars;
+    used_vars = lvars->vars;
   }
-  local_vars = local_vars->upper;
+  lvars = lvars->upper;
 }
 
-void add_local_var(Var *var) {
+void add_lvar(Var *var) {
   var->global = false;
-  var->next = local_vars->vars;
-  local_vars->vars = var;
+  var->next = lvars->vars;
+  lvars->vars = var;
 }
 
-void add_global_var(Var *var) {
+void add_gvar(Var *var) {
   var->global = true;
-  var->next = global_vars;
-  global_vars = var;
+  var->next = gvars;
+  gvars = var;
 }
 
 void add_tmp_var(Var *var) {
@@ -143,7 +143,7 @@ void add_tmp_var(Var *var) {
 }
 
 Var *find_var(char *str, int str_len) {
-  for (ScopeVars *now_scope = local_vars; now_scope; now_scope = now_scope->upper) {
+  for (ScopeVars *now_scope = lvars; now_scope; now_scope = now_scope->upper) {
     for (Var *now_var = now_scope->vars; now_var; now_var = now_var->next) {
       if (now_var->len != str_len) {
         continue;
@@ -154,7 +154,7 @@ Var *find_var(char *str, int str_len) {
       }
     }
   }
-  for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
+  for (Var *gvar = gvars; gvar; gvar = gvar->next) {
     if (gvar->len != str_len) {
       continue;
     }
@@ -167,7 +167,7 @@ Var *find_var(char *str, int str_len) {
 
 bool check_already_define(char *str, int str_len, bool is_global) {
   if (is_global) {
-     for (Var *gvar = global_vars; gvar; gvar = gvar->next) {
+     for (Var *gvar = gvars; gvar; gvar = gvar->next) {
       if (gvar->len != str_len) {
         continue;
       }
@@ -177,10 +177,10 @@ bool check_already_define(char *str, int str_len, bool is_global) {
     }
     return false;
   }
-  if (local_vars == NULL) {
+  if (lvars == NULL) {
     return false;
   }
-  for (Var *now_var = local_vars->vars; now_var; now_var = now_var->next) {
+  for (Var *now_var = lvars->vars; now_var; now_var = now_var->next) {
     if (now_var->len != str_len) {
       continue;
     }

@@ -85,7 +85,7 @@ Node *last_stmt(Node *now) {
 }
 
 // Prototype
-static void function(Function *target, Token *tkn, Token **end_tkn);
+static bool function(Function *func, Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
 static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
@@ -109,20 +109,26 @@ static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
 
 Function *program(Token *tkn) {
-  local_vars = NULL;
-  global_vars = NULL;
+  lvars = NULL;
+  gvars = NULL;
   used_vars = NULL;
   Function head;
   Function *end = NULL;
   while (!is_eof(tkn)) {
     if (end != NULL) {
       end->next = calloc(1, sizeof(Function));
-      end = end->next;
-      function(end, tkn, &tkn);
+      if (function(end->next, tkn, &tkn)) {
+        end = end->next;
+      } else {
+        end->next = NULL;
+      }
     } else {
       end = calloc(1, sizeof(Function));
-      head.next = end;
-      function(end, tkn, &tkn);
+      if (function(end, tkn, &tkn)) {
+        head.next = end;
+      } else {
+        end = NULL;
+      }
     }
   }
   return head.next;
@@ -131,11 +137,11 @@ Function *program(Token *tkn) {
 // function = base_type ident "(" params?")" statement
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
-static void function(Function *target, Token *tkn, Token **end_tkn) {
+static bool function(Function *func, Token *tkn, Token **end_tkn) {
   Token *type_tkn = tkn;
   Type *ret_type = get_type(tkn, &tkn);
   if (ret_type) {
-    target->ret_type = ret_type;
+    func->ret_type = ret_type;
   } else {
     errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
   }
@@ -144,11 +150,10 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
   Token *global_ident = tkn;
   if (consume(tkn, &tkn, TK_IDENT, NULL)) {
     if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
-      target->stmt = define_var(type_tkn, &tkn, false, true);
-      target->global_var_define = true;
+      define_var(type_tkn, &tkn, false, true);
       consume(tkn, &tkn, TK_PUNCT, ";");
       if (end_tkn != NULL) *end_tkn = tkn;
-      return;
+      return false;
     }
 
     // Function define
@@ -173,11 +178,11 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
           errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
         }
         Var *local_var = new_general_var(arg_type, ident_tkn->str, ident_tkn->str_len);
-        add_local_var(local_var);
-        target->func_args = new_node(ND_VAR, target->func_args, NULL);
-        target->func_args->is_var_define_only = true;
-        link_var_to_node(target->func_args, local_var);
-        target->func_argc++;
+        add_lvar(local_var);
+        func->func_args = new_node(ND_VAR, func->func_args, NULL);
+        func->func_args->is_var_define_only = true;
+        link_var_to_node(func->func_args, local_var);
+        func->func_argc++;
       } else {
         errorf_tkn(ER_COMPILE, tkn, "Must declare variable.");
       }
@@ -192,15 +197,16 @@ static void function(Function *target, Token *tkn, Token **end_tkn) {
         errorf_tkn(ER_COMPILE, tkn, "Define function must tend with \")\".");
       }
     }
-    target->func_name = global_ident->str;
-    target->func_name_len = global_ident->str_len;
-    target->stmt = statement(tkn, &tkn, false);
+    func->func_name = global_ident->str;
+    func->func_name_len = global_ident->str_len;
+    func->stmt = statement(tkn, &tkn, false);
     out_scope_definition();
-    target->vars_size = init_offset();
+    func->vars_size = init_offset();
   } else {
     errorf_tkn(ER_COMPILE, tkn, "Start the function with an identifier.");
   }
   if (end_tkn != NULL) *end_tkn = tkn;
+  return true;
 }
 
 Node *inside_roop; // inside for or while
@@ -247,16 +253,16 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
       errorf_tkn(ER_COMPILE, tkn, "If statement must start with \"(\"");
     }
     ret->judge = define_var(tkn, &tkn, true, false);
-    Var *top_var = local_vars->vars;
+    Var *top_var = lvars->vars;
     if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
       errorf_tkn(ER_COMPILE, tkn, "If statement must end with \")\".");
     }
     ret->exec_if = statement(tkn, &tkn, false);
     // Transfer varaibles
-    if (top_var && local_vars->vars == top_var) {
-      local_vars->vars = NULL;
+    if (top_var && lvars->vars == top_var) {
+        lvars->vars = NULL;
     } else if (top_var) {
-      for (Var *now_var = local_vars->vars; now_var; now_var = now_var->next) {
+      for (Var *now_var = lvars->vars; now_var; now_var = now_var->next) {
         if (now_var->next == top_var) {
           now_var->next = NULL;
           break;
@@ -267,7 +273,7 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     if (consume(tkn, &tkn, TK_KEYWORD, "else")) {
       new_scope_definition();
       if (top_var) {
-        add_local_var(top_var);
+        add_lvar(top_var);
       }
       ret->exec_else = statement(tkn, &tkn, false);
       out_scope_definition();
@@ -465,9 +471,9 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   ret->is_var_define_only = true;
   link_var_to_node(ret, new_var);
   if (is_global) {
-    add_global_var(new_var);
+    add_gvar(new_var);
   } else {
-    add_local_var(new_var);
+    add_lvar(new_var);
   }
 
   if (consume(tkn, &tkn, TK_PUNCT, "=")) {
