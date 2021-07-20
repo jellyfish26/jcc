@@ -627,6 +627,11 @@ void gen_global_var_define(Var *var) {
   char *global_var_name = calloc(var->len + 1, sizeof(char));
   memcpy(global_var_name, var->str, var->len);
   printf(".data\n");
+  if (var->var_type->kind == TY_STR) {
+    printf(".LC%d:\n", var->offset);
+    printf("  .string \"%s\"\n", var->str);
+    return;
+  }
   printf("%s:\n", global_var_name);
   switch (var->var_type->kind) {
     case TY_CHAR:
@@ -648,22 +653,11 @@ void gen_global_var_define(Var *var) {
   }
 }
 
-void gen_tmp_var_define(Var *var) {
-  printf(".data\n");
-  printf(".LC%d:\n", var->offset);
-  printf("  .string \"%s\"\n", var->str);
-}
-
 void codegen(Function *head_func) {
   printf(".intel_syntax noprefix\n");
   for (Var *gvar = gvars; gvar; gvar = gvar->next) {
     gen_global_var_define(gvar);
   }
-
-  for (Var *tvar = tmp_vars; tvar; tvar = tvar->next) {
-    gen_tmp_var_define(tvar);
-  }
-
 
   for (Function *now_func = head_func; now_func; now_func = now_func->next) {
     char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));

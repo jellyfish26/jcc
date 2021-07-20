@@ -91,7 +91,6 @@ Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
 
 ScopeVars *lvars;
 Var *gvars;
-Var *tmp_vars;
 Var *used_vars;
 
 void new_scope_definition() {
@@ -129,17 +128,16 @@ void add_lvar(Var *var) {
 void add_gvar(Var *var) {
   var->global = true;
   var->next = gvars;
-  gvars = var;
-}
-
-void add_tmp_var(Var *var) {
-  var->next = tmp_vars;
-  if (tmp_vars == NULL) {
+  if (gvars == NULL) {
     var->offset = 0;
   } else {
-    var->offset = tmp_vars->offset + 1;
+    if (var->var_type->kind == TY_STR) {
+      var->offset = gvars->offset + 1;
+    } else {
+      var->offset = gvars->offset;
+    }
   }
-  tmp_vars = var;
+  gvars = var;
 }
 
 Var *find_var(char *str, int str_len) {

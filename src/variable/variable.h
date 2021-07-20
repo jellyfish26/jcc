@@ -37,7 +37,7 @@ struct Var {
   char *str;  // Variable name (String, if TY_STR)
   int len;    // Length of name
   int offset; // Offset
-  bool global; // Global variable if this variable is true
+  bool global; // Global variable
 };
 
 Var *new_general_var(Type *var_type, char *str, int str_len);
@@ -55,14 +55,12 @@ struct ScopeVars {
 };
 
 extern ScopeVars *lvars;
-extern Var *tmp_vars;
 extern Var *gvars;
 extern Var *used_vars;
 
 void new_scope_definition();
 void out_scope_definition();
 void add_lvar(Var *var);
-void add_tmp_var(Var *var);
 void add_gvar(Var *var);
 Var *find_var(char *str, int str_len);
 bool check_already_define(char *str, int str_len, bool is_global);

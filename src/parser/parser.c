@@ -772,7 +772,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->is_var_define_only = false;
     link_var_to_node(ret, var);
-    add_tmp_var(var);
+    add_gvar(var);
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
