@@ -25,10 +25,9 @@ struct Type {
   bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
 };
 
-Type *new_general_type(TypeKind kind, bool is_real);
-Type *new_pointer_type(Type *content_type);
-Type *new_array_dimension_type(Type *content_type, int dimension_size);
-int pointer_movement_size(Type *var_type);
+Type *new_type(TypeKind kind, bool is_real);
+Type *pointer_to(Type *type);
+Type *array_to(Type *type, int dim_size);
 
 struct Var {
   Type *var_type;

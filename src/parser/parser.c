@@ -39,7 +39,7 @@ Node *new_node_num(int val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->val = val;
-  ret->equation_type = new_general_type(TY_INT, false);
+  ret->equation_type = new_type(TY_INT, false);
   return ret;
 }
 
@@ -53,21 +53,21 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
 static Type *get_type(Token *tkn, Token **end_tkn) {
   if (consume(tkn, &tkn, TK_KEYWORD, "char")) {
     *end_tkn = tkn;
-    return new_general_type(TY_CHAR, true);
+    return new_type(TY_CHAR, true);
   }
   if (consume(tkn, &tkn, TK_KEYWORD, "short")) {
     *end_tkn = tkn;
-    return new_general_type(TY_SHORT, true);
+    return new_type(TY_SHORT, true);
   }
   if (consume(tkn, &tkn, TK_KEYWORD, "int")) {
     *end_tkn = tkn;
-    return new_general_type(TY_INT, true);
+    return new_type(TY_INT, true);
   }
   if (consume(tkn, &tkn, TK_KEYWORD, "long")) {
     while (consume(tkn, &tkn, TK_KEYWORD, "long"));
     consume(tkn, &tkn, TK_KEYWORD, "int");
     *end_tkn = tkn;
-    return new_general_type(TY_LONG, true);
+    return new_type(TY_LONG, true);
   }
   return NULL;
 }
@@ -684,7 +684,7 @@ static Node *address_op(Token *tkn, Token **end_tkn) {
   Node *ret = NULL;
   if (consume(tkn, &tkn, TK_PUNCT, "&")) {
     ret = new_node(ND_ADDR, indirection(tkn, &tkn), NULL);
-    Type *addr_type = new_general_type(TY_ADDR, false);
+    Type *addr_type = new_type(TY_ADDR, false);
     addr_type->content = ret->equation_type;
     ret->equation_type = addr_type;
   }
@@ -767,7 +767,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 
   // String literal
   if (consume(tkn, NULL, TK_STR, NULL)) {
-    Var *var = new_general_var(new_general_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+    Var *var = new_general_var(new_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
     tkn = tkn->next;
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->is_var_define_only = false;

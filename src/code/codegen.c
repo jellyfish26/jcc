@@ -555,7 +555,7 @@ void compile_node(Node *node) {
   gen_pop(REG_RAX);
 
   if (node->equation_type->kind >= TY_PTR) {
-    printf("  imul rdi, %d\n", pointer_movement_size(node->equation_type));
+    printf("  imul rdi, %d\n", node->equation_type->content->var_size);
   }
 
   int reg_size = get_type_size(node->equation_type);

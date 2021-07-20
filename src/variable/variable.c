@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-Type *new_general_type(TypeKind kind, bool is_real) {
+Type *new_type(TypeKind kind, bool is_real) {
   Type *ret = calloc(sizeof(Type), 1);
   ret->kind = kind;
   ret->is_real = is_real;
@@ -31,28 +31,22 @@ Type *new_general_type(TypeKind kind, bool is_real) {
   return ret;
 }
 
-Type *new_pointer_type(Type *content_type) {
-  Type *ret = new_general_type(TY_PTR, true);
-  ret->content = content_type;
-  content_type->is_real = false;
+Type *pointer_to(Type *type) {
+  Type *ret = new_type(TY_PTR, true);
+  ret->content = type;
+  type->is_real = false;
   return ret;
 }
 
-Type *new_array_dimension_type(Type *content_type, int dimension_size) {
-  Type *ret = calloc(sizeof(Type), 1);
+Type *array_to(Type *type, int dim_size) {
+  Type *ret = calloc(1, sizeof(Type));
   ret->kind = TY_ARRAY;
   ret->is_real = false;
-  ret->content = content_type;
-  ret->var_size = dimension_size * content_type->var_size;
+  ret->content = type;
+  ret->var_size = dim_size * type->var_size;
   return ret;
 }
 
-int pointer_movement_size(Type *var_type) {
-  if (!var_type->content) {
-    return 1;
-  }
-  return var_type->content->var_size;
-}
 
 Var *new_general_var(Type *var_type, char *str, int str_len) {
   Var *ret = calloc(sizeof(Var), 1);
@@ -66,11 +60,11 @@ Var *new_general_var(Type *var_type, char *str, int str_len) {
 }
 
 void new_pointer_var(Var *var) {
-  var->var_type = new_pointer_type(var->var_type);
+  var->var_type = pointer_to(var->var_type);
 }
 
 void new_array_dimension_var(Var *var, int dimension_size) {
-  var->var_type = new_array_dimension_type(var->var_type, dimension_size);
+  var->var_type = array_to(var->var_type, dimension_size);
 }
 
 Var *new_content_var(Var *var) {
