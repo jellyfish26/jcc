@@ -47,8 +47,7 @@ Type *array_to(Type *type, int dim_size) {
   return ret;
 }
 
-
-Var *new_general_var(Type *var_type, char *str, int str_len) {
+Var *new_var(Type *var_type, char *str, int str_len) {
   Var *ret = calloc(sizeof(Var), 1);
   ret->var_type = var_type;
   if (ret->var_type == NULL) {
@@ -57,14 +56,6 @@ Var *new_general_var(Type *var_type, char *str, int str_len) {
   ret->str = str;
   ret->len = str_len;
   return ret;
-}
-
-void new_pointer_var(Var *var) {
-  var->var_type = pointer_to(var->var_type);
-}
-
-void new_array_dimension_var(Var *var, int dimension_size) {
-  var->var_type = array_to(var->var_type, dimension_size);
 }
 
 Var *new_content_var(Var *var) {
@@ -78,7 +69,7 @@ Var *new_content_var(Var *var) {
 }
 
 Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len) {
-  Var *ret = new_general_var(var_type, str, str_len);
+  Var *ret = new_var(var_type, str, str_len);
   ret->next = top_var;
   return ret;
 }

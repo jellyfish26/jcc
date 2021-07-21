@@ -177,7 +177,7 @@ static bool function(Function *func, Token *tkn, Token **end_tkn) {
         if (check_already_define(ident_tkn->str, ident_tkn->str_len, false)) {
           errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
         }
-        Var *local_var = new_general_var(arg_type, ident_tkn->str, ident_tkn->str_len);
+        Var *local_var = new_var(arg_type, ident_tkn->str, ident_tkn->str_len);
         add_lvar(local_var);
         func->func_args = new_node(ND_VAR, func->func_args, NULL);
         func->func_args->is_var_define_only = true;
@@ -430,7 +430,7 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   if (check_already_define(tkn->str, tkn->str_len, is_global)) {
     errorf_tkn(ER_COMPILE, tkn, "This variable is already definition.");
   }
-  Var *new_var = new_general_var(now_type, tkn->str, tkn->str_len);
+  Var *var = new_var(now_type, tkn->str, tkn->str_len);
   consume(tkn, &tkn, TK_IDENT, NULL);
 
   // Size needs to be viewed from the end.
@@ -460,20 +460,20 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   }
 
   while (top) {
-    new_array_dimension_var(new_var, top->array_size);
+    var->var_type = array_to(var->var_type, top->array_size);
     top = top->before;
   }
 
   for (int i = 0; i < ptr_cnt; ++i) {
-    new_pointer_var(new_var);
+    var->var_type = pointer_to(var->var_type);
   }
   Node *ret = new_node(ND_VAR, NULL, NULL);
   ret->is_var_define_only = true;
-  link_var_to_node(ret, new_var);
+  link_var_to_node(ret, var);
   if (is_global) {
-    add_gvar(new_var);
+    add_gvar(var);
   } else {
-    add_lvar(new_var);
+    add_lvar(var);
   }
 
   if (consume(tkn, &tkn, TK_PUNCT, "=")) {
@@ -767,7 +767,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 
   // String literal
   if (consume(tkn, NULL, TK_STR, NULL)) {
-    Var *var = new_general_var(new_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+    Var *var = new_var(new_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
     tkn = tkn->next;
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->is_var_define_only = false;

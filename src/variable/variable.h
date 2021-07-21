@@ -39,9 +39,7 @@ struct Var {
   bool global; // Global variable
 };
 
-Var *new_general_var(Type *var_type, char *str, int str_len);
-void new_pointer_var(Var *var);
-void new_array_dimension_var(Var *var, int dimension_size);
+Var *new_var(Type *type, char *str, int str_len);
 Var *new_content_var(Var *var);
 Var *connect_var(Var *top_var, Type *var_type, char *str, int str_len);
 int get_sizeof(Var *var);
