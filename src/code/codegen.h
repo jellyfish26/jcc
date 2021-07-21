@@ -1,6 +1,5 @@
 #pragma once
 #include "parser/parser.h"
-#include "variable/variable.h"
 
 #include <stdio.h>
 #include <stdlib.h>

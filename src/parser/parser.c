@@ -1,6 +1,5 @@
 #include "parser/parser.h"
 #include "token/tokenize.h"
-#include "variable/variable.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -72,9 +71,9 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
   return NULL;
 }
 
-void link_var_to_node(Node *target, Var *var) {
+void link_var_to_node(Node *target, Obj *var) {
   target->use_var = var;
-  target->equation_type = var->var_type;
+  target->equation_type = var->type;
 }
 
 Node *last_stmt(Node *now) {
@@ -174,14 +173,14 @@ static bool function(Function *func, Token *tkn, Token **end_tkn) {
       if (consume(tkn, NULL, TK_IDENT, NULL)) {
         Token *ident_tkn = tkn;
         tkn = tkn->next;
-        if (check_already_define(ident_tkn->str, ident_tkn->str_len, false)) {
+        if (find_var(ident_tkn->str, ident_tkn->str_len) != NULL) {
           errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
         }
-        Var *local_var = new_var(arg_type, ident_tkn->str, ident_tkn->str_len);
-        add_lvar(local_var);
+        Obj *lvar = new_obj(arg_type, ident_tkn->str, ident_tkn->str_len);
+        add_lvar(lvar);
         func->func_args = new_node(ND_VAR, func->func_args, NULL);
         func->func_args->is_var_define_only = true;
-        link_var_to_node(func->func_args, local_var);
+        link_var_to_node(func->func_args, lvar);
         func->func_argc++;
       } else {
         errorf_tkn(ER_COMPILE, tkn, "Must declare variable.");
@@ -253,18 +252,18 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
       errorf_tkn(ER_COMPILE, tkn, "If statement must start with \"(\"");
     }
     ret->judge = define_var(tkn, &tkn, true, false);
-    Var *top_var = lvars->vars;
+    Obj *top_var = lvars->objs;
     if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
       errorf_tkn(ER_COMPILE, tkn, "If statement must end with \")\".");
     }
     ret->exec_if = statement(tkn, &tkn, false);
     // Transfer varaibles
-    if (top_var && lvars->vars == top_var) {
-        lvars->vars = NULL;
+    if (top_var && lvars->objs == top_var) {
+      lvars->objs = NULL;
     } else if (top_var) {
-      for (Var *now_var = lvars->vars; now_var; now_var = now_var->next) {
-        if (now_var->next == top_var) {
-          now_var->next = NULL;
+      for (Obj *obj = lvars->objs; obj != NULL; obj = obj->next) {
+        if (obj->next == top_var) {
+          obj->next = NULL;
           break;
         }
       }
@@ -430,7 +429,7 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   if (check_already_define(tkn->str, tkn->str_len, is_global)) {
     errorf_tkn(ER_COMPILE, tkn, "This variable is already definition.");
   }
-  Var *var = new_var(now_type, tkn->str, tkn->str_len);
+  Obj *var = new_obj(now_type, tkn->str, tkn->str_len);
   consume(tkn, &tkn, TK_IDENT, NULL);
 
   // Size needs to be viewed from the end.
@@ -460,12 +459,12 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   }
 
   while (top) {
-    var->var_type = array_to(var->var_type, top->array_size);
+    var->type = array_to(var->type, top->array_size);
     top = top->before;
   }
 
   for (int i = 0; i < ptr_cnt; ++i) {
-    var->var_type = pointer_to(var->var_type);
+    var->type = pointer_to(var->type);
   }
   Node *ret = new_node(ND_VAR, NULL, NULL);
   ret->is_var_define_only = true;
@@ -767,7 +766,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 
   // String literal
   if (consume(tkn, NULL, TK_STR, NULL)) {
-    Var *var = new_var(new_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+    Obj *var = new_obj(new_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
     tkn = tkn->next;
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->is_var_define_only = false;
@@ -782,9 +781,8 @@ static Node *priority(Token *tkn, Token **end_tkn) {
     tkn = tkn->next;
     // function call
     if (consume(tkn, &tkn, TK_PUNCT, "(")) {
-      Node *ret = new_node(ND_FUNCCALL, new_node(ND_FUNCARG, NULL, NULL), NULL);
-      ret->func_name = ident->str;
-      ret->func_name_len = ident->str_len;
+      Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
+      ret->func = new_obj(new_type(TY_INT, false), ident->str, ident->str_len); // (Warn: Temporary type)
 
       if (consume(tkn, &tkn, TK_PUNCT, ")")) {
         if (*end_tkn != NULL) *end_tkn = tkn;
@@ -792,11 +790,11 @@ static Node *priority(Token *tkn, Token **end_tkn) {
       }
 
       int argc = 0;
-      Node *now_arg = NULL;
+      ret->func->args = NULL;
       while (true) {
         Node *tmp = assign(tkn, &tkn);
-        tmp->func_arg = now_arg;
-        now_arg = tmp;
+        tmp->next_stmt = ret->func->args;
+        ret->func->args = tmp;
         argc++;
 
         if (consume(tkn, &tkn, TK_PUNCT, ",")) {
@@ -808,13 +806,13 @@ static Node *priority(Token *tkn, Token **end_tkn) {
         }
         break;
       }
-      ret->lhs->func_arg = now_arg;
+      ret->func->argc = argc;
       if (end_tkn != NULL) *end_tkn = tkn;
       return ret;
     } else {
       // use variable
-      Var *use_var = find_var(ident->str, ident->str_len);
-      if (!use_var) {
+      Obj *use_var = find_var(ident->str, ident->str_len);
+      if (use_var == NULL) {
         errorf_tkn(ER_COMPILE, ident, "This variable is not definition.");
       }
       Node *ret = new_node(ND_VAR, NULL, NULL);

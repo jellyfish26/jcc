@@ -1,7 +1,6 @@
 #include "code/codegen.h"
 #include "parser/parser.h"
 #include "token/tokenize.h"
-#include "variable/variable.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -199,14 +198,14 @@ void gen_var_address(Node *node) {
   if (node->kind != ND_VAR && node->kind != ND_ADDR) {
     errorf(ER_COMPILE, "Not variable");
   }
-  Var *use_var = node->use_var;
+  Obj *var = node->use_var;
 
   // String literal
-  if (use_var->var_type->kind == TY_STR) {
-    printf("  mov rax, offset .LC%d\n", use_var->offset);
-  } else if (use_var->global) {
-    char *var_name = calloc(use_var->len + 1, sizeof(char));
-    memcpy(var_name, use_var->str, use_var->len);
+  if (var->type->kind == TY_STR) {
+    printf("  mov rax, offset .LC%d\n", var->offset);
+  } else if (var->is_global) {
+    char *var_name = calloc(var->name_len + 1, sizeof(char));
+    memcpy(var_name, var->name, var->name_len);
     printf("  mov rax, offset %s\n", var_name);
   } else {
     printf("  mov rax, rbp\n");
@@ -216,7 +215,7 @@ void gen_var_address(Node *node) {
 
 void expand_variable(Node *node) {
   gen_var_address(node);
-  Type *var_type = node->use_var->var_type;
+  Type *var_type = node->use_var->type;
   if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
     gen_operation(REG_RAX, REG_MEM, get_type_size(var_type), OP_MOV);
   }
@@ -527,10 +526,10 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_FUNCCALL) {
-    char *name = calloc(node->func_name_len + 1, sizeof(char));
-    memcpy(name, node->func_name, node->func_name_len);
+    char *name = calloc(node->func->name_len + 1, sizeof(char));
+    memcpy(name, node->func->name, node->func->name_len);
     int arg_count = 0;
-    for (Node *now_arg = node->lhs->func_arg; now_arg; now_arg = now_arg->func_arg) {
+    for (Node *now_arg = node->func->args; now_arg != NULL; now_arg = now_arg->next_stmt) {
       compile_node(now_arg);
       gen_push(REG_RAX);
       arg_count++;
@@ -623,17 +622,17 @@ void compile_node(Node *node) {
   }
 }
 
-void gen_global_var_define(Var *var) {
-  char *global_var_name = calloc(var->len + 1, sizeof(char));
-  memcpy(global_var_name, var->str, var->len);
+void gen_global_var_define(Obj *var) {
+  char *global_var_name = calloc(var->name_len+ 1, sizeof(char));
+  memcpy(global_var_name, var->name, var->name_len);
   printf(".data\n");
-  if (var->var_type->kind == TY_STR) {
+  if (var->type->kind == TY_STR) {
     printf(".LC%d:\n", var->offset);
-    printf("  .string \"%s\"\n", var->str);
+    printf("  .string \"%s\"\n", var->name);
     return;
   }
   printf("%s:\n", global_var_name);
-  switch (var->var_type->kind) {
+  switch (var->type->kind) {
     case TY_CHAR:
       printf("  .zero 1\n");
       break;
@@ -646,7 +645,7 @@ void gen_global_var_define(Var *var) {
     case TY_LONG:
     case TY_PTR:
     case TY_ARRAY:
-      printf("  .zero %d\n", var->var_type->var_size);
+      printf("  .zero %d\n", var->type->var_size);
       break;
     default:
       return;
@@ -655,7 +654,7 @@ void gen_global_var_define(Var *var) {
 
 void codegen(Function *head_func) {
   printf(".intel_syntax noprefix\n");
-  for (Var *gvar = gvars; gvar; gvar = gvar->next) {
+  for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
     gen_global_var_define(gvar);
   }
 
@@ -674,24 +673,24 @@ void codegen(Function *head_func) {
 
     // Set arguments (use register)
     int arg_count = now_func->func_argc - 1;
-    for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
+    for (Node *arg = now_func->func_args; arg != NULL; arg = arg->lhs) {
       if (arg_count < 6) {
         gen_var_address(arg);
-        gen_operation(REG_MEM, args_reg[arg_count], get_type_size(arg->use_var->var_type), OP_MOV);
+        gen_operation(REG_MEM, args_reg[arg_count], get_type_size(arg->use_var->type), OP_MOV);
       }
       arg_count--;
     }
 
     // Set arguements (use stack due more than 7 arguments)
     arg_count = now_func->func_argc - 1;
-    for (Node *arg = now_func->func_args; arg; arg = arg->lhs) {
+    for (Node *arg = now_func->func_args; arg != NULL; arg = arg->lhs) {
       if (arg_count >= 6) {
         gen_var_address(arg);
         gen_push(REG_RAX);
         printf("  mov rax, QWORD PTR [rbp + %d]\n", 8 + (arg_count - 5) * 8);
         printf("  mov rdi, rax\n");
         gen_pop(REG_RAX);
-        gen_operation(REG_MEM, REG_RDI, get_type_size(arg->use_var->var_type), OP_MOV);
+        gen_operation(REG_MEM, REG_RDI, get_type_size(arg->use_var->type), OP_MOV);
       }
       arg_count--;
     }
