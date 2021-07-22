@@ -1,6 +1,5 @@
 #pragma once
 #include "parser/parser.h"
-#include "variable/variable.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,5 +41,4 @@ typedef enum {
   OP_BITWISE_NOT,
 } OpKind;
 
-void codegen();
-
+void codegen(Function *head_func);

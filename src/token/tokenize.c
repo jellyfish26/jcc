@@ -8,42 +8,33 @@
 
 char *source_str;
 
-// If the token cannot be consumed, NULL is return value.
-// When a token is consumed, the source_token variable
+// If the token cannot be consumed, false is return value.
+// When a token is consumed, the end_tkn variable
 // will point to the next token.
-Token *consume(TokenKind kind, char *op) {
-  if (source_token->kind != kind) {
-    return NULL;
+bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
+  if (tkn->kind != kind) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return false;
   }
 
-  // Panctuator consume or Keyword consume
+  // Panctuator consume or Ketword consume
   if (kind == TK_PUNCT || kind == TK_KEYWORD) {
     if (op == NULL) {
-      return NULL;
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return false;
     }
 
-    if (source_token->str_len != strlen(op) ||
-        memcmp(source_token->str, op, strlen(op))) {
-      return NULL;
+    if (tkn->str_len != strlen(op) || memcmp(tkn->str, op, strlen(op))) {
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return false;
     }
   }
-
-  // Move token
-  Token *ret = source_token;
-  before_token = source_token;
-  source_token = source_token->next;
-  return ret;
+  if (end_tkn != NULL) *end_tkn = tkn->next;
+  return true;
 }
 
-void restore() {
-  if (before_token != NULL) {
-    before_token = before_token->before;
-  }
-  source_token = source_token->before;
-}
-
-bool is_eof() {
-  return source_token->kind == TK_EOF;
+bool is_eof(Token *tkn) {
+  return tkn->kind == TK_EOF;
 }
 
 //
@@ -140,7 +131,6 @@ Token *new_token(TokenKind kind, Token *connect, char *str, int str_len) {
   ret->str_len = str_len;
   if (connect) {
     connect->next = ret;
-    ret->before = connect;
   }
   return ret;
 }
@@ -156,9 +146,6 @@ bool is_useable_char(char c) {
 bool is_ident_char(char c) {
   return is_useable_char(c) || ('0' <= c && c <= '9');
 }
-
-Token *before_token;
-Token *source_token;
 
 bool str_check(char *top_str, char *comp_str) {
   int comp_len = strlen(comp_str);
@@ -220,7 +207,7 @@ char *read_str(char *str, char **end_ptr) {
 }
 
 // Update source token
-void tokenize(char *file_name) {
+Token *tokenize(char *file_name) {
   FILE *fp;
   if ((fp = fopen(file_name, "r")) == NULL) {
     fprintf(stderr, "Failed to open the file: %s\n", file_name);
@@ -348,5 +335,5 @@ void tokenize(char *file_name) {
     errorf_loc(ER_TOKENIZE, now_str, 1, "Unexpected tokenize");
   }
   new_token(TK_EOF, ret, NULL, 1);
-  source_token = head.next;
+  return head.next;
 }

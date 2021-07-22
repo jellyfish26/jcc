@@ -1,9 +1,11 @@
 #pragma once
 #include "token/tokenize.h"
-#include "variable/variable.h"
 
 #include <stdbool.h>
 
+typedef struct Type Type;
+typedef struct Obj Obj;
+typedef struct ScopeObj ScopeObj;
 typedef struct Node Node;
 typedef struct Function Function;
 
@@ -44,7 +46,6 @@ typedef enum {
   ND_LOOPBREAK,   // "break" statement (only for and while)
   ND_CONTINUE,    // "continue" statement
   ND_FUNCCALL,    // Function call
-  ND_FUNCARG,     // Function argument
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
   ND_PREFIX_INC,  // Prefix increment
@@ -61,7 +62,7 @@ struct Node {
   Node *rhs;     // Right side node
 
   Type *equation_type; // Size of equation
-  Var *use_var; // Use target
+  Obj *use_var; // Use target
   bool is_var_define_only;
 
   Node *judge;     // judge ("if" statement, "for" statement, "while" statement)
@@ -79,17 +80,14 @@ struct Node {
 
   int label; // label (only "for" or "while" statement)
 
-  char *func_name;   // Function name
-  int func_name_len; // Function name length
-  Node *func_arg;    // Function arguments
-  int func_args_idx; // Index of argument
+  Obj *func;  // Function call
 
   int val;        // value if kind is ND_INT
   char *str_lit;  // value if kind is ND_STR
   int str_lit_label;
 };
 
-void program();
+Function *program(Token *tkn);
 
 struct Function {
   char *func_name;   // Function name
@@ -98,14 +96,76 @@ struct Function {
   Node *stmt;     // Node of statement
   Function *next; // Next function
   Type *ret_type; // Type of function return
-  Var *vars; // Definition variables
+  Obj *vars;      // Definition variables
 
   Node *func_args; // Function arguments
   int func_argc;   // Count of function arguments
   int vars_size;
-
-  bool global_var_define;
 };
 
-extern Function *top_func;
-extern Function *exp_func;
+//
+// object.c
+//
+
+// Define in order of decreasing size
+typedef enum {
+  TY_STR,   // String literal type
+  TY_CHAR,  // "char" type
+  TY_SHORT, // "short" type
+  TY_INT,   // "int" type
+  TY_LONG,  // "long" type
+  TY_ADDR,  // Address value
+  TY_PTR,   // Pointer type
+  TY_ARRAY, // Array type
+} TypeKind;
+
+
+struct Type {
+  TypeKind kind;
+  Type *content; // Content of variable if kind is TY_PTR
+
+  int var_size;  // Variable size
+  bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
+};
+
+Type *new_type(TypeKind kind, bool is_real);
+Type *pointer_to(Type *type);
+Type *array_to(Type *type, int dim_size);
+
+// Variable or Function
+struct Obj {
+  Type *type;
+  Obj *next;
+  
+  char *name;
+  int name_len;
+  bool is_global;  // Global or Local
+
+  // Local variable
+  int offset;
+
+  // Function
+  int argc;
+  Node *args;
+};
+
+Obj *new_obj(Type *type, char *name, int name_len);
+
+struct ScopeObj {
+  int depth; // Scope depth -> 0 is general, over 1 is local
+  int use_address;
+  ScopeObj *upper;
+  Obj *objs;
+};
+
+extern ScopeObj *lvars;
+extern Obj *gvars;
+extern Obj *used_vars;
+
+void new_scope_definition();
+void out_scope_definition();
+void add_lvar(Obj *var);
+void add_gvar(Obj *var);
+Obj *find_var(char *name, int name_len);
+bool check_already_define(char *name, int name_len, bool is_global);
+int init_offset();

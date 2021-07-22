@@ -1,6 +1,5 @@
 #include "parser/parser.h"
 #include "token/tokenize.h"
-#include "variable/variable.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -39,7 +38,7 @@ Node *new_node_num(int val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->val = val;
-  ret->equation_type = new_general_type(TY_INT, false);
+  ret->equation_type = new_type(TY_INT, false);
   return ret;
 }
 
@@ -50,32 +49,31 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
   return ret;
 }
 
-Type *new_type() {
-  Token *tkn = consume(TK_KEYWORD, "char");
-  if (tkn) {
-    return new_general_type(TY_CHAR, true);
+static Type *get_type(Token *tkn, Token **end_tkn) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "char")) {
+    *end_tkn = tkn;
+    return new_type(TY_CHAR, true);
   }
-  tkn = consume(TK_KEYWORD, "short");
-  if (tkn) {
-    return new_general_type(TY_SHORT, true);
+  if (consume(tkn, &tkn, TK_KEYWORD, "short")) {
+    *end_tkn = tkn;
+    return new_type(TY_SHORT, true);
   }
-  tkn = consume(TK_KEYWORD, "int");
-  if (tkn) {
-    return new_general_type(TY_INT, true);
+  if (consume(tkn, &tkn, TK_KEYWORD, "int")) {
+    *end_tkn = tkn;
+    return new_type(TY_INT, true);
   }
-  tkn = consume(TK_KEYWORD, "long");
-  if (tkn) {
-    while (consume(TK_KEYWORD, "long"))
-      ;
-    consume(TK_KEYWORD, "int");
-    return new_general_type(TY_LONG, true);
+  if (consume(tkn, &tkn, TK_KEYWORD, "long")) {
+    while (consume(tkn, &tkn, TK_KEYWORD, "long"));
+    consume(tkn, &tkn, TK_KEYWORD, "int");
+    *end_tkn = tkn;
+    return new_type(TY_LONG, true);
   }
   return NULL;
 }
 
-void link_var_to_node(Node *target, Var *var) {
+void link_var_to_node(Node *target, Obj *var) {
   target->use_var = var;
-  target->equation_type = var->var_type;
+  target->equation_type = var->type;
 }
 
 Node *last_stmt(Node *now) {
@@ -86,126 +84,128 @@ Node *last_stmt(Node *now) {
 }
 
 // Prototype
-void program();
-Node *statement(bool new_scope);
-Node *define_var(bool once, bool is_global);
-Node *define_ident(Type *define_ident, bool is_global);
-Node *assign();
-Node *ternary();
-Node *logical_or();
-Node *logical_and();
-Node *bitwise_or();
-Node *bitwise_xor();
-Node *bitwise_and();
-Node *same_comp();
-Node *size_comp();
-Node *bitwise_shift();
-Node *add();
-Node *mul();
-Node *unary();
-Node *address_op();
-Node *indirection();
-Node *increment_and_decrement();
-Node *priority();
-Node *num();
+static bool function(Function *func, Token *tkn, Token **end_tkn);
+static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
+static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
+static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
+static Node *assign(Token *tkn, Token **end_tkn);
+static Node *ternary(Token *tkn, Token **end_tkn);
+static Node *logical_or(Token *tkn, Token **end_tkn);
+static Node *logical_and(Token *tkn, Token **end_tkn);
+static Node *bitwise_or(Token *tkn, Token **end_tkn);
+static Node *bitwise_xor(Token *tkn, Token **end_tkn);
+static Node *bitwise_and(Token *tkn, Token **end_tkn);
+static Node *same_comp(Token *tkn, Token **end_tkn);
+static Node *size_comp(Token *tkn, Token **end_tkn);
+static Node *bitwise_shift(Token *tkn, Token **end_tkn);
+static Node *add(Token *tkn, Token **end_tkn);
+static Node *mul(Token *tkn, Token **end_tkn);
+static Node *unary(Token *tkn, Token **end_tkn);
+static Node *address_op(Token *tkn, Token **end_tkn);
+static Node *indirection(Token *tkn, Token **end_tkn);
+static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
+static Node *priority(Token *tkn, Token **end_tkn);
+static Node *num(Token *tkn, Token **end_tkn);
 
-void function();
-
-Function *top_func;
-Function *exp_func;
-
-void program() {
-  local_vars = NULL;
-  global_vars = NULL;
+Function *program(Token *tkn) {
+  lvars = NULL;
+  gvars = NULL;
   used_vars = NULL;
-  int i = 0;
-  while (!is_eof()) {
-    if (exp_func) {
-      exp_func->next = calloc(1, sizeof(Function));
-      exp_func = exp_func->next;
-      function(exp_func);
+  Function head;
+  Function *end = NULL;
+  while (!is_eof(tkn)) {
+    if (end != NULL) {
+      end->next = calloc(1, sizeof(Function));
+      if (function(end->next, tkn, &tkn)) {
+        end = end->next;
+      } else {
+        end->next = NULL;
+      }
     } else {
-      exp_func = calloc(1, sizeof(Function));
-      top_func = exp_func;
-      function(exp_func);
+      end = calloc(1, sizeof(Function));
+      if (function(end, tkn, &tkn)) {
+        head.next = end;
+      } else {
+        end = NULL;
+      }
     }
   }
+  return head.next;
 }
 
 // function = base_type ident "(" params?")" statement
 // params = base_type ident ("," base_type ident)*
 // base_type is gen_type()
-void function(Function *target) {
-  Type *ret_type = new_type();
-
+static bool function(Function *func, Token *tkn, Token **end_tkn) {
+  Token *type_tkn = tkn;
+  Type *ret_type = get_type(tkn, &tkn);
   if (ret_type) {
-    target->ret_type = ret_type;
+    func->ret_type = ret_type;
   } else {
-    errorf_tkn(ER_COMPILE, source_token, "Undefined type.");
+    errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
   }
 
-  Token *global_ident = consume(TK_IDENT, NULL);
-  if (global_ident) {
-    if (!consume(TK_PUNCT, "(")) {
-      restore(); // ident restore
-      restore(); // type restore
-      target->stmt = define_var(false, true);
-      target->global_var_define = true;
-      consume(TK_PUNCT, ";");
-      return;
+  // Global variable define
+  Token *global_ident = tkn;
+  if (consume(tkn, &tkn, TK_IDENT, NULL)) {
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      define_var(type_tkn, &tkn, false, true);
+      consume(tkn, &tkn, TK_PUNCT, ";");
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return false;
     }
 
     // Function define
     new_scope_definition();
-    bool is_variable_defined = true;
-    if (consume(TK_PUNCT, ")")) {
-      is_variable_defined = false;
+    bool is_var_defined = true;
+    if (consume(tkn, &tkn, TK_PUNCT, ")")) {
+      is_var_defined = false;
     }
 
     // Set arguments
-    while (is_variable_defined) {
-      Type *arg_type = new_type();
+    while (is_var_defined) {
+      Type *arg_type = get_type(tkn, &tkn);
       if (!arg_type) {
-        errorf_tkn(ER_COMPILE, source_token, "Undefined type.");
+        errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
       }
 
-      Token *var_tkn = consume(TK_IDENT, NULL);
-      if (var_tkn) {
-        if (check_already_define(var_tkn->str, var_tkn->str_len, false)) {
-          errorf_tkn(ER_COMPILE, before_token,
-                    "This variable already definition.");
+      // Variable define in function arguments
+      if (consume(tkn, NULL, TK_IDENT, NULL)) {
+        Token *ident_tkn = tkn;
+        tkn = tkn->next;
+        if (find_var(ident_tkn->str, ident_tkn->str_len) != NULL) {
+          errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
         }
-        Var *local_var =
-            new_general_var(arg_type, var_tkn->str, var_tkn->str_len);
-        add_local_var(local_var);
-        target->func_args = new_node(ND_VAR, target->func_args, NULL);
-        target->func_args->is_var_define_only = true;
-        link_var_to_node(target->func_args, local_var);
-        target->func_argc++;
+        Obj *lvar = new_obj(arg_type, ident_tkn->str, ident_tkn->str_len);
+        add_lvar(lvar);
+        func->func_args = new_node(ND_VAR, func->func_args, NULL);
+        func->func_args->is_var_define_only = true;
+        link_var_to_node(func->func_args, lvar);
+        func->func_argc++;
       } else {
-        errorf_tkn(ER_COMPILE, source_token, "Must declare variable.");
+        errorf_tkn(ER_COMPILE, tkn, "Must declare variable.");
       }
 
-      if (consume(TK_PUNCT, ",")) {
+      if (consume(tkn, &tkn, TK_PUNCT, ",")) {
         continue;
       }
 
-      if (consume(TK_PUNCT, ")")) {
+      if (consume(tkn, &tkn, TK_PUNCT, ")")) {
         break;
       } else {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "Define function must end with \")\".");
+        errorf_tkn(ER_COMPILE, tkn, "Define function must tend with \")\".");
       }
     }
-    target->func_name = global_ident->str;
-    target->func_name_len = global_ident->str_len;
-    target->stmt = statement(false);
+    func->func_name = global_ident->str;
+    func->func_name_len = global_ident->str_len;
+    func->stmt = statement(tkn, &tkn, false);
     out_scope_definition();
-    target->vars_size = init_offset();
+    func->vars_size = init_offset();
   } else {
-    errorf_tkn(ER_COMPILE, source_token,
-              "Start the function with an identifier.");
+    errorf_tkn(ER_COMPILE, tkn, "Start the function with an identifier.");
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return true;
 }
 
 Node *inside_roop; // inside for or while
@@ -218,21 +218,21 @@ Node *inside_roop; // inside for or while
 //             "break;" |
 //             "continue;" |
 //             define_var(false) ";"
-Node *statement(bool new_scope) {
+Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   Node *ret;
 
   // Block statement
-  if (consume(TK_PUNCT, "{")) {
+  if (consume(tkn, &tkn, TK_PUNCT, "{")) {
     if (new_scope) {
       new_scope_definition();
     }
     ret = new_node(ND_BLOCK, NULL, NULL);
     Node *now = NULL;
-    while (!consume(TK_PUNCT, "}")) {
+    while (!consume(tkn, &tkn, TK_PUNCT, "}")) {
       if (now) {
-        now->next_stmt = statement(true);
+        now->next_stmt = statement(tkn, &tkn, true);
       } else {
-        now = statement(true);
+        now = statement(tkn, &tkn, true);
         ret->next_block = now;
       }
       now = last_stmt(now);
@@ -240,191 +240,197 @@ Node *statement(bool new_scope) {
     if (new_scope) {
       out_scope_definition();
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(TK_KEYWORD, "if")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "if")) {
     new_scope_definition();
     ret = new_node(ND_IF, NULL, NULL);
 
-    if (!consume(TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, source_token, "If statement must start with \"(\"");
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      errorf_tkn(ER_COMPILE, tkn, "If statement must start with \"(\"");
     }
-    ret->judge = define_var(true, false);
-    Var *top_var = local_vars->vars;
-    if (!consume(TK_PUNCT, ")")) {
-      errorf_tkn(ER_COMPILE, source_token, "If statement must end with \")\".");
+    ret->judge = define_var(tkn, &tkn, true, false);
+    Obj *top_var = lvars->objs;
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      errorf_tkn(ER_COMPILE, tkn, "If statement must end with \")\".");
     }
-    ret->exec_if = statement(false);
+    ret->exec_if = statement(tkn, &tkn, false);
     // Transfer varaibles
-    if (top_var && local_vars->vars == top_var) {
-      local_vars->vars = NULL;
+    if (top_var && lvars->objs == top_var) {
+      lvars->objs = NULL;
     } else if (top_var) {
-      for (Var *now_var = local_vars->vars; now_var; now_var = now_var->next) {
-        if (now_var->next == top_var) {
-          now_var->next = NULL;
+      for (Obj *obj = lvars->objs; obj != NULL; obj = obj->next) {
+        if (obj->next == top_var) {
+          obj->next = NULL;
           break;
         }
       }
     }
     out_scope_definition();
-    if (consume(TK_KEYWORD, "else")) {
+    if (consume(tkn, &tkn, TK_KEYWORD, "else")) {
       new_scope_definition();
       if (top_var) {
-        add_local_var(top_var);
+        add_lvar(top_var);
       }
-      ret->exec_else = statement(false);
+      ret->exec_else = statement(tkn, &tkn, false);
       out_scope_definition();
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(TK_KEYWORD, "for")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "for")) {
     new_scope_definition();
     Node *roop_state = inside_roop;
     ret = new_node(ND_FOR, NULL, NULL);
     inside_roop = ret;
 
-    if (!consume(TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, source_token,
-                "For statement must start with \"(\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      errorf_tkn(ER_COMPILE, tkn, "For statement must start with \"(\".");
     }
 
-    if (!consume(TK_PUNCT, ";")) {
-      ret->init_for = define_var(true, false);
-      if (!consume(TK_PUNCT, ";")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "After defining an expression, it must end with \";\". ");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      ret->init_for = define_var(tkn, &tkn, true, false);
+      if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+        errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
     }
 
-    if (!consume(TK_PUNCT, ";")) {
-      ret->judge = assign();
-      if (!consume(TK_PUNCT, ";")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "After defining an expression, it must end with \";\". ");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      ret->judge = assign(tkn, &tkn);
+      if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+        errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
     }
 
-    if (!consume(TK_PUNCT, ")")) {
-      ret->repeat_for = assign();
-      if (!consume(TK_PUNCT, ")")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                  "For statement must end with \")\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      ret->repeat_for = assign(tkn, &tkn);
+      if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+        errorf_tkn(ER_COMPILE, tkn, "For statement must end with \")\".");
       }
     }
-    ret->stmt_for = statement(false);
+    ret->stmt_for = statement(tkn, &tkn, false);
     out_scope_definition();
 
     inside_roop = roop_state;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(TK_KEYWORD, "while")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "while")) {
     new_scope_definition();
     Node *roop_state = inside_roop;
     ret = new_node(ND_WHILE, NULL, NULL);
     inside_roop = ret;
 
-    if (!consume(TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, source_token,
+    if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
+      errorf_tkn(ER_COMPILE, tkn,
                 "While statement must start with \"(\".");
     }
-    ret->judge = assign();
-    if (!consume(TK_PUNCT, ")")) {
-      errorf_tkn(ER_COMPILE, source_token,
+    ret->judge = assign(tkn, &tkn);
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      errorf_tkn(ER_COMPILE, tkn,
                 "While statement must end with \")\".");
     }
-    ret->stmt_for = statement(false);
+    ret->stmt_for = statement(tkn, &tkn, false);
 
     inside_roop = roop_state;
     out_scope_definition();
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(TK_KEYWORD, "return")) {
-    ret = new_node(ND_RETURN, assign(), NULL);
+  if (consume(tkn, &tkn, TK_KEYWORD, "return")) {
+    ret = new_node(ND_RETURN, assign(tkn, &tkn), NULL);
 
-    if (!consume(TK_PUNCT, ";")) {
-      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(TK_KEYWORD, "break")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "break")) {
     if (!inside_roop) {
-      errorf_tkn(ER_COMPILE, before_token, "%s", "Not whithin loop");
+      errorf_tkn(ER_COMPILE, tkn, "%s", "Not whithin loop");
     }
     ret = new_node(ND_LOOPBREAK, NULL, NULL);
     ret->lhs = inside_roop;
-    if (!consume(TK_PUNCT, ";")) {
-      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(TK_KEYWORD, "continue")) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "continue")) {
     if (!inside_roop) {
-      errorf_tkn(ER_COMPILE, before_token, "%s",
-                "continue statement not within loop");
+      errorf_tkn(ER_COMPILE, tkn, "%s", "continue statement not within loop");
     }
     ret = new_node(ND_CONTINUE, NULL, NULL);
     ret->lhs = inside_roop;
-    if (!consume(TK_PUNCT, ";")) {
-      errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+    if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  ret = define_var(false, false);
-  if (!consume(TK_PUNCT, ";")) {
-    errorf_tkn(ER_COMPILE, source_token, "Expression must end with \";\".");
+  ret = define_var(tkn, &tkn, false, false);
+  if (!consume(tkn, &tkn, TK_PUNCT, ";")) {
+    errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
   }
-
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // define_var = base_type define_ident (once is false: ("," define_ident)*) |
 //              assign
-Node *define_var(bool once, bool is_global) {
-  Type *var_type = new_type();
+static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global) {
+  Type *var_type = get_type(tkn, &tkn);
   if (var_type) {
-    Node *first_var = define_ident(var_type, is_global);
+    Node *first_var = define_ident(tkn, &tkn, var_type, is_global);
     if (!once) {
       Node *now_var = first_var;
-      while (consume(TK_PUNCT, ",")) {
-        now_var->next_stmt = define_ident(var_type, is_global);
+      while (consume(tkn, &tkn, TK_PUNCT, ",")) {
+        now_var->next_stmt = define_ident(tkn, &tkn, var_type, is_global);
         now_var = now_var->next_stmt;
       }
     }
+    if (end_tkn != NULL) {
+      *end_tkn = tkn;
+    }
     return first_var;
   }
-  return assign();
+  Node *ret = assign(tkn, &tkn);
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
 }
 
 // define_ident = "*"* ident ("[" num "]")*
-Node *define_ident(Type *define_type, bool is_global) {
+static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool is_global) {
   if (!define_type) {
     errorf(ER_INTERNAL, "Internal Error at define variable");
   }
   Type *now_type = calloc(sizeof(Type), 1);
   memcpy(now_type, define_type, sizeof(Type));
   int ptr_cnt = 0;
-  while (consume(TK_PUNCT, "*")) {
+  while (consume(tkn, &tkn, TK_PUNCT, "*")) {
     ++ptr_cnt;
   }
 
-  Token *tkn = consume(TK_IDENT, NULL);
-
-  if (!tkn) {
-    errorf_tkn(ER_COMPILE, source_token,
+  if (!consume(tkn, NULL, TK_IDENT, NULL)) {
+    errorf_tkn(ER_COMPILE, tkn,
               "Variable definition must be identifier.");
   }
 
   if (check_already_define(tkn->str, tkn->str_len, is_global)) {
-    errorf_tkn(ER_COMPILE, before_token, "This variable is already definition.");
+    errorf_tkn(ER_COMPILE, tkn, "This variable is already definition.");
   }
-  Var *define_var = new_general_var(now_type, tkn->str, tkn->str_len);
+  Obj *var = new_obj(now_type, tkn->str, tkn->str_len);
+  consume(tkn, &tkn, TK_IDENT, NULL);
 
   // Size needs to be viewed from the end.
   typedef struct ArraySize ArraySize;
@@ -436,41 +442,43 @@ Node *define_ident(Type *define_type, bool is_global) {
 
   ArraySize *top = NULL;
 
-  while (consume(TK_PUNCT, "[")) {
-    Token *array_size = consume(TK_NUM_INT, NULL);
-    if (!array_size) {
-      errorf_tkn(ER_COMPILE, source_token, "Specify the size of array.");
+  while (consume(tkn, &tkn, TK_PUNCT, "[")) {
+    if (!consume(tkn, NULL, TK_NUM_INT, NULL)) {
+      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
     }
-    if (!consume(TK_PUNCT, "]")) {
-      errorf_tkn(ER_COMPILE, source_token, "Must end [");
+    int array_size = tkn->val;
+    consume(tkn, &tkn, TK_NUM_INT, NULL);
+    if (!consume(tkn, &tkn, TK_PUNCT, "]")) {
+      errorf_tkn(ER_COMPILE, tkn, "Must end [");
     }
 
     ArraySize *now = calloc(sizeof(ArraySize), 1);
-    now->array_size = array_size->val;
+    now->array_size = array_size;
     now->before = top;
     top = now;
   }
 
   while (top) {
-    new_array_dimension_var(define_var, top->array_size);
+    var->type = array_to(var->type, top->array_size);
     top = top->before;
   }
 
   for (int i = 0; i < ptr_cnt; ++i) {
-    new_pointer_var(define_var);
+    var->type = pointer_to(var->type);
   }
   Node *ret = new_node(ND_VAR, NULL, NULL);
   ret->is_var_define_only = true;
-  link_var_to_node(ret, define_var);
+  link_var_to_node(ret, var);
   if (is_global) {
-    add_global_var(define_var);
+    add_gvar(var);
   } else {
-    add_local_var(define_var);
+    add_lvar(var);
   }
 
-  if (consume(TK_PUNCT, "=")) {
-    ret = new_assign_node(ND_ASSIGN, ret, assign());
+  if (consume(tkn, &tkn, TK_PUNCT, "=")) {
+    ret = new_assign_node(ND_ASSIGN, ret, assign(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
@@ -478,223 +486,253 @@ Node *define_ident(Type *define_type, bool is_global) {
 //                   "*=" assign | "/=" assign | "%=" assign
 //                   "<<=" assign | ">>=" assign
 //                   "&=" assign | "^=" assign | "|=" assign)?
-Node *assign() {
-  Node *ret = ternary();
+static Node *assign(Token *tkn, Token **end_tkn) {
+  Node *ret = ternary(tkn, &tkn);
 
-  if (consume(TK_PUNCT, "=")) {
-    ret = new_assign_node(ND_ASSIGN, ret, assign());
-  } else if (consume(TK_PUNCT, "+=")) {
-    ret = new_assign_node(ND_ADD, ret, assign());
-  } else if (consume(TK_PUNCT, "-=")) {
-    ret = new_assign_node(ND_SUB, ret, assign());
-  } else if (consume(TK_PUNCT, "*=")) {
-    ret = new_assign_node(ND_MUL, ret, assign());
-  } else if (consume(TK_PUNCT, "/=")) {
-    ret = new_assign_node(ND_DIV, ret, assign());
-  } else if (consume(TK_PUNCT, "%=")) {
-    ret = new_assign_node(ND_REMAINDER, ret, assign());
-  } else if (consume(TK_PUNCT, "<<=")) {
-    ret = new_assign_node(ND_LEFTSHIFT, ret, assign());
-  } else if (consume(TK_PUNCT, ">>=")) {
-    ret = new_assign_node(ND_RIGHTSHIFT, ret, assign());
-  } else if (consume(TK_PUNCT, "&=")) {
-    ret = new_assign_node(ND_BITWISEAND, ret, assign());
-  } else if (consume(TK_PUNCT, "^=")) {
-    ret = new_assign_node(ND_BITWISEXOR, ret, assign());
-  } else if (consume(TK_PUNCT, "|=")) {
-    ret = new_assign_node(ND_BITWISEOR, ret, assign());
+  if (consume(tkn, &tkn, TK_PUNCT, "=")) {
+    ret = new_assign_node(ND_ASSIGN, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "+=")) {
+    ret = new_assign_node(ND_ADD, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "-=")) {
+    ret = new_assign_node(ND_SUB, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "*=")) {
+    ret = new_assign_node(ND_MUL, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "/=")) {
+    ret = new_assign_node(ND_DIV, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "%=")) {
+    ret = new_assign_node(ND_REMAINDER, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "<<=")) {
+    ret = new_assign_node(ND_LEFTSHIFT, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, ">>=")) {
+    ret = new_assign_node(ND_RIGHTSHIFT, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "&=")) {
+    ret = new_assign_node(ND_BITWISEAND, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "^=")) {
+    ret = new_assign_node(ND_BITWISEXOR, ret, assign(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "|=")) {
+    ret = new_assign_node(ND_BITWISEOR, ret, assign(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // ternary = logical_or ("?" ternary ":" ternary)?
-Node *ternary() {
-  Node *ret = logical_or();
+static Node *ternary(Token *tkn, Token **end_tkn) {
+  Node *ret = logical_or(tkn, &tkn);
 
-  if (consume(TK_PUNCT, "?")) {
+  if (consume(tkn, &tkn, TK_PUNCT, "?")) {
     Node *tmp = new_node(ND_TERNARY, NULL, NULL);
-    tmp->lhs = ternary();
-    if (!consume(TK_PUNCT, ":")) {
-      errorf_tkn(ER_COMPILE, source_token,
-                "The ternary operator requires \":\".");
+    tmp->lhs = ternary(tkn, &tkn);
+    if (!consume(tkn, &tkn, TK_PUNCT, ":")) {
+      errorf_tkn(ER_COMPILE, tkn, "The ternary operator requires \":\".");
     }
-    tmp->rhs = ternary();
+    tmp->rhs = ternary(tkn, &tkn);
     tmp->exec_if = ret;
     ret = tmp;
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // logical_or = logical_and ("||" logical_or)?
-Node *logical_or() {
-  Node *ret = logical_and();
+static Node *logical_or(Token *tkn, Token **end_tkn) {
+  Node *ret = logical_and(tkn, &tkn);
 
-  if (consume(TK_PUNCT, "||")) {
-    ret = new_node(ND_LOGICALOR, ret, logical_or());
+  if (consume(tkn, &tkn, TK_PUNCT, "||")) {
+    ret = new_node(ND_LOGICALOR, ret, logical_or(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // logical_and = bitwise_or ("&&" logical_and)?
-Node *logical_and() {
-  Node *ret = bitwise_or();
+static Node *logical_and(Token *tkn, Token **end_tkn) {
+  Node *ret = bitwise_or(tkn, &tkn);
 
-  if (consume(TK_PUNCT, "&&")) {
-    ret = new_node(ND_LOGICALAND, ret, logical_and());
+  if (consume(tkn, &tkn, TK_PUNCT, "&&")) {
+    ret = new_node(ND_LOGICALAND, ret, logical_and(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // bitwise_or = bitwise_xor ("|" bitwise_or)?
-Node *bitwise_or() {
-  Node *ret = bitwise_xor();
-  if (consume(TK_PUNCT, "|")) {
-    ret = new_node(ND_BITWISEOR, ret, bitwise_or());
+static Node *bitwise_or(Token *tkn, Token **end_tkn) {
+  Node *ret = bitwise_xor(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "|")) {
+    ret = new_node(ND_BITWISEOR, ret, bitwise_or(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // bitwise_xor = bitwise_and ("^" bitwise_xor)?
-Node *bitwise_xor() {
-  Node *ret = bitwise_and();
-  if (consume(TK_PUNCT, "^")) {
-    ret = new_node(ND_BITWISEXOR, ret, bitwise_xor());
+static Node *bitwise_xor(Token *tkn, Token **end_tkn) {
+  Node *ret = bitwise_and(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "^")) {
+    ret = new_node(ND_BITWISEXOR, ret, bitwise_xor(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // bitwise_and = same_comp ("&" bitwise_and)?
-Node *bitwise_and() {
-  Node *ret = same_comp();
-  if (consume(TK_PUNCT, "&")) {
-    ret = new_node(ND_BITWISEAND, ret, bitwise_and());
+static Node *bitwise_and(Token *tkn, Token **end_tkn) {
+  Node *ret = same_comp(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "&")) {
+    ret = new_node(ND_BITWISEAND, ret, bitwise_and(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // same_comp = size_comp ("==" same_comp | "!=" sama_comp)?
-Node *same_comp() {
-  Node *ret = size_comp();
-  if (consume(TK_PUNCT, "==")) {
-    ret = new_node(ND_EQ, ret, same_comp());
-  } else if (consume(TK_PUNCT, "!=")) {
-    ret = new_node(ND_NEQ, ret, same_comp());
+static Node *same_comp(Token *tkn, Token **end_tkn) {
+  Node *ret = size_comp(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "==")) {
+    ret = new_node(ND_EQ, ret, same_comp(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "!=")) {
+    ret = new_node(ND_NEQ, ret, same_comp(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // size_comp = bitwise_shift ("<" size_comp  | ">" size_comp | "<=" size_comp |
 // ">=" size_comp)?
-Node *size_comp() {
-  Node *ret = bitwise_shift();
-  if (consume(TK_PUNCT, "<")) {
-    ret = new_node(ND_LC, ret, size_comp());
-  } else if (consume(TK_PUNCT, ">")) {
-    ret = new_node(ND_RC, ret, size_comp());
-  } else if (consume(TK_PUNCT, "<=")) {
-    ret = new_node(ND_LEC, ret, size_comp());
-  } else if (consume(TK_PUNCT, ">=")) {
-    ret = new_node(ND_REC, ret, size_comp());
+static Node *size_comp(Token *tkn, Token **end_tkn) {
+  Node *ret = bitwise_shift(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "<")) {
+    ret = new_node(ND_LC, ret, size_comp(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, ">")) {
+    ret = new_node(ND_RC, ret, size_comp(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "<=")) {
+    ret = new_node(ND_LEC, ret, size_comp(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, ">=")) {
+    ret = new_node(ND_REC, ret, size_comp(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // bitwise_shift = add ("<<" bitwise_shift | ">>" bitwise_shift)?
-Node *bitwise_shift() {
-  Node *ret = add();
-  if (consume(TK_PUNCT, "<<")) {
-    ret = new_node(ND_LEFTSHIFT, ret, bitwise_shift());
-  } else if (consume(TK_PUNCT, ">>")) {
-    ret = new_node(ND_RIGHTSHIFT, ret, bitwise_shift());
+static Node *bitwise_shift(Token *tkn, Token **end_tkn) {
+  Node *ret = add(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "<<")) {
+    ret = new_node(ND_LEFTSHIFT, ret, bitwise_shift(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, ">>")) {
+    ret = new_node(ND_RIGHTSHIFT, ret, bitwise_shift(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // add = mul ("+" add | "-" add)?
-Node *add() {
-  Node *ret = mul();
-  if (consume(TK_PUNCT, "+")) {
-    ret = new_node(ND_ADD, ret, add());
-  } else if (consume(TK_PUNCT, "-")) {
-    ret = new_node(ND_SUB, ret, add());
+static Node *add(Token *tkn, Token **end_tkn) {
+  Node *ret = mul(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "+")) {
+    ret = new_node(ND_ADD, ret, add(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "-")) {
+    ret = new_node(ND_SUB, ret, add(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // mul = unary ("*" mul | "/" mul | "%" mul)?
-Node *mul() {
-  Node *ret = unary();
-  if (consume(TK_PUNCT, "*")) {
-    ret = new_node(ND_MUL, ret, mul());
-  } else if (consume(TK_PUNCT, "/")) {
-    ret = new_node(ND_DIV, ret, mul());
-  } else if (consume(TK_PUNCT, "%")) {
-    ret = new_node(ND_REMAINDER, ret, mul());
+static Node *mul(Token *tkn, Token **end_tkn) {
+  Node *ret = unary(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "*")) {
+    ret = new_node(ND_MUL, ret, mul(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "/")) {
+    ret = new_node(ND_DIV, ret, mul(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "%")) {
+    ret = new_node(ND_REMAINDER, ret, mul(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 // unary = "sizeof" unary
 //         ("+" | "-" | "!" | "~")? address_op
-Node *unary() {
-  if (consume(TK_KEYWORD, "sizeof")) {
-    Node *ret = new_node(ND_SIZEOF, unary(), NULL);
+static Node *unary(Token *tkn, Token **end_tkn) {
+  if (consume(tkn, &tkn, TK_KEYWORD, "sizeof")) {
+    Node *ret = new_node(ND_SIZEOF, unary(tkn, &tkn), NULL);
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
-  if (consume(TK_PUNCT, "+")) {
-    Node *ret = new_node(ND_ADD, new_node_num(0), address_op());
-    return ret;
-  } else if (consume(TK_PUNCT, "-")) {
-    Node *ret = new_node(ND_SUB, new_node_num(0), address_op());
-    return ret;
-  } else if (consume(TK_PUNCT, "!")) {
-    return new_node(ND_LOGICALNOT, address_op(), NULL);
-  } else if (consume(TK_PUNCT, "~")) {
-    return new_node(ND_BITWISENOT, address_op(), NULL);
+  Node *ret = NULL;
+  if (consume(tkn, &tkn, TK_PUNCT, "+")) {
+    ret = new_node(ND_ADD, new_node_num(0), address_op(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "-")) {
+    ret = new_node(ND_SUB, new_node_num(0), address_op(tkn, &tkn));
+  } else if (consume(tkn, &tkn, TK_PUNCT, "!")) {
+    ret = new_node(ND_LOGICALNOT, address_op(tkn, &tkn), NULL);
+  } else if (consume(tkn, &tkn, TK_PUNCT, "~")) {
+    ret = new_node(ND_BITWISENOT, address_op(tkn, &tkn), NULL);
   }
-  return address_op();
+  if (ret == NULL) {
+    ret = address_op(tkn, &tkn);
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
 }
 
 // address_op = "&"? indirection
-Node *address_op() {
-  if (consume(TK_PUNCT, "&")) {
-    Node *ret = new_node(ND_ADDR, indirection(), NULL);
-    Type *addr_type = new_general_type(TY_ADDR, false);
+static Node *address_op(Token *tkn, Token **end_tkn) {
+  Node *ret = NULL;
+  if (consume(tkn, &tkn, TK_PUNCT, "&")) {
+    ret = new_node(ND_ADDR, indirection(tkn, &tkn), NULL);
+    Type *addr_type = new_type(TY_ADDR, false);
     addr_type->content = ret->equation_type;
     ret->equation_type = addr_type;
-    return ret;
   }
-  return indirection();
+  if (ret == NULL) {
+    ret = indirection(tkn, &tkn);
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
 }
 
 // indirection = (increment_and_decrement | "*" indirection)
-Node *indirection() {
-  if (consume(TK_PUNCT, "*")) {
-    Node *ret = new_node(ND_CONTENT, indirection(), NULL);
+static Node *indirection(Token *tkn, Token **end_tkn) {
+  Node *ret = NULL;
+  if (consume(tkn, &tkn, TK_PUNCT, "*")) {
+    ret = new_node(ND_CONTENT, indirection(tkn, &tkn), NULL);
     if (ret->equation_type) {
       ret->equation_type = ret->equation_type->content;
     }
-    return ret;
   }
-  return increment_and_decrement();
+  if (ret == NULL) {
+    ret = increment_and_decrement(tkn, &tkn);
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
 }
 
 // increment_and_decrement = priority |
 //                           ("++" | "--") priority |
 //                           priority ("++" | "--")
-Node *increment_and_decrement() {
-  if (consume(TK_PUNCT, "++")) {
-    return new_node(ND_PREFIX_INC, priority(), NULL);
-  } else if (consume(TK_PUNCT, "--")) {
-    return new_node(ND_PREFIX_DEC, priority(), NULL);
+static Node *increment_and_decrement(Token *tkn, Token **end_tkn) {
+  Node *ret = NULL;
+  if (consume(tkn, &tkn, TK_PUNCT, "++")) {
+    ret = new_node(ND_PREFIX_INC, priority(tkn, &tkn), NULL);
+  } else if (consume(tkn, &tkn, TK_PUNCT, "--")) {
+    ret = new_node(ND_PREFIX_INC, priority(tkn, &tkn), NULL);
   }
 
-  Node *ret = priority();
-  if (consume(TK_PUNCT, "++")) {
-    return new_node(ND_SUFFIX_INC, ret, NULL);
-  } else if (consume(TK_PUNCT, "--")) {
-    return new_node(ND_SUFFIX_DEC, ret, NULL);
+  if (ret != NULL) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
   }
+
+  ret = priority(tkn, &tkn);
+  if (consume(tkn, &tkn, TK_PUNCT, "++")) {
+    ret = new_node(ND_SUFFIX_INC, ret, NULL);
+  } else if (consume(tkn, &tkn, TK_PUNCT, "--")) {
+    ret = new_node(ND_SUFFIX_DEC, ret, NULL);
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
@@ -706,112 +744,107 @@ Node *increment_and_decrement() {
 //            ident ("[" assign "]")* |
 // params = assign ("," assign)?
 // base_type is gen_type()
-Node *priority() {
-
-  if (consume(TK_PUNCT, "(")) {
+static Node *priority(Token *tkn, Token **end_tkn) {
+  if (consume(tkn, &tkn, TK_PUNCT, "(")) {
     // GNU Statements and Declarations
-    if (consume(TK_PUNCT, "{")) {
-      restore();
-      Node *ret = statement(true);
-      restore();
-      if (!consume(TK_PUNCT, "}")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                   "\"{\" and \"}\" should be written in pairs.");
+    if (consume(tkn, NULL, TK_PUNCT, "{")) {
+      Node *ret = statement(tkn, &tkn, true);
+      if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+        errorf_tkn(ER_COMPILE, tkn, "\"(\" and \")\" should be written in pairs.");
       }
-      if (!consume(TK_PUNCT, ")")) {
-        errorf_tkn(ER_COMPILE, source_token,
-                   "\"(\" and \")\" should be written in pairs.");
-      }
+      if (end_tkn != NULL) *end_tkn = tkn;
       return ret;
     }
-    Node *ret = assign();
+    Node *ret = assign(tkn, &tkn);
 
-    if (!consume(TK_PUNCT, ")")) {
-      errorf_tkn(ER_COMPILE, source_token,
-                 "\"(\" and \")\" should be written in pairs.");
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      errorf_tkn(ER_COMPILE, tkn, "\"(\" and \")\" should be written in pairs.");
     }
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
   // String literal
-  Token *tkn = consume(TK_STR, NULL);
-  if (tkn) {
-    Var *var = new_general_var(new_general_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+  if (consume(tkn, NULL, TK_STR, NULL)) {
+    Obj *var = new_obj(new_type(TY_STR, false), tkn->str_lit, strlen(tkn->str_lit));
+    tkn = tkn->next;
     Node *ret = new_node(ND_VAR, NULL, NULL);
     ret->is_var_define_only = false;
     link_var_to_node(ret, var);
-    add_tmp_var(var);
+    add_gvar(var);
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  tkn = consume(TK_IDENT, NULL);
+  if (consume(tkn, NULL, TK_IDENT, NULL)) {
+    Token *ident = tkn;
+    tkn = tkn->next;
+    // function call
+    if (consume(tkn, &tkn, TK_PUNCT, "(")) {
+      Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
+      ret->func = new_obj(new_type(TY_INT, false), ident->str, ident->str_len); // (Warn: Temporary type)
 
-  // function call
-  if (tkn) {
-    if (consume(TK_PUNCT, "(")) {
-      Node *ret = new_node(ND_FUNCCALL, new_node(ND_FUNCARG, NULL, NULL), NULL);
-      ret->func_name = tkn->str;
-      ret->func_name_len = tkn->str_len;
-
-      if (consume(TK_PUNCT, ")")) {
+      if (consume(tkn, &tkn, TK_PUNCT, ")")) {
+        if (*end_tkn != NULL) *end_tkn = tkn;
         return ret;
       }
 
       int argc = 0;
-      Node *now_arg = NULL;
+      ret->func->args = NULL;
       while (true) {
-        Node *tmp = assign();
-        tmp->func_arg = now_arg;
-        now_arg = tmp;
+        Node *tmp = assign(tkn, &tkn);
+        tmp->next_stmt = ret->func->args;
+        ret->func->args = tmp;
         argc++;
 
-        if (consume(TK_PUNCT, ",")) {
+        if (consume(tkn, &tkn, TK_PUNCT, ",")) {
           continue;
         }
 
-        if (!consume(TK_PUNCT, ")")) {
-          errorf_tkn(ER_COMPILE, source_token,
-                    "Function call must end with \")\".");
+        if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+          errorf_tkn(ER_COMPILE, tkn, "Function call must end with \")\".");
         }
         break;
       }
-      ret->lhs->func_arg = now_arg;
+      ret->func->argc = argc;
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return ret;
+    } else {
+      // use variable
+      Obj *use_var = find_var(ident->str, ident->str_len);
+      if (use_var == NULL) {
+        errorf_tkn(ER_COMPILE, ident, "This variable is not definition.");
+      }
+      Node *ret = new_node(ND_VAR, NULL, NULL);
+      ret->is_var_define_only = false;
+      link_var_to_node(ret, use_var);
+      while (consume(tkn, &tkn, TK_PUNCT, "[")) {
+        ret = new_node(ND_ADD, ret, assign(tkn, &tkn));
+
+        ret = new_node(ND_CONTENT, ret, NULL);
+        ret->equation_type = ret->equation_type->content;
+        if (!consume(tkn, &tkn, TK_PUNCT, "]")) {
+          errorf_tkn(ER_COMPILE, tkn, "Must use \"[\".");
+        }
+      }
+      if (end_tkn != NULL) *end_tkn = tkn;
       return ret;
     }
   }
 
-  // use variable
-  if (tkn) {
-    Var *use_var = find_var(tkn->str, tkn->str_len);
-    if (!use_var) {
-      errorf_tkn(ER_COMPILE, before_token, "This variable is not definition.");
-    }
-    Node *ret = new_node(ND_VAR, NULL, NULL);
-    ret->is_var_define_only = false;
-    link_var_to_node(ret, use_var);
-    while (consume(TK_PUNCT, "[")) {
-      ret = new_node(ND_ADD, ret, assign());
-
-      ret = new_node(ND_CONTENT, ret, NULL);
-      ret->equation_type = ret->equation_type->content;
-      if (!consume(TK_PUNCT, "]")) {
-        errorf_tkn(ER_COMPILE, source_token, "Must use \"[\".");
-      }
-    }
-    return ret;
-  }
-
-  return num();
+  Node *ret = num(tkn, &tkn);
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
 }
 
-Node *num() {
-  Token *tkn = consume(TK_NUM_INT, NULL);
-  if (tkn) {
+static Node *num(Token *tkn, Token **end_tkn) {
+  if (consume(tkn, NULL, TK_NUM_INT, NULL)) {
+    if (end_tkn != NULL) *end_tkn = tkn->next;
     return new_node_num(tkn->val);
   }
-  tkn = consume(TK_CHAR, NULL);
-  if (!tkn) {
-    errorf_tkn(ER_COMPILE, source_token, "Not value.");
+  if (!consume(tkn, NULL, TK_CHAR, NULL)) {
+    errorf_tkn(ER_COMPILE, tkn, "Not value.");
   }
+  if (end_tkn != NULL) *end_tkn = tkn->next;
   return new_node_num(tkn->c_lit);
 }
