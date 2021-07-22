@@ -11,25 +11,25 @@
 // About assembly
 //
 
-const char *reg_8byte[] = {
+static const char *reg_8byte[] = {
   "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
   "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
   "QWORD PTR [rax]"
 };
 
-const char *reg_4byte[] = {
+static const char *reg_4byte[] = {
   "eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp",
   "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d",
   "DWORD PTR [rax]"
 };
 
-const char *reg_2byte[] = {
+static const char *reg_2byte[] = {
   "ax", "bx", "cx", "dx", "si", "di", "bp", "sp",
   "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w",
   "WORD PTR [rax]"
 };
 
-const char *reg_1byte[] = {
+static const char *reg_1byte[] = {
   "al", "bl", "cl", "dl", "sil", "dil", "bpl", "spl",
   "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b",
   "BYTE PTR [rax]"
@@ -37,7 +37,7 @@ const char *reg_1byte[] = {
 
 void compile_node(Node *node);
 
-const char *get_reg(RegKind reg, int reg_size) {
+static const char *get_reg(RegKind reg, int reg_size) {
   switch (reg_size) {
     case 1:
       return reg_1byte[reg];
@@ -89,7 +89,6 @@ void gen_emptypop(int num) {
   push_cnt -= num;
   printf("  add rsp, %d\n", num * 8);
 }
-
 
 // OP_MOV: left_reg = right_reg
 // OP_MOVSX: left_reg = right_reg (Move with Sign-Extension, Size of left_reg is REG_SIZE_4)
@@ -233,10 +232,8 @@ void gen_assignable_address(Node *node) {
   }
 }
 
+// Right to left
 void expand_assign(Node *node) {
-  // The left node must be assignable.
-  gen_assignable_address(node->lhs);
-  gen_push(REG_RAX);
   switch (node->rhs->kind) {
     case ND_ASSIGN:
       expand_assign(node->rhs);
@@ -245,7 +242,10 @@ void expand_assign(Node *node) {
       compile_node(node->rhs);
       gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
   }
-  gen_pop(REG_RAX);
+  gen_push(REG_RDI);
+  // The left node must be assignable.
+  gen_assignable_address(node->lhs);
+  gen_pop(REG_RDI);
   int reg_size = get_type_size(node->lhs->equation_type);
 
   switch (node->assign_type) {
