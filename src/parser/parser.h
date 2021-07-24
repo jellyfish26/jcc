@@ -54,14 +54,15 @@ typedef enum {
   ND_SUFFIX_DEC,  // Suffix decrement
   ND_SIZEOF,      // "sizeof"
   ND_INT,         // Number (int)
+  ND_CAST,        // Cast
 } NodeKind;
 
 struct Node {
   NodeKind kind; // Type of Node
   Node *lhs;     // Left side node
   Node *rhs;     // Right side node
+  Type *type;
 
-  Type *equation_type; // Size of equation
   Obj *use_var; // Use target
   bool is_var_define_only;
 
@@ -109,13 +110,12 @@ struct Function {
 
 // Define in order of decreasing size
 typedef enum {
-  TY_STR,   // String literal type
   TY_CHAR,  // "char" type
   TY_SHORT, // "short" type
   TY_INT,   // "int" type
   TY_LONG,  // "long" type
-  TY_ADDR,  // Address value
   TY_PTR,   // Pointer type
+  TY_STR,   // String literal type
   TY_ARRAY, // Array type
 } TypeKind;
 

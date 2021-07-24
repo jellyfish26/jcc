@@ -6,7 +6,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-Type *compare_type(Type *left, Type *right) {
+
+// if type size left < right is true
+// other is false
+static bool comp_type(Type *left, Type *right) {
+  if (left == NULL || right == NULL) {
+    return false;
+  }
+  if (left->kind < right->kind) {
+    return true;
+  }
+  return false;
+}
+
+static Type *compare_type(Type *left, Type *right) {
   if (left == NULL || right == NULL) {
     if (left < right) {
       return right;
@@ -19,31 +32,57 @@ Type *compare_type(Type *left, Type *right) {
   return left;
 }
 
-Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
+static Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = kind;
   ret->lhs = lhs;
   ret->rhs = rhs;
-  if (lhs != NULL && rhs != NULL) {
-    ret->equation_type = compare_type(lhs->equation_type, rhs->equation_type);
-  } else if (lhs != NULL) {
-    ret->equation_type = lhs->equation_type;
-  } else if (rhs != NULL) {
-    ret->equation_type = rhs->equation_type;
+
+  if (kind == ND_ASSIGN) {
+    ret->type = lhs->type;
+    return ret;
+  }
+
+  // Check ptr type
+  if (lhs != NULL && lhs->type->kind >= TY_PTR) {
+    ret->type = lhs->type;
+    return ret;
+  }
+  if (rhs != NULL && rhs->type->kind >= TY_PTR) {
+    ret->type = rhs->type;
+    return ret;
+  }
+
+  // Implicit type conversion
+  if (lhs == NULL || rhs == NULL) {
+    if (lhs != NULL) ret->type = lhs->type;
+    if (rhs != NULL) ret->type = rhs->type;
+  } else {
+    if (comp_type(lhs->type, rhs->type)) {
+      ret->lhs = new_node(ND_CAST, ret->lhs, NULL);
+      ret->type = rhs->type;
+      ret->lhs->type = rhs->type;
+    } else if (lhs->type->kind != rhs->type->kind) {
+      ret->rhs = new_node(ND_CAST, ret->rhs, NULL);
+      ret->type = lhs->type;
+      ret->rhs->type = lhs->type;
+    } else {
+      ret->type = lhs->type;
+    }
   }
   return ret;
 }
 
-Node *new_node_num(int val) {
+static Node *new_num(int val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->val = val;
-  ret->equation_type = new_type(TY_INT, false);
+  ret->type = new_type(TY_INT, false);
   return ret;
 }
 
 // kind is ND_ASSIGN if operation only assign
-Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
+static Node *new_assign(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = new_node(ND_ASSIGN, lhs, rhs);
   ret->assign_type = kind;
   return ret;
@@ -51,21 +90,21 @@ Node *new_assign_node(NodeKind kind, Node *lhs, Node *rhs) {
 
 static Type *get_type(Token *tkn, Token **end_tkn) {
   if (consume(tkn, &tkn, TK_KEYWORD, "char")) {
-    *end_tkn = tkn;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return new_type(TY_CHAR, true);
   }
   if (consume(tkn, &tkn, TK_KEYWORD, "short")) {
-    *end_tkn = tkn;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return new_type(TY_SHORT, true);
   }
   if (consume(tkn, &tkn, TK_KEYWORD, "int")) {
-    *end_tkn = tkn;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return new_type(TY_INT, true);
   }
   if (consume(tkn, &tkn, TK_KEYWORD, "long")) {
     while (consume(tkn, &tkn, TK_KEYWORD, "long"));
     consume(tkn, &tkn, TK_KEYWORD, "int");
-    *end_tkn = tkn;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return new_type(TY_LONG, true);
   }
   return NULL;
@@ -73,7 +112,7 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
 
 void link_var_to_node(Node *target, Obj *var) {
   target->use_var = var;
-  target->equation_type = var->type;
+  target->type = var->type;
 }
 
 Node *last_stmt(Node *now) {
@@ -100,6 +139,7 @@ static Node *size_comp(Token *tkn, Token **end_tkn);
 static Node *bitwise_shift(Token *tkn, Token **end_tkn);
 static Node *add(Token *tkn, Token **end_tkn);
 static Node *mul(Token *tkn, Token **end_tkn);
+static Node *cast(Token *tkn, Token **end_tkn);
 static Node *unary(Token *tkn, Token **end_tkn);
 static Node *address_op(Token *tkn, Token **end_tkn);
 static Node *indirection(Token *tkn, Token **end_tkn);
@@ -326,13 +366,11 @@ Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     inside_roop = ret;
 
     if (!consume(tkn, &tkn, TK_PUNCT, "(")) {
-      errorf_tkn(ER_COMPILE, tkn,
-                "While statement must start with \"(\".");
+      errorf_tkn(ER_COMPILE, tkn, "While statement must start with \"(\".");
     }
     ret->judge = assign(tkn, &tkn);
     if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
-      errorf_tkn(ER_COMPILE, tkn,
-                "While statement must end with \")\".");
+      errorf_tkn(ER_COMPILE, tkn, "While statement must end with \")\".");
     }
     ret->stmt_for = statement(tkn, &tkn, false);
 
@@ -476,7 +514,7 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   }
 
   if (consume(tkn, &tkn, TK_PUNCT, "=")) {
-    ret = new_assign_node(ND_ASSIGN, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_ASSIGN, ret, assign(tkn, &tkn));
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
@@ -490,27 +528,27 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   Node *ret = ternary(tkn, &tkn);
 
   if (consume(tkn, &tkn, TK_PUNCT, "=")) {
-    ret = new_assign_node(ND_ASSIGN, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_ASSIGN, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "+=")) {
-    ret = new_assign_node(ND_ADD, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_ADD, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "-=")) {
-    ret = new_assign_node(ND_SUB, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_SUB, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "*=")) {
-    ret = new_assign_node(ND_MUL, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_MUL, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "/=")) {
-    ret = new_assign_node(ND_DIV, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_DIV, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "%=")) {
-    ret = new_assign_node(ND_REMAINDER, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_REMAINDER, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "<<=")) {
-    ret = new_assign_node(ND_LEFTSHIFT, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_LEFTSHIFT, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, ">>=")) {
-    ret = new_assign_node(ND_RIGHTSHIFT, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_RIGHTSHIFT, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "&=")) {
-    ret = new_assign_node(ND_BITWISEAND, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_BITWISEAND, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "^=")) {
-    ret = new_assign_node(ND_BITWISEXOR, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_BITWISEXOR, ret, assign(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "|=")) {
-    ret = new_assign_node(ND_BITWISEOR, ret, assign(tkn, &tkn));
+    ret = new_assign(ND_BITWISEOR, ret, assign(tkn, &tkn));
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
@@ -639,9 +677,9 @@ static Node *add(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// mul = unary ("*" mul | "/" mul | "%" mul)?
+// mul =  cast ("*" mul | "/" mul | "%" mul)?
 static Node *mul(Token *tkn, Token **end_tkn) {
-  Node *ret = unary(tkn, &tkn);
+  Node *ret = cast(tkn, &tkn);
   if (consume(tkn, &tkn, TK_PUNCT, "*")) {
     ret = new_node(ND_MUL, ret, mul(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "/")) {
@@ -649,6 +687,29 @@ static Node *mul(Token *tkn, Token **end_tkn) {
   } else if (consume(tkn, &tkn, TK_PUNCT, "%")) {
     ret = new_node(ND_REMAINDER, ret, mul(tkn, &tkn));
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
+}
+
+// cast = ("(" get_type ")") cast |
+//        unary
+static Node *cast(Token *tkn, Token **end_tkn) {
+  if (consume(tkn, NULL, TK_PUNCT, "(")) {
+    if (get_type(tkn->next, NULL) == NULL) {
+      Node *ret = unary(tkn, &tkn);
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return ret;
+    }
+    Type *type = get_type(tkn->next, &tkn);
+    if (!consume(tkn, &tkn, TK_PUNCT, ")")) {
+      errorf_tkn(ER_COMPILE, tkn, "Cast must end with \")\".");
+    }
+    Node *ret = new_node(ND_CAST, cast(tkn, &tkn), NULL);
+    ret->type = type;
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+  Node *ret = unary(tkn, &tkn);
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
@@ -663,9 +724,9 @@ static Node *unary(Token *tkn, Token **end_tkn) {
   }
   Node *ret = NULL;
   if (consume(tkn, &tkn, TK_PUNCT, "+")) {
-    ret = new_node(ND_ADD, new_node_num(0), address_op(tkn, &tkn));
+    ret = new_node(ND_ADD, new_num(0), address_op(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "-")) {
-    ret = new_node(ND_SUB, new_node_num(0), address_op(tkn, &tkn));
+    ret = new_node(ND_SUB, new_num(0), address_op(tkn, &tkn));
   } else if (consume(tkn, &tkn, TK_PUNCT, "!")) {
     ret = new_node(ND_LOGICALNOT, address_op(tkn, &tkn), NULL);
   } else if (consume(tkn, &tkn, TK_PUNCT, "~")) {
@@ -683,9 +744,9 @@ static Node *address_op(Token *tkn, Token **end_tkn) {
   Node *ret = NULL;
   if (consume(tkn, &tkn, TK_PUNCT, "&")) {
     ret = new_node(ND_ADDR, indirection(tkn, &tkn), NULL);
-    Type *addr_type = new_type(TY_ADDR, false);
-    addr_type->content = ret->equation_type;
-    ret->equation_type = addr_type;
+    Type *addr_type = new_type(TY_PTR, false);
+    addr_type->content = ret->type;
+    ret->type = addr_type;
   }
   if (ret == NULL) {
     ret = indirection(tkn, &tkn);
@@ -699,8 +760,8 @@ static Node *indirection(Token *tkn, Token **end_tkn) {
   Node *ret = NULL;
   if (consume(tkn, &tkn, TK_PUNCT, "*")) {
     ret = new_node(ND_CONTENT, indirection(tkn, &tkn), NULL);
-    if (ret->equation_type) {
-      ret->equation_type = ret->equation_type->content;
+    if (ret->type) {
+      ret->type = ret->type->content;
     }
   }
   if (ret == NULL) {
@@ -783,6 +844,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
     if (consume(tkn, &tkn, TK_PUNCT, "(")) {
       Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
       ret->func = new_obj(new_type(TY_INT, false), ident->str, ident->str_len); // (Warn: Temporary type)
+      ret->type = ret->func->type;
 
       if (consume(tkn, &tkn, TK_PUNCT, ")")) {
         if (*end_tkn != NULL) *end_tkn = tkn;
@@ -822,7 +884,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
         ret = new_node(ND_ADD, ret, assign(tkn, &tkn));
 
         ret = new_node(ND_CONTENT, ret, NULL);
-        ret->equation_type = ret->equation_type->content;
+        ret->type = ret->type->content;
         if (!consume(tkn, &tkn, TK_PUNCT, "]")) {
           errorf_tkn(ER_COMPILE, tkn, "Must use \"[\".");
         }
@@ -840,11 +902,11 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 static Node *num(Token *tkn, Token **end_tkn) {
   if (consume(tkn, NULL, TK_NUM_INT, NULL)) {
     if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_node_num(tkn->val);
+    return new_num(tkn->val);
   }
   if (!consume(tkn, NULL, TK_CHAR, NULL)) {
     errorf_tkn(ER_COMPILE, tkn, "Not value.");
   }
   if (end_tkn != NULL) *end_tkn = tkn->next;
-  return new_node_num(tkn->c_lit);
+  return new_num(tkn->c_lit);
 }

@@ -22,7 +22,6 @@ Type *new_type(TypeKind kind, bool is_real) {
     case TY_STR:
     case TY_LONG:
     case TY_PTR:
-    case TY_ADDR:
       ret->var_size = 8;
       break;
     default:

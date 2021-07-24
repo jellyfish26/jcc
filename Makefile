@@ -11,7 +11,7 @@ ALL: jcc
 $(SRC_OBJS): ./src/*/*.h
 
 jcc:$(SRC_OBJS) $(MAIN_OBJS)
-	$(CC) -o jcc $(SRC_OBJS) $(MAIN_OBJS)
+	$(CC) -g -o jcc $(SRC_OBJS) $(MAIN_OBJS)
 
 compile: 
 	./jcc tmp.c > tmp.s

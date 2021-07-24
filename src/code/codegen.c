@@ -246,7 +246,7 @@ void expand_assign(Node *node) {
   // The left node must be assignable.
   gen_assignable_address(node->lhs);
   gen_pop(REG_RDI);
-  int reg_size = get_type_size(node->lhs->equation_type);
+  int reg_size = get_type_size(node->lhs->type);
 
   switch (node->assign_type) {
     case ND_ADD: {
@@ -348,11 +348,58 @@ const RegKind args_reg[] = {
   REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
 };
 
+static char i16i8[] = "movsx ax, al";
+static char i32i8[] = "movsx eax, al";
+static char i32i16[] = "movsx eax, ax";
+static char i64i8[] = "movsx rax, al";
+static char i64i16[] = "movsx rax, ax";
+static char i64i32[] = "movsxd rax, eax";
+
+static const char *cast_table[][4] = {
+  // i8, i16,   i32,    i64       to/from
+  {NULL, i16i8, i32i8,  i64i8},   // i8
+  {NULL, NULL,  i32i16, i64i16},  // i16
+  {NULL, NULL,  NULL,   i64i32},  // i32
+  {NULL, NULL,  NULL,   NULL}
+};
+
+static int type_to_cast_table_idx(Type *type) {
+  switch (type->kind) {
+    case TY_CHAR:
+      return 0;
+    case TY_SHORT:
+      return 1;
+    case TY_INT:
+      return 2;
+    case TY_LONG:
+      return 3;
+    default:
+      return 0;
+  };
+}
+
+void gen_cast(Node *node) {
+  if (node->kind != ND_CAST) {
+    return;
+  }
+  compile_node(node->lhs);
+  int from = type_to_cast_table_idx(node->lhs->type);
+  int to = type_to_cast_table_idx(node->type);
+  if (cast_table[from][to] != NULL) {
+    printf("  %s\n", cast_table[from][to]);
+  }
+};
+
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
     printf("  mov rax, %d\n", node->val);
     return;
   }
+
+  if (node->kind == ND_CAST) {
+    gen_cast(node);
+    return;
+  } 
 
   if (node->kind == ND_BLOCK) {
     int stack_cnt = push_cnt;
@@ -455,8 +502,8 @@ void compile_node(Node *node) {
     }
     case ND_CONTENT: {
       compile_node(node->lhs);
-      if (node->equation_type->kind != TY_ARRAY) {
-        gen_operation(REG_RAX, REG_MEM, get_type_size(node->equation_type), OP_MOV);
+      if (node->type->kind != TY_ARRAY) {
+        gen_operation(REG_RAX, REG_MEM, get_type_size(node->type), OP_MOV);
       }
       return;
     }
@@ -485,9 +532,9 @@ void compile_node(Node *node) {
       gen_assignable_address(node->lhs);
       printf("  mov rdi, 1\n");
       if (node->kind == ND_PREFIX_INC) {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_ADD);
+        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_ADD);
       } else {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_SUB);
+        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_SUB);
       }
       compile_node(node->lhs);
       return;
@@ -499,16 +546,16 @@ void compile_node(Node *node) {
       gen_assignable_address(node->lhs);
       printf("  mov rdi, 1\n");
       if (node->kind == ND_SUFFIX_INC) {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_ADD);
+        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_ADD);
       } else {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->equation_type), OP_SUB);
+        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_SUB);
       }
       gen_pop(REG_RAX);
       return;
     }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
-      gen_operation(REG_RAX, REG_RAX, get_type_size(node->equation_type), OP_BITWISE_NOT);
+      gen_operation(REG_RAX, REG_RAX, get_type_size(node->type), OP_BITWISE_NOT);
       return;
     }
     case ND_LOGICALNOT: {
@@ -518,7 +565,7 @@ void compile_node(Node *node) {
       return;
     }
     case ND_SIZEOF: {
-      printf("  mov rax, %d\n", node->equation_type->var_size);
+      printf("  mov rax, %d\n", node->type->var_size);
       return;
     }
     default:
@@ -553,17 +600,17 @@ void compile_node(Node *node) {
   gen_pop(REG_RDI);
   gen_pop(REG_RAX);
 
-  if (node->equation_type->kind >= TY_PTR) {
-    printf("  imul rdi, %d\n", node->equation_type->content->var_size);
+  if (node->type->kind >= TY_PTR) {
+    printf("  imul rdi, %d\n", node->type->content->var_size);
   }
 
-  int reg_size = get_type_size(node->equation_type);
+  int reg_size = get_type_size(node->type);
   int min_reg_size = 8;
-  if (node->lhs->equation_type != NULL && min_reg_size > get_type_size(node->lhs->equation_type)) {
-    min_reg_size = get_type_size(node->lhs->equation_type);
+  if (node->lhs->type != NULL && min_reg_size > get_type_size(node->lhs->type)) {
+    min_reg_size = get_type_size(node->lhs->type);
   }
-  if (node->rhs->equation_type != NULL && min_reg_size > get_type_size(node->rhs->equation_type)) {
-    min_reg_size = get_type_size(node->rhs->equation_type);
+  if (node->rhs->type != NULL && min_reg_size > get_type_size(node->rhs->type)) {
+    min_reg_size = get_type_size(node->rhs->type);
   }
 
 
