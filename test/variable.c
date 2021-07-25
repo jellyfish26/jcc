@@ -177,12 +177,5 @@ int main() {
     char *s = "hoge\nhoge";
     *(s + 6);
   }));
-
-  CHECK(4, ({
-    char a = 2;
-    int b = (int)a + 2;
-    b;
-  }));
-
   return 0;
 }

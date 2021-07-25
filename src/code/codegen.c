@@ -354,13 +354,19 @@ static char i32i16[] = "movsx eax, ax";
 static char i64i8[] = "movsx rax, al";
 static char i64i16[] = "movsx rax, ax";
 static char i64i32[] = "movsxd rax, eax";
+static char u16u8[] = "movzx ax, al";
+static char u32u8[] = "movzx eax, al";
+static char u32u16[] = "movzx eax, ax";
+static char u64u8[] = "movzx rax, al";
+static char u64u16[] = "movzx rax, ax";
+static char u64u32[] = "mov eax, eax";
 
 static const char *cast_table[][4] = {
-  // i8, i16,   i32,    i64       to/from
-  {NULL, i16i8, i32i8,  i64i8},   // i8
-  {NULL, NULL,  i32i16, i64i16},  // i16
-  {NULL, NULL,  NULL,   i64i32},  // i32
-  {NULL, NULL,  NULL,   NULL}
+  // i8,  i16,    i32,    i64       to/from
+  {NULL,  i16i8,  i32i8,  i64i8},   // i8
+  {i64i8, NULL,   i32i16, i64i16},  // i16
+  {i64i8, i64i16, NULL,   i64i32},  // i32
+  {i64i8, i64i16, i64i32, NULL}     // i64
 };
 
 static int type_to_cast_table_idx(Type *type) {
