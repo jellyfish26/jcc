@@ -5,10 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-//
-// tokenize.c
-//
-
 typedef enum {
   TK_NUM_INT, // Number (Int)
   TK_PUNCT,   // Punctuators
@@ -24,18 +20,16 @@ typedef struct Token Token;
 struct Token {
   TokenKind kind; // Type of Token
   Token *next;    // Next token
-  char *str;      // Token String
-  int str_len;    // Token length
+
+  char *loc;      // Token String
+  int len;        // Token length
+
   int val;        // Value if kind is TK_NUM_INT
   char c_lit;     // Char literal
   char *str_lit;  // String literal
 };
 
 Token *tokenize(char *file_name);
-
-//
-// error.c
-//
 
 typedef enum {
   ER_COMPILE,  // Compiler Error
@@ -47,9 +41,6 @@ void errorf(ERROR_TYPE type, char *format, ...);
 void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...);
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 
-//
-// operate.c
-//
-
-bool consume(Token *ptr, Token **end_ptr, TokenKind kind, char *op);
+bool equal(Token *tkn, char *op);
+bool consume(Token *tkn, Token **end_tkn, char *op);
 bool is_eof(Token *tkn);

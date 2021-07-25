@@ -6,31 +6,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-char *source_str;
+static char *source_str;
+
+bool equal(Token *tkn, char *op) {
+  return memcmp(tkn->loc, op, tkn->len) == 0 && tkn->len == strlen(op);
+}
 
 // If the token cannot be consumed, false is return value.
 // When a token is consumed, the end_tkn variable
 // will point to the next token.
-bool consume(Token *tkn, Token **end_tkn, TokenKind kind, char *op) {
-  if (tkn->kind != kind) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return false;
+bool consume(Token *tkn, Token **end_tkn, char *op) {
+  if (equal(tkn, op)) {
+    *end_tkn = tkn->next;
+    return true;
   }
-
-  // Panctuator consume or Ketword consume
-  if (kind == TK_PUNCT || kind == TK_KEYWORD) {
-    if (op == NULL) {
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return false;
-    }
-
-    if (tkn->str_len != strlen(op) || memcmp(tkn->str, op, strlen(op))) {
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return false;
-    }
-  }
-  if (end_tkn != NULL) *end_tkn = tkn->next;
-  return true;
+  *end_tkn = tkn;
+  return false;
 }
 
 bool is_eof(Token *tkn) {
@@ -120,22 +111,22 @@ void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...) {
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  errorf_loc(type, tkn->str, tkn->str_len, fmt, ap);
+  errorf_loc(type, tkn->loc, tkn->len, fmt, ap);
 }
 
-Token *new_token(TokenKind kind, Token *connect, char *str, int str_len) {
+static Token *new_token(TokenKind kind, Token *connect, char *loc, int tkn_len) {
   Token *ret = calloc(1, sizeof(Token));
   // printf("%d\n", kind);
   ret->kind = kind;
-  ret->str = str;
-  ret->str_len = str_len;
+  ret->loc = loc;
+  ret->len = tkn_len;
   if (connect) {
     connect->next = ret;
   }
   return ret;
 }
 
-bool is_useable_char(char c) {
+static bool is_useable_char(char c) {
   bool ret = false;
   ret |= ('a' <= c && c <= 'z');
   ret |= ('A' <= c && c <= 'Z');
@@ -143,27 +134,27 @@ bool is_useable_char(char c) {
   return ret;
 }
 
-bool is_ident_char(char c) {
+static bool is_ident_char(char c) {
   return is_useable_char(c) || ('0' <= c && c <= '9');
 }
 
-bool str_check(char *top_str, char *comp_str) {
+static bool str_check(char *top_str, char *comp_str) {
   int comp_len = strlen(comp_str);
   return (strncmp(top_str, comp_str, comp_len) == 0 &&
           !is_ident_char(*(top_str + comp_len)));
 }
 
-char *permit_panct[] = {
+static char *permit_panct[] = {
     "(",   ")",  ";",  "{",  "}",  "[",  "]",  "<<=", "<<", "<=", "<",
     ">>=", ">>", ">=", ">",  "==", "!=", "=",  "++",  "+=", "+",  "--",
     "-=",  "-",  "*=", "*",  "/=", "/",  "%=", "%",   "&=", "&&", "&",
     "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~"};
 
-char *permit_keywords[] = {
+static char *permit_keywords[] = {
   "return", "if", "else", "for", "while", "break", "continue",
   "sizeof", "char", "short", "int", "long"};
 
-char read_char(char *str, char **end_ptr) {
+static char read_char(char *str, char **end_ptr) {
   if (*str == 92) {
     *end_ptr = str + 2;
     switch (*(str + 1)) {
@@ -191,7 +182,7 @@ char read_char(char *str, char **end_ptr) {
   return *str;
 }
 
-char *read_str(char *str, char **end_ptr) {
+static char *read_str(char *str, char **end_ptr) {
   int str_len = 0;
   {
     char *now_loc = str;
@@ -291,7 +282,7 @@ Token *tokenize(char *file_name) {
       char *s_pos = now_str;
       ret = new_token(TK_STR, ret, now_str, 0);
       ret->str_lit = read_str(now_str + 1, &now_str);
-      ret->str_len = (now_str - s_pos) - 2;
+      ret->len = (now_str - s_pos) - 2;
       if (*now_str != '"') {
         errorf_loc(ER_COMPILE, now_str, 1, "The string must end with \".");
       }
@@ -318,7 +309,7 @@ Token *tokenize(char *file_name) {
       char *tmp = now_str;
       ret = new_token(TK_NUM_INT, ret, now_str, now_str - tmp);
       ret->val = strtol(now_str, &now_str, 10);
-      ret->str_len = now_str - tmp;
+      ret->len = now_str - tmp;
       continue;
     }
 

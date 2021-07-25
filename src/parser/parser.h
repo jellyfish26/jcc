@@ -149,7 +149,7 @@ struct Obj {
   Node *args;
 };
 
-Obj *new_obj(Type *type, char *name, int name_len);
+Obj *new_obj(Type *type, char *name);
 
 struct ScopeObj {
   int depth; // Scope depth -> 0 is general, over 1 is local
@@ -166,6 +166,6 @@ void new_scope_definition();
 void out_scope_definition();
 void add_lvar(Obj *var);
 void add_gvar(Obj *var);
-Obj *find_var(char *name, int name_len);
-bool check_already_define(char *name, int name_len, bool is_global);
+Obj *find_var(char *name);
+bool check_already_define(char *name, bool is_global);
 int init_offset();

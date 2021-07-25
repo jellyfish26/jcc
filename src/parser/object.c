@@ -46,7 +46,8 @@ Type *array_to(Type *type, int dim_size) {
   return ret;
 }
 
-Obj *new_obj(Type *type, char *name, int name_len) {
+Obj *new_obj(Type *type, char *name) {
+  int name_len = strlen(name);
   Obj *ret = calloc(1, sizeof(Obj));
   ret->type = type;
   if (ret->type == NULL) {
@@ -108,7 +109,8 @@ void add_gvar(Obj *var) {
   gvars = var;
 }
 
-Obj *find_var(char *name, int name_len) {
+Obj *find_var(char *name) {
+  int name_len = strlen(name);
   // Find in local variable
   for (ScopeObj *now_scope = lvars; now_scope != NULL; now_scope = now_scope->upper) {
     for (Obj *obj = now_scope->objs; obj != NULL; obj = obj->next) {
@@ -149,7 +151,8 @@ int init_offset() {
   return now_address;
 }
 
-bool check_already_define(char *name, int name_len, bool is_global) {
+bool check_already_define(char *name, bool is_global) {
+  int name_len = strlen(name);
   if (is_global) {
      for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
       if (gvar->name_len != name_len) {
