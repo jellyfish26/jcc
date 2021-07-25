@@ -31,64 +31,28 @@ static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
 
-// if type size left < right is true
-// other is false
-static bool comp_type(Type *left, Type *right) {
-  if (left == NULL || right == NULL) {
-    return false;
-  }
-  if (left->kind < right->kind) {
-    return true;
-  }
-  return false;
-}
 
-static Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
+Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = kind;
   ret->lhs = lhs;
   ret->rhs = rhs;
-
-  if (kind == ND_ASSIGN) {
-    ret->type = lhs->type;
-    return ret;
-  }
-
-  // Check ptr type
-  if (lhs != NULL && lhs->type->kind >= TY_PTR) {
-    ret->type = lhs->type;
-    return ret;
-  }
-  if (rhs != NULL && rhs->type->kind >= TY_PTR) {
-    ret->type = rhs->type;
-    return ret;
-  }
-
-  // Implicit type conversion
-  if (lhs == NULL || rhs == NULL) {
-    if (lhs != NULL) ret->type = lhs->type;
-    if (rhs != NULL) ret->type = rhs->type;
-  } else {
-    if (comp_type(lhs->type, rhs->type)) {
-      ret->lhs = new_node(ND_CAST, ret->lhs, NULL);
-      ret->type = rhs->type;
-      ret->lhs->type = rhs->type;
-    } else if (lhs->type->kind != rhs->type->kind) {
-      ret->rhs = new_node(ND_CAST, ret->rhs, NULL);
-      ret->type = lhs->type;
-      ret->rhs->type = lhs->type;
-    } else {
-      ret->type = lhs->type;
-    }
-  }
   return ret;
 }
 
-static Node *new_num(int val) {
+Node *new_num(int val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->val = val;
   ret->type = new_type(TY_INT, false);
+  return ret;
+}
+
+Node *new_cast(Node *lhs, Type *type) {
+  Node *ret = new_node(ND_CAST, NULL, NULL);
+  ret->lhs = lhs;
+  add_type(ret);
+  ret->type = type;
   return ret;
 }
 
@@ -123,7 +87,7 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
 
 static void link_var_to_node(Node *target, Obj *var) {
   target->use_var = var;
-  target->type = var->type;
+  add_type(target);
 }
 
 static Node *last_stmt(Node *now) {
@@ -552,6 +516,7 @@ static Node *assign(Token *tkn, Token **end_tkn) {
     ret = new_assign(ND_BITWISEOR, ret, assign(tkn, &tkn));
   }
   if (end_tkn != NULL) *end_tkn = tkn;
+  add_type(ret);
   return ret;
 }
 
@@ -705,8 +670,7 @@ static Node *cast(Token *tkn, Token **end_tkn) {
     if (!consume(tkn, &tkn, ")")) {
       errorf_tkn(ER_COMPILE, tkn, "Cast must end with \")\".");
     }
-    Node *ret = new_node(ND_CAST, cast(tkn, &tkn), NULL);
-    ret->type = type;
+    Node *ret = new_cast(cast(tkn, &tkn), type);
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
@@ -745,9 +709,6 @@ static Node *address_op(Token *tkn, Token **end_tkn) {
   Node *ret = NULL;
   if (consume(tkn, &tkn, "&")) {
     ret = new_node(ND_ADDR, indirection(tkn, &tkn), NULL);
-    Type *addr_type = new_type(TY_PTR, false);
-    addr_type->content = ret->type;
-    ret->type = addr_type;
   }
   if (ret == NULL) {
     ret = indirection(tkn, &tkn);
@@ -761,9 +722,6 @@ static Node *indirection(Token *tkn, Token **end_tkn) {
   Node *ret = NULL;
   if (consume(tkn, &tkn, "*")) {
     ret = new_node(ND_CONTENT, indirection(tkn, &tkn), NULL);
-    if (ret->type) {
-      ret->type = ret->type->content;
-    }
   }
   if (ret == NULL) {
     ret = increment_and_decrement(tkn, &tkn);
@@ -885,7 +843,6 @@ static Node *priority(Token *tkn, Token **end_tkn) {
         ret = new_node(ND_ADD, ret, assign(tkn, &tkn));
 
         ret = new_node(ND_CONTENT, ret, NULL);
-        ret->type = ret->type->content;
         if (!consume(tkn, &tkn, "]")) {
           errorf_tkn(ER_COMPILE, tkn, "Must use \"[\".");
         }

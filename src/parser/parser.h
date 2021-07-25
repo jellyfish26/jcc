@@ -88,6 +88,9 @@ struct Node {
   int str_lit_label;
 };
 
+Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
+Node *new_num(int val);
+Node *new_cast(Node *lhs, Type *type);
 Function *program(Token *tkn);
 
 struct Function {
@@ -131,6 +134,7 @@ struct Type {
 Type *new_type(TypeKind kind, bool is_real);
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int dim_size);
+void add_type(Node *node);
 
 // Variable or Function
 struct Obj {

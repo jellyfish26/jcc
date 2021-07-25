@@ -178,3 +178,103 @@ bool check_already_define(char *name, bool is_global) {
   }
   return false;
 }
+
+// if type size left < right is true
+// other is false
+static bool comp_type(Type *left, Type *right) {
+  if (left == NULL || right == NULL) {
+    return false;
+  }
+  if (left->kind < right->kind) {
+    return true;
+  }
+  return false;
+}
+
+static void implicit_cast(Node **lhs, Node **rhs) {
+  Type *type = comp_type((*lhs)->type, (*rhs)->type) ? (*rhs)->type : (*lhs)->type;
+  *lhs = new_cast(*lhs, type);
+  *rhs = new_cast(*rhs, type);
+}
+
+void add_type(Node *node) {
+  if (node == NULL || node->type != NULL) return;
+
+  add_type(node->lhs);
+  add_type(node->rhs);
+  add_type(node->judge);
+  add_type(node->exec_if);
+  add_type(node->exec_else);
+  add_type(node->init_for);
+  add_type(node->repeat_for);
+  add_type(node->stmt_for);
+  add_type(node->next_stmt);
+  add_type(node->next_block);
+
+  switch (node->kind) {
+    case ND_VAR:
+      node->type = node->use_var->type;
+      return;
+    case ND_ADD:
+    case ND_SUB:
+    case ND_MUL:
+    case ND_DIV:
+    case ND_REMAINDER:
+    case ND_LEFTSHIFT:
+    case ND_RIGHTSHIFT:
+    case ND_BITWISEAND:
+    case ND_BITWISEOR:
+    case ND_BITWISEXOR:
+    case ND_TERNARY:
+      if (node->lhs->type != NULL && node->lhs->type->kind >= TY_PTR) {
+        node->type = node->lhs->type;
+        return;
+      }
+      if (node->rhs->type != NULL && node->rhs->type->kind >= TY_PTR) {
+        node->type = node->rhs->type;
+        return;
+      }
+      implicit_cast(&node->lhs, &node->rhs);
+      node->type = node->lhs->type;
+      return;
+    case ND_BITWISENOT:
+    case ND_ASSIGN:
+    case ND_PREFIX_DEC:
+    case ND_PREFIX_INC:
+    case ND_SUFFIX_DEC:
+    case ND_SUFFIX_INC:
+    case ND_SIZEOF:
+      node->type = node->lhs->type;
+      return;
+    case ND_EQ:
+    case ND_NEQ:
+    case ND_LC:
+    case ND_LEC:
+    case ND_RC:
+    case ND_REC:
+    case ND_LOGICALAND:
+    case ND_LOGICALOR:
+    case ND_LOGICALNOT:
+    case ND_INT:
+      node->type = new_type(TY_INT, false);
+      return;
+    case ND_ADDR: {
+      Type *type = new_type(TY_PTR, false);
+      type->content = node->lhs->type;
+      node->type = type;
+      return;
+    }
+    case ND_CONTENT: {
+      node->type = node->lhs->type;
+      if (node->type != NULL) {
+        node->type = node->type->content;
+      }
+      return;
+    }
+    case ND_FUNCCALL:
+      node->type = node->func->type;
+    default:
+      if (node->lhs != NULL) node->type = node->lhs->type;
+      if (node->rhs != NULL) node->type = node->rhs->type;
+  }
+}
