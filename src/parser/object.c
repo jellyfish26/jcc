@@ -47,13 +47,14 @@ Type *array_to(Type *type, int dim_size) {
 }
 
 Obj *new_obj(Type *type, char *name) {
+  if (type == NULL) {
+    return NULL;
+  }
   int name_len = strlen(name);
   Obj *ret = calloc(1, sizeof(Obj));
   ret->type = type;
-  if (ret->type == NULL) {
-    return NULL;
-  }
-  ret->name = name;
+  ret->name = calloc(name_len + 1, sizeof(char));
+  memcpy(ret->name, name, name_len);
   ret->name_len = name_len;
   return ret;
 }

@@ -56,6 +56,13 @@ Node *new_cast(Node *lhs, Type *type) {
   return ret;
 }
 
+Node *new_var(Obj *obj) {
+  Node *ret = new_node(ND_VAR, NULL, NULL);
+  ret->use_var = obj;
+  ret->type = obj->type;
+  return ret;
+}
+
 // kind is ND_ASSIGN if operation only assign
 static Node *new_assign(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = new_node(ND_ASSIGN, lhs, rhs);
@@ -83,11 +90,6 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     return new_type(TY_LONG, true);
   }
   return NULL;
-}
-
-static void link_var_to_node(Node *target, Obj *var) {
-  target->use_var = var;
-  add_type(target);
 }
 
 static Node *last_stmt(Node *now) {
@@ -182,9 +184,10 @@ static bool function(Function *func, Token *tkn, Token **end_tkn) {
         }
         Obj *lvar = new_obj(arg_type, define_ident);
         add_lvar(lvar);
-        func->func_args = new_node(ND_VAR, func->func_args, NULL);
+        Node *arg = new_var(lvar);
+        arg->lhs = func->func_args;
+        func->func_args = arg;
         func->func_args->is_var_define_only = true;
-        link_var_to_node(func->func_args, lvar);
         func->func_argc++;
       } else {
         errorf_tkn(ER_COMPILE, tkn, "Must declare variable.");
@@ -469,9 +472,8 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   for (int i = 0; i < ptr_cnt; ++i) {
     var->type = pointer_to(var->type);
   }
-  Node *ret = new_node(ND_VAR, NULL, NULL);
+  Node *ret = new_var(var);
   ret->is_var_define_only = true;
-  link_var_to_node(ret, var);
   if (is_global) {
     add_gvar(var);
   } else {
@@ -788,9 +790,8 @@ static Node *priority(Token *tkn, Token **end_tkn) {
   if (tkn->kind == TK_STR) {
     Obj *var = new_obj(new_type(TY_STR, false), tkn->str_lit);
     tkn = tkn->next;
-    Node *ret = new_node(ND_VAR, NULL, NULL);
+    Node *ret = new_var(var);
     ret->is_var_define_only = false;
-    link_var_to_node(ret, var);
     add_gvar(var);
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
@@ -798,8 +799,8 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 
   char *ident = get_ident(tkn);
   if (ident != NULL) {
-    tkn = tkn->next;
     // function call
+    tkn = tkn->next;
     if (consume(tkn, &tkn, "(")) {
       Node *ret = new_node(ND_FUNCCALL, NULL, NULL);
       ret->func = new_obj(new_type(TY_INT, false), ident); // (Warn: Temporary type)
@@ -836,9 +837,8 @@ static Node *priority(Token *tkn, Token **end_tkn) {
       if (use_var == NULL) {
         errorf_tkn(ER_COMPILE, tkn, "This variable is not definition.");
       }
-      Node *ret = new_node(ND_VAR, NULL, NULL);
+      Node *ret = new_var(use_var);
       ret->is_var_define_only = false;
-      link_var_to_node(ret, use_var);
       while (consume(tkn, &tkn, "[")) {
         ret = new_node(ND_ADD, ret, assign(tkn, &tkn));
 
