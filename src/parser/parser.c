@@ -115,24 +115,16 @@ Function *program(Token *tkn) {
   gvars = NULL;
   used_vars = NULL;
   Function head;
-  Function *end = NULL;
-  while (!is_eof(tkn)) {
-    if (end != NULL) {
+  Function *end = calloc(1, sizeof(Function));
+  head.next = end;
+  while (true) {
+    if (function(end, tkn, &tkn)) {
       end->next = calloc(1, sizeof(Function));
-      if (function(end->next, tkn, &tkn)) {
-        end = end->next;
-      } else {
-        end->next = NULL;
-      }
-    } else {
-      end = calloc(1, sizeof(Function));
-      if (function(end, tkn, &tkn)) {
-        head.next = end;
-      } else {
-        end = NULL;
-      }
     }
+    if (is_eof(tkn)) break;
+    if (end->next != NULL) end = end->next;
   }
+  end->next = NULL;
   return head.next;
 }
 
