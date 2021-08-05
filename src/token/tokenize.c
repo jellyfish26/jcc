@@ -156,7 +156,7 @@ static char *permit_panct[] = {
 
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "while", "break", "continue",
-  "sizeof", "char", "short", "int", "long"};
+  "sizeof", "void", "char", "short", "int", "long"};
 
 static char read_char(char *str, char **end_ptr) {
   if (*str == 92) {

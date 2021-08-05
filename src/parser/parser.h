@@ -113,6 +113,7 @@ struct Function {
 
 // Define in order of decreasing size
 typedef enum {
+  TY_VOID,  // "void" type
   TY_CHAR,  // "char" type
   TY_SHORT, // "short" type
   TY_INT,   // "int" type

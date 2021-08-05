@@ -51,5 +51,14 @@ int main() {
     ans = ans + a[2][2];
   ans;
   }));
+
+  // Warn cast error. TO DO fix
+  // CHECK(8, ({
+  //   int a = 3, b = 5;
+  //   void *c = &a;
+  //   int ans = *((int*)c);
+  //   ans += b;
+  //   ans;
+  // }));
   return 0;
 }

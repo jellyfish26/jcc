@@ -10,6 +10,9 @@ Type *new_type(TypeKind kind, bool is_real) {
   ret->kind = kind;
   ret->is_real = is_real;
   switch(kind) {
+    case TY_VOID:
+      ret->var_size = 0;
+      break;
     case TY_CHAR:
       ret->var_size = 1;
       break;

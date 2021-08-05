@@ -71,7 +71,7 @@ static Node *new_assign(NodeKind kind, Node *lhs, Node *rhs) {
 }
 
 char *typename[] = {
-  "char", "short", "int", "long"
+  "void", "char", "short", "int", "long"
 };
 
 static bool is_typename(Token *tkn) {
@@ -90,10 +90,11 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
   // and the high bit are 1.
   // Otherwise, we have a duplicate when the high is 1.
   enum {
-    CHAR  = 1 << 0,
-    SHORT = 1 << 2,
-    INT   = 1 << 4,
-    LONG  = 1 << 6,
+    VOID  = 1 << 0,
+    CHAR  = 1 << 2,
+    SHORT = 1 << 4,
+    INT   = 1 << 6,
+    LONG  = 1 << 8,
   };
   
   int type_cnt = 0;
@@ -101,7 +102,9 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
   while (is_typename(tkn)) {
 
     // Counting Types
-    if (equal(tkn, "char")) {
+    if (equal(tkn,"void")) {
+      type_cnt += VOID;
+    } else if (equal(tkn, "char")) {
       type_cnt += CHAR;
     } else if (equal(tkn, "short")) {
       type_cnt += SHORT;
@@ -122,7 +125,7 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     }
     // Check long
     if (((LONG * 3)&type_cnt) == (LONG * 3)) {
-      dup_type = typename[3];
+      dup_type = "long";
     }
 
     if (dup_type != NULL) {
@@ -130,6 +133,9 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     }
 
     switch (type_cnt) {
+      case VOID:
+        ret = new_type(TY_VOID, false);
+        break;
       case CHAR:
         ret = new_type(TY_CHAR, true);
         break;
@@ -480,6 +486,10 @@ static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool i
   int ptr_cnt = 0;
   while (consume(tkn, &tkn, "*")) {
     ++ptr_cnt;
+  }
+
+  if (ptr_cnt == 0 && define_type->kind == TY_VOID) {
+    errorf_tkn(ER_COMPILE, tkn, "Cannot define a variable of type void.");
   }
 
   char *ident = get_ident(tkn);

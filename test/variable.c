@@ -187,5 +187,10 @@ int main() {
     short int a = 2514;
     a;
   }));
+
+  CHECK(2514, ({
+    void* a = 2514;
+    a;
+  }));
   return 0;
 }
