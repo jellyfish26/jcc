@@ -70,26 +70,90 @@ static Node *new_assign(NodeKind kind, Node *lhs, Node *rhs) {
   return ret;
 }
 
+char *typename[] = {
+  "char", "short", "int", "long"
+};
+
+static bool is_typename(Token *tkn) {
+  for (int i = 0; i < sizeof(typename) / sizeof(char *); i++) {
+    if (equal(tkn, typename[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static Type *get_type(Token *tkn, Token **end_tkn) {
-  if (consume(tkn, &tkn, "char")) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return new_type(TY_CHAR, true);
+  // We replace the type with a number and count it,
+  // which makes it easier to detect duplicates and types.
+  // If typename is 'long', we have a duplicate when the long bit
+  // and the high bit are 1.
+  // Otherwise, we have a duplicate when the high is 1.
+  enum {
+    CHAR  = 1 << 0,
+    SHORT = 1 << 2,
+    INT   = 1 << 4,
+    LONG  = 1 << 6,
+  };
+  
+  int type_cnt = 0;
+  Type *ret = NULL;
+  while (is_typename(tkn)) {
+
+    // Counting Types
+    if (equal(tkn, "char")) {
+      type_cnt += CHAR;
+    } else if (equal(tkn, "short")) {
+      type_cnt += SHORT;
+    } else if (equal(tkn, "int")) {
+      type_cnt += INT;
+    } else if (equal(tkn, "long")) {
+      type_cnt += LONG;
+    }
+
+    // Detect duplicates
+    char *dup_type = NULL;
+
+    // Avoid check long (so, range -1)
+    for (int i = 0; i < (sizeof(typename) / sizeof(char *)) - 1; i++) {
+      if (((type_cnt>>(i * 2 + 1))&1) == 1) {
+        dup_type = typename[i];
+      }
+    }
+    // Check long
+    if (((LONG * 3)&type_cnt) == (LONG * 3)) {
+      dup_type = typename[3];
+    }
+
+    if (dup_type != NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Duplicate declaration of '%s'", dup_type);
+    }
+
+    switch (type_cnt) {
+      case CHAR:
+        ret = new_type(TY_CHAR, true);
+        break;
+      case SHORT:
+      case SHORT + INT:
+        ret = new_type(TY_SHORT, true);
+        break;
+      case INT:
+        ret = new_type(TY_INT, true);
+        break;
+      case LONG:
+      case LONG + INT:
+      case LONG + LONG:
+      case LONG + LONG + INT:
+        ret = new_type(TY_LONG, true);
+        break;
+      default:
+        errorf_tkn(ER_COMPILE, tkn, "Invalid type");
+    }
+    tkn = tkn->next;
   }
-  if (consume(tkn, &tkn, "short")) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return new_type(TY_SHORT, true);
-  }
-  if (consume(tkn, &tkn, "int")) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return new_type(TY_INT, true);
-  }
-  if (consume(tkn, &tkn, "long")) {
-    while (consume(tkn, &tkn, "long"));
-    consume(tkn, &tkn, "int");
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return new_type(TY_LONG, true);
-  }
-  return NULL;
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
 }
 
 static Node *last_stmt(Node *now) {

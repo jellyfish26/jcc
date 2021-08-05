@@ -53,9 +53,7 @@ void errorf(ERROR_TYPE type, char *fmt, ...) {
   exit(1);
 }
 
-void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
+static void errorf_at(ERROR_TYPE type, char *loc, int underline_len, char *fmt, va_list ap) {
   char *err_type;
   switch (type) {
     case ER_TOKENIZE:
@@ -108,10 +106,16 @@ void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...) {
   exit(1);
 }
 
+void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  errorf_at(type, loc, underline_len, fmt, ap);
+}
+
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  errorf_loc(type, tkn->loc, tkn->len, fmt, ap);
+  errorf_at(type, tkn->loc, tkn->len, fmt, ap);
 }
 
 static Token *new_token(TokenKind kind, Token *connect, char *loc, int tkn_len) {

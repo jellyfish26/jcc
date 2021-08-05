@@ -177,5 +177,15 @@ int main() {
     char *s = "hoge\nhoge";
     *(s + 6);
   }));
+
+  CHECK(5234214, ({
+    long int long a = 5234214;
+    a;
+  }));
+
+  CHECK(2514, ({
+    short int a = 2514;
+    a;
+  }));
   return 0;
 }
