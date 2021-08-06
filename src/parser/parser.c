@@ -9,8 +9,7 @@
 // Prototype
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
-static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
-static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
+static Node *declarations(Token *tkn, Token**end_tkn, bool is_global);
 static Node *assign(Token *tkn, Token **end_tkn);
 static Node *ternary(Token *tkn, Token **end_tkn);
 static Node *logical_or(Token *tkn, Token **end_tkn);
@@ -81,6 +80,16 @@ static bool is_typename(Token *tkn) {
     }
   }
   return false;
+}
+
+// If not ident, return NULL.
+static char *get_ident(Token *tkn) {
+  if (tkn->kind != TK_IDENT) {
+    return NULL;
+  }
+  char *ret = calloc(tkn->len + 1, sizeof(char));
+  memcpy(ret, tkn->loc, tkn->len);
+  return ret;
 }
 
 static Type *get_type(Token *tkn, Token **end_tkn) {
@@ -162,21 +171,71 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
+// pointers = ("*")*
+static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
+  while (consume(tkn, &tkn, "*")) {
+    ty = pointer_to(ty);
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+// arrays = "[" num "]" arrays?
+static Type *arrays(Token *tkn, Token **end_tkn, Type *ty) {
+  if (!consume(tkn, &tkn, "[")) {
+    return ty;
+  }
+  if (tkn->kind != TK_NUM_INT) {
+    errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
+  }
+  int val = tkn->val;
+  tkn = tkn->next;
+  if (!consume(tkn, &tkn, "]")) {
+    errorf_tkn(ER_COMPILE, tkn, "Must end ]");
+  }
+  ty = arrays(tkn, &tkn, ty);
+
+  Type *ret = array_to(ty, val);
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
+}
+
+// declare = get_type pointers? ident arrays?
+static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
+  ty = pointers(tkn, &tkn, ty);
+  char *ident = get_ident(tkn);
+  if (ident == NULL) {
+    errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
+  }
+  tkn = tkn->next;
+  ty = arrays(tkn, &tkn, ty);
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return new_obj(ty, ident);
+}
+
+// declarator = declare ("=" assign)?
+// Return NULL if cannot be declared.
+static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
+  Obj *var = declare(tkn, &tkn, ty);
+  if (is_global) {
+    add_gvar(var);
+  } else {
+    add_lvar(var);
+  }
+  Node *ret = new_var(var);
+  if (consume(tkn, &tkn, "=")) {
+    ret = new_assign(ND_ASSIGN, ret, assign(tkn, &tkn));
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
+}
+
 static Node *last_stmt(Node *now) {
   while (now->next_stmt) {
     now = now->next_stmt;
   }
   return now;
-}
-
-// If not ident, return NULL.
-static char *get_ident(Token *tkn) {
-  if (tkn->kind != TK_IDENT) {
-    return NULL;
-  }
-  char *ret = calloc(tkn->len + 1, sizeof(char));
-  memcpy(ret, tkn->loc, tkn->len);
-  return ret;
 }
 
 Node *program(Token *tkn) {
@@ -200,8 +259,8 @@ Node *program(Token *tkn) {
   return head.lhs;
 }
 
-// topmost= get_type ident "(" params?")" statement |
-//            get_type ident ("," ident)*
+// topmost = get_type ident "(" params?")" statement |
+//           declarations ";"
 // params = get_type ident ("," get_type ident)*
 static Node *topmost(Token *tkn, Token **end_tkn) {
   Token *head_tkn = tkn;
@@ -218,7 +277,7 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
   tkn = tkn->next;
   // Global variable definition
   if (!consume(tkn, &tkn, "(")) {
-    define_var(head_tkn, &tkn, false, true);
+    declarations(head_tkn, &tkn, true);
     if (!consume(tkn, &tkn, ";")) {
       errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the definition.");
     }
@@ -279,17 +338,16 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-
 static Node *inside_roop; // inside for or while
 
 // statement = { statement* } |
 //             ("return")? assign ";" |
-//             "if" "(" define_var(true, NULL) ")" statement ("else" statement)?
-//             | "for" "(" define_var(true, NULL)? ";" assign? ";" assign?")"
-//             statement | "while" "(" define_var(true, NULL) ")" statement |
+//             "if" "(" assign ")" statement ("else" statement)? |
+//             "for" "(" declarations? ";" assign? ";" assign?")" statement |
+//             "while" "(" assign ")" statement |
 //             "break;" |
 //             "continue;" |
-//             define_var(false) ";"
+//             declarations ";"
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   Node *ret;
 
@@ -323,7 +381,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     if (!consume(tkn, &tkn, "(")) {
       errorf_tkn(ER_COMPILE, tkn, "If statement must start with \"(\"");
     }
-    ret->judge = define_var(tkn, &tkn, true, false);
+    ret->judge = assign(tkn, &tkn);
     Obj *top_var = lvars->objs;
     if (!consume(tkn, &tkn, ")")) {
       errorf_tkn(ER_COMPILE, tkn, "If statement must end with \")\".");
@@ -364,7 +422,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     }
 
     if (!consume(tkn, &tkn, ";")) {
-      ret->init_for = define_var(tkn, &tkn, true, false);
+      ret->init_for = declarations(tkn, &tkn, false);
       if (!consume(tkn, &tkn, ";")) {
         errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
@@ -448,7 +506,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
-  ret = define_var(tkn, &tkn, false, false);
+  ret = declarations(tkn, &tkn, false);
   if (!consume(tkn, &tkn, ";")) {
     errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
   }
@@ -456,105 +514,27 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   return ret;
 }
 
-// define_var = base_type define_ident (once is false: ("," define_ident)*) |
-//              assign
-static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global) {
-  Type *var_type = get_type(tkn, &tkn);
-  if (var_type) {
-    Node *first_var = define_ident(tkn, &tkn, var_type, is_global);
-    if (!once) {
-      Node *now_var = first_var;
-      while (consume(tkn, &tkn, ",")) {
-        now_var->next_stmt = define_ident(tkn, &tkn, var_type, is_global);
-        now_var = now_var->next_stmt;
-      }
-    }
-    if (end_tkn != NULL) {
-      *end_tkn = tkn;
-    }
-    return first_var;
-  }
-  Node *ret = assign(tkn, &tkn);
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
-
-// define_ident = "*"* ident ("[" num "]")*
-static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_type, bool is_global) {
-  if (!define_type) {
-    errorf(ER_INTERNAL, "Internal Error at define variable");
-  }
-  Type *now_type = calloc(sizeof(Type), 1);
-  memcpy(now_type, define_type, sizeof(Type));
-  int ptr_cnt = 0;
-  while (consume(tkn, &tkn, "*")) {
-    ++ptr_cnt;
+// declarations = get_type declarator ("," declarator)* |
+//                assign
+// Return last node, head is connect node.
+static Node *declarations(Token *tkn, Token**end_tkn, bool is_global) {
+  Type *ty = get_type(tkn, &tkn);
+  if (ty == NULL) {
+    Node *ret = assign(tkn, &tkn);
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
   }
 
-  if (ptr_cnt == 0 && define_type->kind == TY_VOID) {
-    errorf_tkn(ER_COMPILE, tkn, "Cannot define a variable of type void.");
-  }
-
-  char *ident = get_ident(tkn);
-  if (ident == NULL) {
-    errorf_tkn(ER_COMPILE, tkn,
-              "Variable definition must be identifier.");
-  }
-
-  if (check_already_define(ident, is_global)) {
-    errorf_tkn(ER_COMPILE, tkn, "This variable is already definition.");
-  }
-  Obj *var = new_obj(now_type, ident);
-  tkn = tkn->next;
-
-  // Size needs to be viewed from the end.
-  typedef struct ArraySize ArraySize;
-
-  struct ArraySize {
-    int array_size;
-    ArraySize *before;
-  };
-
-  ArraySize *top = NULL;
-
-  while (consume(tkn, &tkn, "[")) {
-    if (tkn->kind != TK_NUM_INT) {
-      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
-    }
-    int array_size = tkn->val;
-    tkn = tkn->next;
-    if (!consume(tkn, &tkn, "]")) {
-      errorf_tkn(ER_COMPILE, tkn, "Must end [");
-    }
-
-    ArraySize *now = calloc(sizeof(ArraySize), 1);
-    now->array_size = array_size;
-    now->before = top;
-    top = now;
-  }
-
-  while (top) {
-    var->type = array_to(var->type, top->array_size);
-    top = top->before;
-  }
-
-  for (int i = 0; i < ptr_cnt; ++i) {
-    var->type = pointer_to(var->type);
-  }
-  Node *ret = new_var(var);
-  ret->is_var_define_only = true;
-  if (is_global) {
-    add_gvar(var);
-  } else {
-    add_lvar(var);
-  }
-
-  if (consume(tkn, &tkn, "=")) {
-    ret = new_assign(ND_ASSIGN, ret, assign(tkn, &tkn));
+  Node *ret = declarator(tkn, &tkn, ty, is_global);
+  Node *now = ret;
+  while (consume(tkn, &tkn, ",")) {
+    now->next_stmt = declarator(tkn, &tkn, ty, is_global);
+    now = now->next_stmt;
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
+
 
 // assign = ternary ("=" assign | "+=" assign | "-=" assign
 //                   "*=" assign | "/=" assign | "%=" assign
