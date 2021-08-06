@@ -4,6 +4,6 @@
 
 int main(int argc, char **argv) {
   Token *tkn = tokenize(argv[1]);
-  Function *head = program(tkn);
+  Node *head = program(tkn);
   codegen(head);
 }

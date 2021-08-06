@@ -705,53 +705,52 @@ void gen_global_var_define(Obj *var) {
   }
 }
 
-void codegen(Function *head_func) {
+void codegen(Node *head) {
   printf(".intel_syntax noprefix\n");
   for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
     gen_global_var_define(gvar);
   }
 
-  for (Function *now_func = head_func; now_func; now_func = now_func->next) {
-    char *func_name = calloc(now_func->func_name_len + 1, sizeof(char));
-    memcpy(func_name, now_func->func_name, now_func->func_name_len);
-    printf(".global %s\n", func_name);
+  // Expand functions
+  for (Node *node = head; node != NULL; node = node->lhs) {
+    Obj *func = node->func;
+    printf(".global %s\n", func->name);
     printf(".text\n");
-    printf("%s:\n", func_name);
+    printf("%s:\n", func->name);
 
     // Prologue
-    // Allocate variable size.
     gen_push(REG_RBP);
     printf("  mov rbp, rsp\n");
-    printf("  sub rsp, %d\n", now_func->vars_size);
+    printf("  sub rsp, %d\n", func->vars_size);
 
-    // Set arguments (use register)
-    int arg_count = now_func->func_argc - 1;
-    for (Node *arg = now_func->func_args; arg != NULL; arg = arg->lhs) {
-      if (arg_count < 6) {
+    // Set arguments (use register);
+    int argc = func->argc - 1;
+    for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
+      if (argc < 6) {
         gen_var_address(arg);
-        gen_operation(REG_MEM, args_reg[arg_count], get_type_size(arg->use_var->type), OP_MOV);
+        gen_operation(REG_MEM, args_reg[argc], get_type_size(arg->use_var->type), OP_MOV);
       }
-      arg_count--;
+      argc--;
     }
 
     // Set arguements (use stack due more than 7 arguments)
-    arg_count = now_func->func_argc - 1;
-    for (Node *arg = now_func->func_args; arg != NULL; arg = arg->lhs) {
-      if (arg_count >= 6) {
+    argc = func->argc - 1;
+    for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
+      if (argc >= 6) {
         gen_var_address(arg);
         gen_push(REG_RAX);
-        printf("  mov rax, QWORD PTR [rbp + %d]\n", 8 + (arg_count - 5) * 8);
+        printf("  mov rax, QWORD PTR [rbp + %d]\n", 8 + (argc - 5) * 8);
         printf("  mov rdi, rax\n");
         gen_pop(REG_RAX);
         gen_operation(REG_MEM, REG_RDI, get_type_size(arg->use_var->type), OP_MOV);
       }
-      arg_count--;
+      argc--;
     }
 
-    compile_node(now_func->stmt);
+    compile_node(node->next_stmt);
 
     printf("  mov rsp, rbp\n");
     gen_pop(REG_RBP);
-    printf("  ret \n");
+    printf("  ret\n");
   }
 }

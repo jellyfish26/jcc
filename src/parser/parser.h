@@ -14,6 +14,7 @@ typedef struct Function Function;
 //
 
 typedef enum {
+  ND_FUNC,        // Function
   ND_ADD,         // +
   ND_SUB,         // -
   ND_MUL,         // *
@@ -81,7 +82,7 @@ struct Node {
 
   int label; // label (only "for" or "while" statement)
 
-  Obj *func;  // Function call
+  Obj *func;  // Function or Function call
 
   int val;        // value if kind is ND_INT
   char *str_lit;  // value if kind is ND_STR
@@ -91,21 +92,7 @@ struct Node {
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 Node *new_num(int val);
 Node *new_cast(Node *lhs, Type *type);
-Function *program(Token *tkn);
-
-struct Function {
-  char *func_name;   // Function name
-  int func_name_len; // Function name length
-
-  Node *stmt;     // Node of statement
-  Function *next; // Next function
-  Type *ret_type; // Type of function return
-  Obj *vars;      // Definition variables
-
-  Node *func_args; // Function arguments
-  int func_argc;   // Count of function arguments
-  int vars_size;
-};
+Node *program(Token *tkn);
 
 //
 // object.c
@@ -152,6 +139,7 @@ struct Obj {
   // Function
   int argc;
   Node *args;
+  int vars_size;
 };
 
 Obj *new_obj(Type *type, char *name);

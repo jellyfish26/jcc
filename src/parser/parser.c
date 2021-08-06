@@ -7,7 +7,7 @@
 #include <string.h>
 
 // Prototype
-static bool function(Function *func, Token *tkn, Token **end_tkn);
+static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *define_var(Token *tkn, Token **end_tkn, bool once, bool is_global);
 static Node *define_ident(Token *tkn, Token **end_tkn, Type *define_ident, bool is_global);
@@ -179,103 +179,106 @@ static char *get_ident(Token *tkn) {
   return ret;
 }
 
-
-Function *program(Token *tkn) {
+Node *program(Token *tkn) {
   lvars = NULL;
   gvars = NULL;
   used_vars = NULL;
-  Function head;
-  Function *end = calloc(1, sizeof(Function));
-  head.next = end;
-  while (true) {
-    if (function(end, tkn, &tkn)) {
-      end->next = calloc(1, sizeof(Function));
+  Node head;
+  Node *end = NULL;
+  while (!is_eof(tkn)) {
+    Node *now = topmost(tkn, &tkn);
+    if (now != NULL) {
+      if (end == NULL) {
+        end = now;
+        head.lhs = end;
+      } else {
+        end->lhs = now;
+        end = now;
+      }
     }
-    if (is_eof(tkn)) break;
-    if (end->next != NULL) end = end->next;
   }
-  end->next = NULL;
-  return head.next;
+  return head.lhs;
 }
 
-
-// function = base_type ident "(" params?")" statement
-// params = base_type ident ("," base_type ident)*
-// base_type is gen_type()
-static bool function(Function *func, Token *tkn, Token **end_tkn) {
-  Token *type_tkn = tkn;
-  Type *ret_type = get_type(tkn, &tkn);
-  if (ret_type) {
-    func->ret_type = ret_type;
-  } else {
+// topmost= get_type ident "(" params?")" statement |
+//            get_type ident ("," ident)*
+// params = get_type ident ("," get_type ident)*
+static Node *topmost(Token *tkn, Token **end_tkn) {
+  Token *head_tkn = tkn;
+  Type *ty = get_type(tkn, &tkn);
+  if (ty == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
   }
 
-  // Global variable define
-  char *global_ident = get_ident(tkn);
-  if (global_ident != NULL) {
-    tkn = tkn->next;
-    if (!consume(tkn, &tkn, "(")) {
-      define_var(type_tkn, &tkn, false, true);
-      consume(tkn, &tkn, ";");
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return false;
-    }
-
-    // Function define
-    new_scope_definition();
-    bool is_var_defined = true;
-    if (consume(tkn, &tkn, ")")) {
-      is_var_defined = false;
-    }
-
-    // Set arguments
-    while (is_var_defined) {
-      Type *arg_type = get_type(tkn, &tkn);
-      if (!arg_type) {
-        errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
-      }
-
-      // Variable define in function arguments
-      char *define_ident = get_ident(tkn);
-      if (define_ident != NULL) {
-        Token *ident_tkn = tkn;
-        tkn = tkn->next;
-        if (find_var(define_ident) != NULL) {
-          errorf_tkn(ER_COMPILE, ident_tkn, "This variable already definition.");
-        }
-        Obj *lvar = new_obj(arg_type, define_ident);
-        add_lvar(lvar);
-        Node *arg = new_var(lvar);
-        arg->lhs = func->func_args;
-        func->func_args = arg;
-        func->func_args->is_var_define_only = true;
-        func->func_argc++;
-      } else {
-        errorf_tkn(ER_COMPILE, tkn, "Must declare variable.");
-      }
-
-      if (consume(tkn, &tkn, ",")) {
-        continue;
-      }
-
-      if (consume(tkn, &tkn, ")")) {
-        break;
-      } else {
-        errorf_tkn(ER_COMPILE, tkn, "Define function must tend with \")\".");
-      }
-    }
-    func->func_name = global_ident;
-    func->func_name_len = strlen(global_ident);
-    func->stmt = statement(tkn, &tkn, false);
-    out_scope_definition();
-    func->vars_size = init_offset();
-  } else {
-    errorf_tkn(ER_COMPILE, tkn, "Start the function with an identifier.");
+  char *ident = get_ident(tkn);
+  if (ident == NULL) {
+    errorf_tkn(ER_COMPILE, tkn,
+        "Identifiers are required for function and variable definition.");
   }
+  tkn = tkn->next;
+  // Global variable definition
+  if (!consume(tkn, &tkn, "(")) {
+    define_var(head_tkn, &tkn, false, true);
+    if (!consume(tkn, &tkn, ";")) {
+      errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the definition.");
+    }
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return NULL;
+  }
+
+  // Fuction definition
+  Node *ret = new_node(ND_FUNC, NULL, NULL);
+  Obj *func = new_obj(ty, ident);
+  ret->func = func;
+  new_scope_definition();
+
+  bool end_define = false;
+  if (consume(tkn, &tkn, ")")) {
+    end_define = true;
+  }
+
+  // Set arguments
+  while (!end_define) {
+    Type *arg_type = get_type(tkn, &tkn);
+    if (arg_type == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
+    }
+    
+    ident = get_ident(tkn);
+    if (ident == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Identifiers are required for variable definition.");
+    }
+    if (find_var(ident) != NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "This variable already define.");
+    }
+    tkn = tkn->next;
+    Obj *lvar = new_obj(arg_type, ident);
+    add_lvar(lvar);
+    Node *arg = new_var(lvar);
+    arg->lhs = func->args;
+    func->args = arg;
+    func->args->is_var_define_only = true;
+    func->argc++;
+
+    if (consume(tkn, &tkn, ",")) {
+      continue;
+    }
+
+    if (consume(tkn, &tkn, ")")) {
+      break;
+    } else {
+      errorf_tkn(ER_COMPILE, tkn, "Define function must tend with \")\".");
+    }
+  }
+
+  ret->next_stmt = statement(tkn, &tkn, false);
+  out_scope_definition();
+  func->vars_size = init_offset();
+
   if (end_tkn != NULL) *end_tkn = tkn;
-  return true;
+  return ret;
 }
+
 
 static Node *inside_roop; // inside for or while
 

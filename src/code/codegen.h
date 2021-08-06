@@ -41,4 +41,4 @@ typedef enum {
   OP_BITWISE_NOT,
 } OpKind;
 
-void codegen(Function *head_func);
+void codegen(Node *head);

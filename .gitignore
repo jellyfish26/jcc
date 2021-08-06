@@ -1,3 +1,7 @@
 jcc
 tmp*
 *.o
+
+# gdb and gdb-peda
+.gdb_history
+peda-session-jcc.txt
