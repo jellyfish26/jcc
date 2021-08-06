@@ -708,7 +708,7 @@ static Node *mul(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// cast = ("(" get_type ")") cast |
+// cast = ("(" get_type pointers? ")") cast |
 //        unary
 static Node *cast(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "(")) {
@@ -717,11 +717,12 @@ static Node *cast(Token *tkn, Token **end_tkn) {
       if (end_tkn != NULL) *end_tkn = tkn;
       return ret;
     }
-    Type *type = get_type(tkn->next, &tkn);
+    Type *ty = get_type(tkn->next, &tkn);
+    ty = pointers(tkn, &tkn, ty);
     if (!consume(tkn, &tkn, ")")) {
       errorf_tkn(ER_COMPILE, tkn, "Cast must end with \")\".");
     }
-    Node *ret = new_cast(cast(tkn, &tkn), type);
+    Node *ret = new_cast(cast(tkn, &tkn), ty);
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
