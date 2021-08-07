@@ -130,6 +130,7 @@ struct Type {
   Type *content; // Content of variable if kind is TY_PTR
 
   int var_size;  // Variable size
+  int arr_size;  // Array size if kind is TY_ARRAY
   bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
 };
 

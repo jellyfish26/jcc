@@ -182,20 +182,23 @@ static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
 }
 
 // arrays = "[" num "]" arrays?
-static Type *arrays(Token *tkn, Token **end_tkn, Type *ty) {
+// num can empty value if empty_size is true.
+static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool empty_size) {
   if (!consume(tkn, &tkn, "[")) {
     return ty;
   }
-  if (tkn->kind != TK_NUM_INT) {
-    errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
+  int val = 0;
+  if (!empty_size && tkn->kind != TK_NUM_INT) {
+      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
   }
-  int val = tkn->val;
-  tkn = tkn->next;
+  if (tkn->kind == TK_NUM_INT) {
+    val = tkn->val;
+    tkn = tkn->next;
+  }
   if (!consume(tkn, &tkn, "]")) {
     errorf_tkn(ER_COMPILE, tkn, "Must end ]");
   }
-  ty = arrays(tkn, &tkn, ty);
-
+  ty = arrays(tkn, &tkn, ty, false);
   Type *ret = array_to(ty, val);
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -210,7 +213,7 @@ static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
     errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
   }
   tkn = tkn->next;
-  ty = arrays(tkn, &tkn, ty);
+  ty = arrays(tkn, &tkn, ty, true);
   if (end_tkn != NULL) *end_tkn = tkn;
   return new_obj(ty, ident);
 }
@@ -225,6 +228,9 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     add_lvar(var);
   }
   Node *ret = new_var(var);
+  if (ty->var_size == 0 && !equal(tkn, "=")) {
+    errorf_tkn(ER_COMPILE, tkn, "Size empty array require an initializer.");
+  }
   if (consume(tkn, &tkn, "=")) {
     ret = new_node(ND_INIT, ret, NULL);
     ret->init = initializer(tkn, &tkn, var->type, NULL);
@@ -244,6 +250,7 @@ static Initializer *new_initializer(Type *ty) {
 // new_ty will contain the type with determined number of elements.
 static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **new_ty) {
   Initializer *ret = new_initializer(ty);
+  int cnt = 1;
   if (consume(tkn, &tkn, "{")) {
     if (consume(tkn, &tkn, "}")) {
       if (end_tkn != NULL) *end_tkn = tkn;
@@ -261,10 +268,16 @@ static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **ne
       } else {
         now->next = initializer(tkn, &tkn, ty->content, NULL);
       }
+      cnt++;
       now = now->next;
     }
     if(!consume(tkn, &tkn, "}")) {
       errorf_tkn(ER_COMPILE, tkn, "Intializer must end with '}'");
+    }
+
+    // If array size is empty, decide size
+    if (ty->var_size == 0) {
+      ty->var_size = ty->content->var_size * cnt;
     }
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;

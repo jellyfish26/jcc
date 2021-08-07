@@ -409,7 +409,6 @@ void gen_cast(Node *node) {
 
 // Before move base address to rax register.
 static void gen_initializer(Initializer *init) {
-
   while (init != NULL) {
     gen_push(REG_RAX);
     if (init->depth == NULL) {
