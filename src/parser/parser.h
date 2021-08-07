@@ -8,6 +8,7 @@ typedef struct Obj Obj;
 typedef struct ScopeObj ScopeObj;
 typedef struct Node Node;
 typedef struct Function Function;
+typedef struct Initializer Initializer;
 
 //
 // parse.c
@@ -56,6 +57,7 @@ typedef enum {
   ND_SIZEOF,      // "sizeof"
   ND_INT,         // Number (int)
   ND_CAST,        // Cast
+  ND_INIT,        // Initializer
 } NodeKind;
 
 struct Node {
@@ -87,12 +89,21 @@ struct Node {
   int val;        // value if kind is ND_INT
   char *str_lit;  // value if kind is ND_STR
   int str_lit_label;
+
+  Initializer *init;  // Initializer
 };
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 Node *new_num(int val);
 Node *new_cast(Node *lhs, Type *type);
 Node *program(Token *tkn);
+
+struct Initializer {
+  Type *ty;
+  Token *tkn;
+
+  Node *node; // content
+};
 
 //
 // object.c

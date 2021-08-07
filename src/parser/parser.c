@@ -29,6 +29,7 @@ static Node *indirection(Token *tkn, Token **end_tkn);
 static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
+static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **new_ty);
 
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -214,7 +215,7 @@ static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
   return new_obj(ty, ident);
 }
 
-// declarator = declare ("=" assign)?
+// declarator = declare ("=" intializer)?
 // Return NULL if cannot be declared.
 static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   Obj *var = declare(tkn, &tkn, ty);
@@ -225,8 +226,26 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   }
   Node *ret = new_var(var);
   if (consume(tkn, &tkn, "=")) {
-    ret = new_assign(ND_ASSIGN, ret, assign(tkn, &tkn));
+    ret = new_node(ND_INIT, ret, NULL);
+    ret->init = initializer(tkn, &tkn, ty, NULL);
   }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
+}
+
+static Initializer *new_initializer(Type *ty) {
+  Initializer *ret = calloc(1, sizeof(Initializer));
+  ret->ty = ty;
+  return ret;
+}
+
+// initializer = assign
+// If the number of elements in the array is undecied,
+// new_ty will contain the type with determined number of elements.
+static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **new_ty) {
+  Initializer *ret = new_initializer(ty);
+  ret->tkn = tkn;
+  ret->node = assign(tkn, &tkn);
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }

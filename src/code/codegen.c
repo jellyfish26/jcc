@@ -405,7 +405,16 @@ void gen_cast(Node *node) {
   if (cast_table[from][to] != NULL) {
     println("  %s", cast_table[from][to]);
   }
-};
+}
+
+
+static void gen_initializer(Node *node) {
+  compile_node(node->init->node);
+  gen_push(REG_RAX);
+  gen_assignable_address(node->lhs);
+  gen_pop(REG_RDI);
+  gen_operation(REG_MEM, REG_RDI, get_type_size(node->lhs->type), OP_MOV);
+}
 
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
@@ -424,6 +433,11 @@ void compile_node(Node *node) {
          now_stmt = now_stmt->next_stmt) {
       compile_node(now_stmt);
     }
+    return;
+  }
+
+  if (node->kind == ND_INIT) {
+    gen_initializer(node);
     return;
   }
 
