@@ -2,8 +2,16 @@
 #include "parser/parser.h"
 #include "token/tokenize.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 int main(int argc, char **argv) {
+  if (argc != 3) {
+    fprintf(stderr, "Invalid arguments.\n");
+    fprintf(stderr, "Usage: jcc <input_file> <output_file>\n");
+    exit(1);
+  }
   Token *tkn = tokenize(argv[1]);
   Node *head = program(tkn);
-  codegen(head);
+  codegen(head, argv[2]);
 }
