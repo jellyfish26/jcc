@@ -192,5 +192,53 @@ int main() {
     void* a = 2514;
     a;
   }));
+
+  CHECK(4, ({
+    int a[2] = {1, 3};
+    a[0] + a[1];
+  }));
+
+  CHECK(11, ({
+    short a[5] = {2, 2, 1, 4, 2};
+    short ans = 0;
+    for (int i = 0; i < 5; i++) {
+      ans += a[i];
+    }
+    ans;
+  }));
+
+  CHECK(16, ({
+    long int a[3][2] = {{1, 3}, {3, 5}, {2, 2}};
+    long int ans = 0;
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 2; j++) {
+        ans += a[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECK(135, ({
+    int a[3][3][3] = {
+      {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},
+      {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},
+      {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
+    };
+    int ans = 0;
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        for (int k = 0; k < 3; k++) {
+          ans += a[i][j][k];
+        }
+      }
+    }
+    ans;
+  }));
+
+  CHECK(10, ({
+    int a = 2, b = 5;
+    int c[2] = {a, b + 3};
+    c[0] + c[1];
+  }));
   return 0;
 }

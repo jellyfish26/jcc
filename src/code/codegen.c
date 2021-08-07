@@ -407,13 +407,24 @@ void gen_cast(Node *node) {
   }
 }
 
+// Before move base address to rax register.
+static void gen_initializer(Initializer *init) {
 
-static void gen_initializer(Node *node) {
-  compile_node(node->init->node);
-  gen_push(REG_RAX);
-  gen_assignable_address(node->lhs);
-  gen_pop(REG_RDI);
-  gen_operation(REG_MEM, REG_RDI, get_type_size(node->lhs->type), OP_MOV);
+  while (init != NULL) {
+    gen_push(REG_RAX);
+    if (init->depth == NULL) {
+      compile_node(init->node);
+      gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
+      gen_pop(REG_RAX);
+      gen_operation(REG_MEM, REG_RDI, get_type_size(init->ty), OP_MOV);
+    } else {
+      gen_initializer(init->depth);
+      gen_pop(REG_RAX);
+    }
+    println("  mov rdi, %d", init->ty->var_size);
+    gen_operation(REG_RAX, REG_RDI, 8, OP_ADD);
+    init = init->next;
+  }
 }
 
 void compile_node(Node *node) {
@@ -437,7 +448,8 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_INIT) {
-    gen_initializer(node);
+    gen_assignable_address(node->lhs);
+    gen_initializer(node->init);
     return;
   }
 

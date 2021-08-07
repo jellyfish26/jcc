@@ -102,6 +102,9 @@ struct Initializer {
   Type *ty;
   Token *tkn;
 
+  Initializer *depth;
+  Initializer *next;
+
   Node *node; // content
 };
 

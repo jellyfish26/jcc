@@ -3,7 +3,7 @@ check() {
   for src_file in `\find . -name '*.c' -not -name '*common.c'`; do
     gcc -E -P -C $src_file > $src_file.tmp
     ../jcc $src_file.tmp $src_file.s
-    gcc -static -o tmp common.o $src_file.s
+    gcc -static -g -o tmp common.o $src_file.s
     rm $src_file.s $src_file.tmp
     ./tmp
     if [ $? -eq 0 ]; then

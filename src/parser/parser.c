@@ -215,7 +215,7 @@ static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
   return new_obj(ty, ident);
 }
 
-// declarator = declare ("=" intializer)?
+// declarator = declare ("=" initializer)?
 // Return NULL if cannot be declared.
 static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   Obj *var = declare(tkn, &tkn, ty);
@@ -227,7 +227,7 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   Node *ret = new_var(var);
   if (consume(tkn, &tkn, "=")) {
     ret = new_node(ND_INIT, ret, NULL);
-    ret->init = initializer(tkn, &tkn, ty, NULL);
+    ret->init = initializer(tkn, &tkn, var->type, NULL);
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
@@ -239,11 +239,36 @@ static Initializer *new_initializer(Type *ty) {
   return ret;
 }
 
-// initializer = assign
+// initializer = assign | "{" none | initializer ("," initializer)* "}"
 // If the number of elements in the array is undecied,
 // new_ty will contain the type with determined number of elements.
 static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **new_ty) {
   Initializer *ret = new_initializer(ty);
+  if (consume(tkn, &tkn, "{")) {
+    if (consume(tkn, &tkn, "}")) {
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return ret;
+    }
+    if (ty->content == NULL) {
+      initializer(tkn, &tkn, ty, NULL);
+    } else {
+      ret->depth = initializer(tkn, &tkn, ty->content, NULL);
+    }
+    Initializer *now = ret->depth;
+    while (consume(tkn, &tkn, ",")) {
+      if (ty->content == NULL) {
+        initializer(tkn, &tkn, ty, NULL);
+      } else {
+        now->next = initializer(tkn, &tkn, ty->content, NULL);
+      }
+      now = now->next;
+    }
+    if(!consume(tkn, &tkn, "}")) {
+      errorf_tkn(ER_COMPILE, tkn, "Intializer must end with '}'");
+    }
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
   ret->tkn = tkn;
   ret->node = assign(tkn, &tkn);
   if (end_tkn != NULL) *end_tkn = tkn;

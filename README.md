@@ -7,8 +7,11 @@ Create Self-host C Compiler.
 The following are supported
 
 ### Type
-- 32bit integer
-- 64bit integer
+- 8bit  integer (char)
+- 16bit integer (short)
+- 32bit integer (int)
+- 64bit integer (long int)
+- pointer
 
 ### Sentence
 - Function
@@ -16,6 +19,8 @@ The following are supported
 - While
 - Continue, Break
 - Return
+- GNU Statement
+- Initializer
 
 ### Operator
 [C Operator](https://en.cppreference.com/w/c/language/operator_precedence)
