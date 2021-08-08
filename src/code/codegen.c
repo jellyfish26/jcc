@@ -741,15 +741,32 @@ void gen_global_var_define(Obj *var) {
   }
 }
 
+void gen_global_var_initializer(Node *node) {
+  // We will implement it later.
+}
+
 void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
   println(".intel_syntax noprefix");
   for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
-    gen_global_var_define(gvar);
+    // Only string literal
+    if (gvar->type->kind == TY_STR) {
+      gen_global_var_define(gvar);
+    }
   }
 
   // Expand functions
   for (Node *node = head; node != NULL; node = node->lhs) {
+    if (node->kind != ND_FUNC) {
+      for (Node *var = node; var != NULL; var = var->next_stmt) {
+        if (var->kind == ND_INIT) {
+          gen_global_var_initializer(var);
+        } else {
+          gen_global_var_define(var->use_var);
+        }
+      }
+      continue;
+    }
     Obj *func = node->func;
     println(".global %s", func->name);
     println(".text");

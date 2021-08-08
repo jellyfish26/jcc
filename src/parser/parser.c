@@ -327,14 +327,12 @@ Node *program(Token *tkn) {
   Node *end = NULL;
   while (!is_eof(tkn)) {
     Node *now = topmost(tkn, &tkn);
-    if (now != NULL) {
-      if (end == NULL) {
-        end = now;
-        head.lhs = end;
-      } else {
-        end->lhs = now;
-        end = now;
-      }
+    if (end == NULL) {
+      end = now;
+      head.lhs = end;
+    } else {
+      end->lhs = now;
+      end = now;
     }
   }
   return head.lhs;
@@ -358,12 +356,12 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
   tkn = tkn->next;
   // Global variable definition
   if (!consume(tkn, &tkn, "(")) {
-    declarations(head_tkn, &tkn, true);
+    Node *ret = declarations(head_tkn, &tkn, true);
     if (!consume(tkn, &tkn, ";")) {
       errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the definition.");
     }
     if (end_tkn != NULL) *end_tkn = tkn;
-    return NULL;
+    return ret;
   }
 
   // Fuction definition
