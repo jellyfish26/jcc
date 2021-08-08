@@ -284,6 +284,30 @@ static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **ne
   }
   ret->tkn = tkn;
   ret->node = assign(tkn, &tkn);
+
+  // If the type is array, split the String literal
+  if (ty->kind == TY_ARRAY && ret->node->use_var->type->kind == TY_STR) {
+    cnt = 1;
+    char *str = ret->node->use_var->name;
+    Initializer *now = NULL;
+    while (*str != '\0') {
+      if (now == NULL) {
+        ret->depth = new_initializer(ty->content);
+        ret->depth->node = new_num(read_char(str, &str));
+        now = ret->depth;
+      } else {
+        now->next = new_initializer(ty->content);
+        now->next->node = new_num(read_char(str, &str));
+        now = now->next;
+        cnt++;
+      }
+    }
+
+    if (ty->var_size == 0) {
+      ty->var_size = ty->content->var_size * cnt;
+    }
+  }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }

@@ -29,6 +29,7 @@ struct Token {
   char *str_lit;  // String literal
 };
 
+char read_char(char *str, char **end_ptr);
 Token *tokenize(char *file_name);
 
 typedef enum {

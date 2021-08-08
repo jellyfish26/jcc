@@ -158,7 +158,7 @@ static char *permit_keywords[] = {
   "return", "if", "else", "for", "while", "break", "continue",
   "sizeof", "void", "char", "short", "int", "long"};
 
-static char read_char(char *str, char **end_ptr) {
+char read_char(char *str, char **end_ptr) {
   if (*str == 92) {
     *end_ptr = str + 2;
     switch (*(str + 1)) {
