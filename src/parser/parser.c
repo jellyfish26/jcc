@@ -29,7 +29,7 @@ static Node *indirection(Token *tkn, Token **end_tkn);
 static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
-static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **new_ty);
+static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type *base_ty);
 
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -206,13 +206,17 @@ static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool empty_size) {
 }
 
 // declare = get_type pointers? ident arrays?
-static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
+static Obj *declare(Token *tkn, Token **end_tkn, Type *ty, Type **base_ty) {
   ty = pointers(tkn, &tkn, ty);
   char *ident = get_ident(tkn);
   if (ident == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
   }
   tkn = tkn->next;
+  if (base_ty != NULL) {
+    *base_ty = calloc(1, sizeof(Type));
+    memcpy(*base_ty, ty, sizeof(Type));
+  }
   ty = arrays(tkn, &tkn, ty, true);
   if (end_tkn != NULL) *end_tkn = tkn;
   return new_obj(ty, ident);
@@ -221,7 +225,8 @@ static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
 // declarator = declare ("=" initializer)?
 // Return NULL if cannot be declared.
 static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
-  Obj *var = declare(tkn, &tkn, ty);
+  Type *base_ty;
+  Obj *var = declare(tkn, &tkn, ty, &base_ty);
   if (is_global) {
     add_gvar(var);
   } else {
@@ -233,7 +238,7 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   }
   if (consume(tkn, &tkn, "=")) {
     ret = new_node(ND_INIT, ret, NULL);
-    ret->init = initializer(tkn, &tkn, var->type, NULL);
+    ret->init = initializer(tkn, &tkn, var->type, base_ty);
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
@@ -247,9 +252,14 @@ static Initializer *new_initializer(Type *ty) {
 
 // initializer = assign | "{" none | initializer ("," initializer)* "}"
 // If the number of elements in the array is undecied,
-// new_ty will contain the type with determined number of elements.
-static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **new_ty) {
+// ty will contain the type with determined number of elements.
+static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type *base_ty) {
   Initializer *ret = new_initializer(ty);
+  ret->base_ty = base_ty;
+  ret->child_cnt = 1;
+  if (ty->content != NULL) {
+    ret->child_cnt = ty->content->var_size / base_ty->var_size;
+  }
   int cnt = 1;
   if (consume(tkn, &tkn, "{")) {
     if (consume(tkn, &tkn, "}")) {
@@ -257,16 +267,16 @@ static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **ne
       return ret;
     }
     if (ty->content == NULL) {
-      initializer(tkn, &tkn, ty, NULL);
+      initializer(tkn, &tkn, ty, base_ty);
     } else {
-      ret->depth = initializer(tkn, &tkn, ty->content, NULL);
+      ret->child = initializer(tkn, &tkn, ty->content, base_ty);
     }
-    Initializer *now = ret->depth;
+    Initializer *now = ret->child;
     while (consume(tkn, &tkn, ",")) {
       if (ty->content == NULL) {
         initializer(tkn, &tkn, ty, NULL);
       } else {
-        now->next = initializer(tkn, &tkn, ty->content, NULL);
+        now->next = initializer(tkn, &tkn, ty->content, base_ty);
       }
       cnt++;
       now = now->next;
@@ -292,9 +302,9 @@ static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **ne
     Initializer *now = NULL;
     while (*str != '\0') {
       if (now == NULL) {
-        ret->depth = new_initializer(ty->content);
-        ret->depth->node = new_num(read_char(str, &str));
-        now = ret->depth;
+        ret->child = new_initializer(ty->content);
+        ret->child->node = new_num(read_char(str, &str));
+        now = ret->child;
       } else {
         now->next = new_initializer(ty->content);
         now->next->node = new_num(read_char(str, &str));
@@ -306,6 +316,7 @@ static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type **ne
     if (ty->var_size == 0) {
       ty->var_size = ty->content->var_size * cnt;
     }
+    ret->node = NULL;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;

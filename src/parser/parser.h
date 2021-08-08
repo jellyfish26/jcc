@@ -100,10 +100,13 @@ Node *program(Token *tkn);
 
 struct Initializer {
   Type *ty;
+  Type *base_ty;
   Token *tkn;
 
-  Initializer *depth;
+  Initializer *child;
   Initializer *next;
+
+  int child_cnt;
 
   Node *node; // content
 };

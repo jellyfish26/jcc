@@ -286,5 +286,16 @@ int main() {
     int a[4] = {};
     a[0] + a[1] + a[2] + a[3];
   }));
+
+  CHECK(8, ({
+    int a[3][2] = {{1, 5}, {}, {2}};
+    int ans = 0;
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 2; j++) {
+        ans += a[i][j];
+      }
+    }
+    ans;
+  }));
   return 0;
 }
