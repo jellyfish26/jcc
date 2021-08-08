@@ -8,26 +8,6 @@
 
 static char *source_str;
 
-bool equal(Token *tkn, char *op) {
-  return memcmp(tkn->loc, op, tkn->len) == 0 && tkn->len == strlen(op);
-}
-
-// If the token cannot be consumed, false is return value.
-// When a token is consumed, the end_tkn variable
-// will point to the next token.
-bool consume(Token *tkn, Token **end_tkn, char *op) {
-  if (equal(tkn, op)) {
-    *end_tkn = tkn->next;
-    return true;
-  }
-  *end_tkn = tkn;
-  return false;
-}
-
-bool is_eof(Token *tkn) {
-  return tkn->kind == TK_EOF;
-}
-
 //
 // About error output
 //
@@ -116,6 +96,33 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   errorf_at(type, tkn->loc, tkn->len, fmt, ap);
+}
+
+bool equal(Token *tkn, char *op) {
+  return memcmp(tkn->loc, op, tkn->len) == 0 && tkn->len == strlen(op);
+}
+
+// If the token cannot be consumed, false is return value.
+// When a token is consumed, the end_tkn variable
+// will point to the next token.
+bool consume(Token *tkn, Token **end_tkn, char *op) {
+  if (equal(tkn, op)) {
+    *end_tkn = tkn->next;
+    return true;
+  }
+  *end_tkn = tkn;
+  return false;
+}
+
+Token *skip(Token *tkn, char *op) {
+  if (!equal(tkn, op)) {
+    errorf_tkn(ER_COMPILE, tkn, "%s is expected to be here.", op);
+  }
+  return tkn->next;
+}
+
+bool is_eof(Token *tkn) {
+  return tkn->kind == TK_EOF;
 }
 
 static Token *new_token(TokenKind kind, Token *connect, char *loc, int tkn_len) {

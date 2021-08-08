@@ -35,17 +35,18 @@ Type *new_type(TypeKind kind, bool is_real) {
 
 Type *pointer_to(Type *type) {
   Type *ret = new_type(TY_PTR, true);
-  ret->content = type;
+  ret->base = type;
   type->is_real = false;
   return ret;
 }
 
-Type *array_to(Type *type, int dim_size) {
+Type *array_to(Type *type, int array_len) {
   Type *ret = calloc(1, sizeof(Type));
   ret->kind = TY_ARRAY;
   ret->is_real = false;
-  ret->content = type;
-  ret->var_size = dim_size * type->var_size;
+  ret->base = type;
+  ret->var_size = array_len * type->var_size;
+  ret->array_len = array_len;
   return ret;
 }
 
@@ -264,14 +265,14 @@ void add_type(Node *node) {
       return;
     case ND_ADDR: {
       Type *type = new_type(TY_PTR, false);
-      type->content = node->lhs->type;
+      type->base = node->lhs->type;
       node->type = type;
       return;
     }
     case ND_CONTENT: {
       node->type = node->lhs->type;
       if (node->type != NULL) {
-        node->type = node->type->content;
+        node->type = node->type->base;
       }
       return;
     }

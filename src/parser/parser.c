@@ -6,7 +6,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+// This structure is used to initialize variable.
+// In particular, Array initializer can be nested, so need tree data structure.
+typedef struct Initializer Initializer;
+struct Initializer {
+  Type *ty;
+  Token *tkn;
+
+  // The size of the first array can be omitted.
+  bool is_flexible;
+  Initializer **children;
+
+  Node *node;
+};
+
 // Prototype
+static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
+static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *declarations(Token *tkn, Token**end_tkn, bool is_global);
@@ -29,7 +46,6 @@ static Node *indirection(Token *tkn, Token **end_tkn);
 static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
-static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type *base_ty);
 
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -172,6 +188,103 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
+static Initializer *new_initializer(Type *ty, bool is_flexible) {
+  Initializer *ret = calloc(1, sizeof(Initializer));
+  ret->ty = ty;
+
+  if (ty->kind == TY_ARRAY) {
+    if (is_flexible && ty->var_size == 0) {
+      ret->is_flexible = true;
+      return ret;
+    }
+
+    ret->children = calloc(1, sizeof(Initializer *));
+    for (int i = 0; i < ty->array_len; i++) {
+      ret->children[i] = new_initializer(ty->base, false);
+    }
+    return ret;
+  }
+  return ret;
+}
+
+
+static int count_array_init_elements(Token *tkn, Type *ty) {
+  tkn = skip(tkn, "{");
+
+  int cnt = 0;
+  Initializer *dummy = new_initializer(ty->base, false);
+
+  while (true) {
+    if (cnt > 0 && !consume(tkn, &tkn, ",")) break;
+
+    if (equal(tkn, "}")) break;
+    initializer_only(tkn, &tkn, dummy);
+    cnt++;
+  }
+  return cnt;
+}
+
+// array_initializer = "{" initializer_only ("," initializer_only)* ","? "}"
+static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
+  if (init->is_flexible) {
+    int len = count_array_init_elements(tkn, init->ty);
+    *init = *new_initializer(array_to(init->ty->base, len), false);
+  }
+  tkn = skip(tkn, "{");
+
+  int idx = 0;
+  while (true) {
+    if (idx > 0 && !consume(tkn, &tkn, ",")) break;
+
+    if (consume(tkn, &tkn, "}")) break;
+    initializer_only(tkn, &tkn, init->children[idx]);
+    idx++;
+  }
+  consume(tkn, &tkn, "}");
+  if (end_tkn != NULL) *end_tkn = tkn;
+}
+
+// initializer = array_initializer | assign
+static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
+  if (init->ty->kind == TY_ARRAY) {
+    array_initializer(tkn, &tkn, init);
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return;
+  }
+
+  init->node = assign(tkn, &tkn);
+  if (end_tkn != NULL) *end_tkn = tkn;
+}
+
+static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {
+  Initializer *ret = new_initializer(ty, true);
+  initializer_only(tkn, &tkn, ret);
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ret;
+}
+
+static Node *create_lvar_init_node(Initializer *init, Node **end_node) {
+  Node *head = calloc(1, sizeof(Node));
+  if (init->children == NULL) {
+    Node *tmp = calloc(1, sizeof(Node));
+
+    tmp->kind = ND_INIT;
+    tmp->rhs = init->node;
+    head->lhs = tmp;
+
+    if (end_node != NULL) *end_node = head->lhs;
+  } else {
+    Node *now = head;
+
+    for (int i = 0; i < init->ty->array_len; i++) {
+      now->lhs = create_lvar_init_node(init->children[i], &now);
+    }
+
+    if (end_node != NULL) *end_node = now;
+  }
+  return head->lhs;
+}
+
 // pointers = ("*")*
 static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
   while (consume(tkn, &tkn, "*")) {
@@ -237,88 +350,10 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     errorf_tkn(ER_COMPILE, tkn, "Size empty array require an initializer.");
   }
   if (consume(tkn, &tkn, "=")) {
-    ret = new_node(ND_INIT, ret, NULL);
-    ret->init = initializer(tkn, &tkn, var->type, base_ty);
+    Initializer *init = initializer(tkn, &tkn, var->type);
+    ret = new_node(ND_INIT, ret, create_lvar_init_node(init, NULL));
+    ret->type = base_ty;
   }
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
-
-static Initializer *new_initializer(Type *ty) {
-  Initializer *ret = calloc(1, sizeof(Initializer));
-  ret->ty = ty;
-  return ret;
-}
-
-// initializer = assign | "{" none | initializer ("," initializer)* "}"
-// If the number of elements in the array is undecied,
-// ty will contain the type with determined number of elements.
-static Initializer* initializer(Token *tkn, Token **end_tkn, Type *ty, Type *base_ty) {
-  Initializer *ret = new_initializer(ty);
-  ret->base_ty = base_ty;
-  ret->child_cnt = 1;
-  if (ty->content != NULL) {
-    ret->child_cnt = ty->content->var_size / base_ty->var_size;
-  }
-  int cnt = 1;
-  if (consume(tkn, &tkn, "{")) {
-    if (consume(tkn, &tkn, "}")) {
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return ret;
-    }
-    if (ty->content == NULL) {
-      initializer(tkn, &tkn, ty, base_ty);
-    } else {
-      ret->child = initializer(tkn, &tkn, ty->content, base_ty);
-    }
-    Initializer *now = ret->child;
-    while (consume(tkn, &tkn, ",")) {
-      if (ty->content == NULL) {
-        initializer(tkn, &tkn, ty, NULL);
-      } else {
-        now->next = initializer(tkn, &tkn, ty->content, base_ty);
-      }
-      cnt++;
-      now = now->next;
-    }
-    if(!consume(tkn, &tkn, "}")) {
-      errorf_tkn(ER_COMPILE, tkn, "Intializer must end with '}'");
-    }
-
-    // If array size is empty, decide size
-    if (ty->var_size == 0) {
-      ty->var_size = ty->content->var_size * cnt;
-    }
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-  ret->tkn = tkn;
-  ret->node = assign(tkn, &tkn);
-
-  // If the type is array, split the String literal
-  if (ty->kind == TY_ARRAY && ret->node->use_var->type->kind == TY_STR) {
-    cnt = 1;
-    char *str = ret->node->use_var->name;
-    Initializer *now = NULL;
-    while (*str != '\0') {
-      if (now == NULL) {
-        ret->child = new_initializer(ty->content);
-        ret->child->node = new_num(read_char(str, &str));
-        now = ret->child;
-      } else {
-        now->next = new_initializer(ty->content);
-        now->next->node = new_num(read_char(str, &str));
-        now = now->next;
-        cnt++;
-      }
-    }
-
-    if (ty->var_size == 0) {
-      ty->var_size = ty->content->var_size * cnt;
-    }
-    ret->node = NULL;
-  }
-
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }

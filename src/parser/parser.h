@@ -8,7 +8,6 @@ typedef struct Obj Obj;
 typedef struct ScopeObj ScopeObj;
 typedef struct Node Node;
 typedef struct Function Function;
-typedef struct Initializer Initializer;
 
 //
 // parse.c
@@ -89,27 +88,12 @@ struct Node {
   int val;        // value if kind is ND_INT
   char *str_lit;  // value if kind is ND_STR
   int str_lit_label;
-
-  Initializer *init;  // Initializer
 };
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 Node *new_num(int val);
 Node *new_cast(Node *lhs, Type *type);
 Node *program(Token *tkn);
-
-struct Initializer {
-  Type *ty;
-  Type *base_ty;
-  Token *tkn;
-
-  Initializer *child;
-  Initializer *next;
-
-  int child_cnt;
-
-  Node *node; // content
-};
 
 //
 // object.c
@@ -130,16 +114,21 @@ typedef enum {
 
 struct Type {
   TypeKind kind;
-  Type *content; // Content of variable if kind is TY_PTR
+
+  // Pointer and Array require the same behavior,
+  // and need a base type to calculate the memory movement distance.
+  // Otherwise, this variable have raw type.
+  Type *base;
 
   int var_size;  // Variable size
-  int arr_size;  // Array size if kind is TY_ARRAY
+  int array_len; // Array length if kind is TY_ARRAY
+
   bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
 };
 
 Type *new_type(TypeKind kind, bool is_real);
 Type *pointer_to(Type *type);
-Type *array_to(Type *type, int dim_size);
+Type *array_to(Type *type, int array_len);
 void add_type(Node *node);
 
 // Variable or Function

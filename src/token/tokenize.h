@@ -44,4 +44,5 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 
 bool equal(Token *tkn, char *op);
 bool consume(Token *tkn, Token **end_tkn, char *op);
+Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
