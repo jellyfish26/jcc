@@ -409,10 +409,37 @@ void gen_cast(Node *node) {
 
 // Before move base address to rax register.
 static void gen_initializer(Initializer *init) {
-  while (init != NULL) {
+  Type *ty = init->ty;
+  int arr_size = 1;
+  if (ty->kind == TY_ARRAY && ty->content != NULL) {
+    arr_size = ty->var_size / ty->content->var_size;
+  }
+  fprintf(stderr, "%d\n", arr_size);
+  int cnt = 0;
+  while (init != NULL || cnt < arr_size) {
     gen_push(REG_RAX);
+    if ((init == NULL && cnt < arr_size) || (init->depth == NULL && ty->kind == TY_ARRAY)) {
+      Initializer *tmp = calloc(1, sizeof(Initializer));
+      tmp->ty = (ty->kind != TY_ARRAY ? ty : ty->content);
+      gen_initializer(tmp);
+      free(tmp);
+      gen_pop(REG_RAX);
+      println("  mov rdi, %d", (ty->kind != TY_ARRAY ? ty->var_size : ty->content->var_size));
+      gen_operation(REG_RAX, REG_RDI, 8, OP_ADD);
+      cnt++;
+    }
+    if (init == NULL) continue;
+    if (init->depth == NULL && ty->kind == TY_ARRAY) {
+      init = init->next;
+      continue;
+    }
+
     if (init->depth == NULL) {
-      compile_node(init->node);
+      if (init->node != NULL) {
+        compile_node(init->node);
+      } else {
+        println("  mov rax, 0");
+      }
       gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
       gen_pop(REG_RAX);
       gen_operation(REG_MEM, REG_RDI, get_type_size(init->ty), OP_MOV);
@@ -420,9 +447,10 @@ static void gen_initializer(Initializer *init) {
       gen_initializer(init->depth);
       gen_pop(REG_RAX);
     }
-    println("  mov rdi, %d", init->ty->var_size);
+    println("  mov rdi, %d", ty->var_size);
     gen_operation(REG_RAX, REG_RDI, 8, OP_ADD);
     init = init->next;
+    cnt++;
   }
 }
 
