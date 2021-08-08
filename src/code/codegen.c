@@ -412,8 +412,8 @@ void gen_lvar_init(Node *node) {
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
     gen_push(REG_RAX);
-    if (init->rhs != NULL) {
-      compile_node(init->rhs);
+    if (init->init != NULL) {
+      compile_node(init->init);
     } else {
       println("  mov rax, 0");
     }
@@ -501,8 +501,8 @@ void compile_node(Node *node) {
     case ND_FOR: {
       int now_label = label++;
       node->label = now_label;
-      if (node->init_for) {
-        compile_node(node->init_for);
+      if (node->init) {
+        compile_node(node->init);
       }
 
       println(".Lbegin%d:", now_label);

@@ -68,12 +68,13 @@ struct Node {
   Obj *use_var; // Use target
   bool is_var_define_only;
 
+  Node *init;  // Initialization (variable, for statement)
+
   Node *judge;     // judge ("if" statement, "for" statement, "while" statement)
   Node *exec_if;   // exec ("if" statement)
   Node *exec_else; // exec ("else" statement)
 
-  Node *init_for;   // init before exec "for"
-  Node *repeat_for; // repeact in exec "for"
+  Node *repeat_for; // repeat in exec "for"
   Node *stmt_for;   // statement in exec "for"
 
   Node *next_stmt;  // Next statement

@@ -210,7 +210,7 @@ void add_type(Node *node) {
   add_type(node->judge);
   add_type(node->exec_if);
   add_type(node->exec_else);
-  add_type(node->init_for);
+  add_type(node->init);
   add_type(node->repeat_for);
   add_type(node->stmt_for);
   add_type(node->next_stmt);

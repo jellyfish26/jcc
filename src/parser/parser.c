@@ -207,12 +207,10 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
   return ret;
 }
 
-
 static int count_array_init_elements(Token *tkn, Type *ty) {
-  tkn = skip(tkn, "{");
-
   int cnt = 0;
   Initializer *dummy = new_initializer(ty->base, false);
+  tkn = skip(tkn, "{");
 
   while (true) {
     if (cnt > 0 && !consume(tkn, &tkn, ",")) break;
@@ -269,7 +267,7 @@ static Node *create_lvar_init_node(Initializer *init, Node **end_node) {
     Node *tmp = calloc(1, sizeof(Node));
 
     tmp->kind = ND_INIT;
-    tmp->rhs = init->node;
+    tmp->init = init->node;
     head->lhs = tmp;
 
     if (end_node != NULL) *end_node = head->lhs;
@@ -308,29 +306,31 @@ static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool empty_size) {
     val = tkn->val;
     tkn = tkn->next;
   }
-  if (!consume(tkn, &tkn, "]")) {
-    errorf_tkn(ER_COMPILE, tkn, "Must end ]");
-  }
+  tkn = skip(tkn, "]");
   ty = arrays(tkn, &tkn, ty, false);
-  Type *ret = array_to(ty, val);
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return array_to(ty, val);
 }
 
 // declare = get_type pointers? ident arrays?
 static Obj *declare(Token *tkn, Token **end_tkn, Type *ty, Type **base_ty) {
   ty = pointers(tkn, &tkn, ty);
   char *ident = get_ident(tkn);
+
   if (ident == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
   }
+  
   tkn = tkn->next;
+
   if (base_ty != NULL) {
     *base_ty = calloc(1, sizeof(Type));
     memcpy(*base_ty, ty, sizeof(Type));
   }
+  
   ty = arrays(tkn, &tkn, ty, true);
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return new_obj(ty, ident);
 }
@@ -340,26 +340,31 @@ static Obj *declare(Token *tkn, Token **end_tkn, Type *ty, Type **base_ty) {
 static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   Type *base_ty;
   Obj *var = declare(tkn, &tkn, ty, &base_ty);
+
   if (is_global) {
     add_gvar(var);
   } else {
     add_lvar(var);
   }
+
   Node *ret = new_var(var);
+
   if (ty->var_size == 0 && !equal(tkn, "=")) {
     errorf_tkn(ER_COMPILE, tkn, "Size empty array require an initializer.");
   }
+
   if (consume(tkn, &tkn, "=")) {
     Initializer *init = initializer(tkn, &tkn, var->type);
     ret = new_node(ND_INIT, ret, create_lvar_init_node(init, NULL));
     ret->type = base_ty;
   }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
 static Node *last_stmt(Node *now) {
-  while (now->next_stmt) {
+  while (now->next_stmt != NULL) {
     now = now->next_stmt;
   }
   return now;
@@ -369,19 +374,13 @@ Node *program(Token *tkn) {
   lvars = NULL;
   gvars = NULL;
   used_vars = NULL;
-  Node head;
-  Node *end = NULL;
+  Node *head = calloc(1, sizeof(Node));
+  Node *now = head;
   while (!is_eof(tkn)) {
-    Node *now = topmost(tkn, &tkn);
-    if (end == NULL) {
-      end = now;
-      head.lhs = end;
-    } else {
-      end->lhs = now;
-      end = now;
-    }
+    now->lhs = topmost(tkn, &tkn);
+    now = now->lhs;
   }
-  return head.lhs;
+  return head->lhs;
 }
 
 // topmost = get_type ident "(" params?")" statement |
@@ -390,6 +389,7 @@ Node *program(Token *tkn) {
 static Node *topmost(Token *tkn, Token **end_tkn) {
   Token *head_tkn = tkn;
   Type *ty = get_type(tkn, &tkn);
+
   if (ty == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
   }
@@ -399,13 +399,17 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
     errorf_tkn(ER_COMPILE, tkn,
         "Identifiers are required for function and variable definition.");
   }
+
   tkn = tkn->next;
+
   // Global variable definition
   if (!consume(tkn, &tkn, "(")) {
     Node *ret = declarations(head_tkn, &tkn, true);
+
     if (!consume(tkn, &tkn, ";")) {
       errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the definition.");
     }
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
@@ -482,16 +486,13 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
       new_scope_definition();
     }
     ret = new_node(ND_BLOCK, NULL, NULL);
-    Node *now = NULL;
+    Node *head = calloc(1, sizeof(Node));
+    Node *now = head;
     while (!consume(tkn, &tkn, "}")) {
-      if (now) {
-        now->next_stmt = statement(tkn, &tkn, true);
-      } else {
-        now = statement(tkn, &tkn, true);
-        ret->next_block = now;
-      }
+      now->next_stmt = statement(tkn, &tkn, true);
       now = last_stmt(now);
     }
+    ret->next_block = head->next_stmt;
     if (new_scope) {
       out_scope_definition();
     }
@@ -547,7 +548,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     }
 
     if (!consume(tkn, &tkn, ";")) {
-      ret->init_for = declarations(tkn, &tkn, false);
+      ret->init = declarations(tkn, &tkn, false);
       if (!consume(tkn, &tkn, ";")) {
         errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
@@ -566,6 +567,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
         errorf_tkn(ER_COMPILE, tkn, "For statement must end with \")\".");
       }
     }
+
     ret->stmt_for = statement(tkn, &tkn, false);
     out_scope_definition();
 
@@ -583,14 +585,17 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     if (!consume(tkn, &tkn, "(")) {
       errorf_tkn(ER_COMPILE, tkn, "While statement must start with \"(\".");
     }
+
     ret->judge = assign(tkn, &tkn);
+
     if (!consume(tkn, &tkn, ")")) {
       errorf_tkn(ER_COMPILE, tkn, "While statement must end with \")\".");
     }
-    ret->stmt_for = statement(tkn, &tkn, false);
 
+    ret->stmt_for = statement(tkn, &tkn, false);
     inside_roop = roop_state;
     out_scope_definition();
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
@@ -601,6 +606,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     if (!consume(tkn, &tkn, ";")) {
       errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
@@ -609,11 +615,14 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     if (!inside_roop) {
       errorf_tkn(ER_COMPILE, tkn, "%s", "Not whithin loop");
     }
+
     ret = new_node(ND_LOOPBREAK, NULL, NULL);
     ret->lhs = inside_roop;
+
     if (!consume(tkn, &tkn, ";")) {
       errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
     }
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
