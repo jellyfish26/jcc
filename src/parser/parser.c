@@ -78,6 +78,14 @@ Node *new_var(Obj *obj) {
   return ret;
 }
 
+Node *new_strlit(char *strlit) {
+  Obj *obj = new_obj(new_type(TY_STR, false), strlit);
+  Node *ret = new_var(obj);
+  ret->is_var_define_only = false;
+  add_gvar(obj);
+  return ret;
+}
+
 // kind is ND_ASSIGN if operation only assign
 static Node *new_assign(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = new_node(ND_ASSIGN, lhs, rhs);
@@ -197,7 +205,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
       return ret;
     }
 
-    ret->children = calloc(1, sizeof(Initializer *));
+    ret->children = calloc(ty->array_len, sizeof(Initializer *));
     for (int i = 0; i < ty->array_len; i++) {
       ret->children[i] = new_initializer(ty->base, false);
     }
@@ -245,15 +253,44 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (end_tkn != NULL) *end_tkn = tkn;
 }
 
-// initializer = array_initializer | assign
-static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
-  if (init->ty->kind == TY_ARRAY) {
-    array_initializer(tkn, &tkn, init);
+// string_initializer = string literal
+static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
+  if (init->ty->kind != TY_ARRAY) {
+    init->node = new_strlit(tkn->str_lit);
+    tkn = tkn->next;
     if (end_tkn != NULL) *end_tkn = tkn;
     return;
   }
 
-  init->node = assign(tkn, &tkn);
+  if (init->is_flexible) {
+    int len = 0;
+    for (char *chr = tkn->str_lit; *chr != '\0'; read_char(chr, &chr)) len++;
+    Initializer *tmp = new_initializer(array_to(init->ty->base, len), false);
+    fprintf(stderr, "%p\n", tmp->children[0]->children);
+    *init = *tmp;
+  }
+
+  int idx = 0;
+  char *chr = tkn->str_lit;
+  while (*chr != '\0') {
+    init->children[idx]->node = new_num(read_char(chr, &chr));
+    idx++;
+  }
+
+  tkn = tkn->next;
+  if (end_tkn != NULL) *end_tkn = tkn;
+}
+
+// initializer = array_initializer | string_initializer | assign
+static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
+  if (tkn->kind == TK_STR) {
+    string_initializer(tkn, &tkn, init);
+  } else if (init->ty->kind == TY_ARRAY) {
+    array_initializer(tkn, &tkn, init);
+  } else {
+    init->node = assign(tkn, &tkn);
+  }
+
   if (end_tkn != NULL) *end_tkn = tkn;
 }
 
