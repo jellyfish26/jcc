@@ -47,7 +47,6 @@ static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
 
-
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = kind;
@@ -214,11 +213,11 @@ static int count_array_init_elements(Token *tkn, Type *ty) {
 
   while (true) {
     if (cnt > 0 && !consume(tkn, &tkn, ",")) break;
-
     if (equal(tkn, "}")) break;
     initializer_only(tkn, &tkn, dummy);
     cnt++;
   }
+
   return cnt;
 }
 
@@ -226,18 +225,22 @@ static int count_array_init_elements(Token *tkn, Type *ty) {
 static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (init->is_flexible) {
     int len = count_array_init_elements(tkn, init->ty);
+    // init->ty->array_len = len;
+    // init->ty->var_size = len * init->ty->var_size;
+    // *init = *new_initializer(init->ty, false);
     *init = *new_initializer(array_to(init->ty->base, len), false);
   }
   tkn = skip(tkn, "{");
 
   int idx = 0;
+
   while (true) {
     if (idx > 0 && !consume(tkn, &tkn, ",")) break;
-
     if (consume(tkn, &tkn, "}")) break;
     initializer_only(tkn, &tkn, init->children[idx]);
     idx++;
   }
+
   consume(tkn, &tkn, "}");
   if (end_tkn != NULL) *end_tkn = tkn;
 }
@@ -263,9 +266,9 @@ static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {
 
 static Node *create_lvar_init_node(Initializer *init, Node **end_node) {
   Node *head = calloc(1, sizeof(Node));
+
   if (init->children == NULL) {
     Node *tmp = calloc(1, sizeof(Node));
-
     tmp->kind = ND_INIT;
     tmp->init = init->node;
     head->lhs = tmp;
@@ -357,6 +360,10 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     Initializer *init = initializer(tkn, &tkn, var->type);
     ret = new_node(ND_INIT, ret, create_lvar_init_node(init, NULL));
     ret->type = base_ty;
+
+    // If the lengh of the array is empty, Type will be updated,
+    // so it needs to be passed to var as well.
+    var->type = init->ty;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;

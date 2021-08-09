@@ -241,21 +241,21 @@ int main() {
     c[0] + c[1];
   }));
 
-  // CHECK(10, ({
-  //   int a[] = {2, 3, 5};
-  //   a[0] + a[1] + a[2];
-  // }));
+  CHECK(10, ({
+    int a[] = {2, 3, 5};
+    a[0] + a[1] + a[2];
+  }));
 
-  // CHECK(16, ({
-  //   long int a[][2] = {{1, 3}, {3, 5}, {2, 2}};
-  //   long int ans = 0;
-  //   for (int i = 0; i < 3; i++) {
-  //     for (int j = 0; j < 2; j++) {
-  //       ans += a[i][j];
-  //     }
-  //   }
-  //   ans;
-  // }));
+  CHECK(16, ({
+    long int a[][2] = {{1, 3}, {3, 5}, {2, 2}};
+    long int ans = 0;
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 2; j++) {
+        ans += a[i][j];
+      }
+    }
+    ans;
+  }));
 
   // CHECK(111, ({
   //   char s[] = "hoge\nhoge";
@@ -297,5 +297,6 @@ int main() {
   //   }
   //   ans;
   // }));
+
   return 0;
 }
