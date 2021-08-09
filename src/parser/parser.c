@@ -302,7 +302,7 @@ static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {
   return ret;
 }
 
-static Node *create_lvar_init_node(Initializer *init, Node **end_node) {
+static Node *create_init_node(Initializer *init, Node **end_node) {
   Node *head = calloc(1, sizeof(Node));
 
   if (init->children == NULL) {
@@ -316,7 +316,7 @@ static Node *create_lvar_init_node(Initializer *init, Node **end_node) {
     Node *now = head;
 
     for (int i = 0; i < init->ty->array_len; i++) {
-      now->lhs = create_lvar_init_node(init->children[i], &now);
+      now->lhs = create_init_node(init->children[i], &now);
     }
 
     if (end_node != NULL) *end_node = now;
@@ -396,7 +396,7 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
   if (consume(tkn, &tkn, "=")) {
     Initializer *init = initializer(tkn, &tkn, var->type);
-    ret = new_node(ND_INIT, ret, create_lvar_init_node(init, NULL));
+    ret = new_node(ND_INIT, ret, create_init_node(init, NULL));
     ret->type = base_ty;
 
     // If the lengh of the array is empty, Type will be updated,
@@ -422,10 +422,10 @@ Node *program(Token *tkn) {
   Node *head = calloc(1, sizeof(Node));
   Node *now = head;
   while (!is_eof(tkn)) {
-    now->lhs = topmost(tkn, &tkn);
-    now = now->lhs;
+    now->next_block = topmost(tkn, &tkn);
+    now = now->next_block;
   }
-  return head->lhs;
+  return head->next_block;
 }
 
 // topmost = get_type ident "(" params?")" statement |

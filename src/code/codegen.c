@@ -407,7 +407,7 @@ void gen_cast(Node *node) {
   }
 }
 
-void gen_lvar_init(Node *node) {
+static void gen_lvar_init(Node *node) {
   gen_assignable_address(node->lhs);
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
@@ -421,6 +421,66 @@ void gen_lvar_init(Node *node) {
     gen_pop(REG_RAX);
     gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_MOV);
     println("  add rax, %d", get_type_size(node->type));
+  }
+}
+
+static void gen_gvar_init(Node *node) {
+  println(".data");
+  println("%s:", node->lhs->use_var->name);
+
+  char *asm_ty;
+  switch (node->type->kind) {
+    case TY_CHAR:
+      asm_ty = ".byte";
+      break;
+    case TY_SHORT:
+      asm_ty = ".short";
+      break;
+    case TY_INT:
+      asm_ty = ".long";
+      break;
+    case TY_LONG:
+    case TY_PTR:
+      asm_ty = ".quad";
+      break;
+    default:
+      return;
+  }
+
+  for (Node *init = node->rhs; init != NULL; init = init->lhs) {
+    if (init->init == NULL) {
+      println("  %s 0", asm_ty);
+    } else {
+      println("  %s %d", asm_ty, init->init->val);
+    }
+  }
+}
+
+static void gen_global_var_define(Obj *var) {
+  println(".data");
+  if (var->type->kind == TY_STR) {
+    println(".LC%d:", var->offset);
+    println("  .string \"%s\"", var->name);
+    return;
+  }
+  println("%s:", var->name);
+  switch (var->type->kind) {
+    case TY_CHAR:
+      println("  .zero 1");
+      break;
+    case TY_SHORT:
+      println("  .zero 2");
+      break;
+    case TY_INT:
+      println("  .zero 4");
+      break;
+    case TY_LONG:
+    case TY_PTR:
+    case TY_ARRAY:
+      println("  .zero %d", var->type->var_size);
+      break;
+    default:
+      return;
   }
 }
 
@@ -709,40 +769,6 @@ void compile_node(Node *node) {
   }
 }
 
-void gen_global_var_define(Obj *var) {
-  char *global_var_name = calloc(var->name_len+ 1, sizeof(char));
-  memcpy(global_var_name, var->name, var->name_len);
-  println(".data");
-  if (var->type->kind == TY_STR) {
-    println(".LC%d:", var->offset);
-    println("  .string \"%s\"", var->name);
-    return;
-  }
-  println("%s:", global_var_name);
-  switch (var->type->kind) {
-    case TY_CHAR:
-      println("  .zero 1");
-      break;
-    case TY_SHORT:
-      println("  .zero 2");
-      break;
-    case TY_INT:
-      println("  .zero 4");
-      break;
-    case TY_LONG:
-    case TY_PTR:
-    case TY_ARRAY:
-      println("  .zero %d", var->type->var_size);
-      break;
-    default:
-      return;
-  }
-}
-
-
-void gen_global_var_initializer(Node *node) {
-  // We will implement it later.
-}
 
 void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
@@ -755,11 +781,11 @@ void codegen(Node *head, char *filename) {
   }
 
   // Expand functions
-  for (Node *node = head; node != NULL; node = node->lhs) {
+  for (Node *node = head; node != NULL; node = node->next_block) {
     if (node->kind != ND_FUNC) {
       for (Node *var = node; var != NULL; var = var->next_stmt) {
         if (var->kind == ND_INIT) {
-          gen_global_var_initializer(var);
+          gen_gvar_init(var);
         } else {
           gen_global_var_define(var->use_var);
         }
