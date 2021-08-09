@@ -229,19 +229,20 @@ static int count_array_init_elements(Token *tkn, Type *ty) {
   return cnt;
 }
 
-// array_initializer = "{" initializer_only ("," initializer_only)* ","? "}"
+// array_initializer = "{" initializer_only ("," initializer_only)* ","? "}" | "{" "}"
 static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (init->is_flexible) {
     int len = count_array_init_elements(tkn, init->ty);
-    // init->ty->array_len = len;
-    // init->ty->var_size = len * init->ty->var_size;
-    // *init = *new_initializer(init->ty, false);
     *init = *new_initializer(array_to(init->ty->base, len), false);
   }
+
   tkn = skip(tkn, "{");
+  if (consume(tkn, &tkn, "}")) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return;
+  }
 
   int idx = 0;
-
   while (true) {
     if (idx > 0 && !consume(tkn, &tkn, ",")) break;
     if (consume(tkn, &tkn, "}")) break;
