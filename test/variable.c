@@ -316,5 +316,11 @@ int main() {
     *c;
   }));
 
+  CHECK (5, ({
+    const int a = 2;
+    const int b = a + 3;
+    b;
+  }));
+
   return 0;
 }

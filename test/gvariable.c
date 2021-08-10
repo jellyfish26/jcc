@@ -19,6 +19,8 @@ int init_arr4[4][4] = {{1, 2, 3, 4}, {5}, {6, 7}, {}};
 int init_arr5[] = {1, 2, 3};
 int init_arr6[][2] = {{1, 2}, {3, 4}};
 
+const int ca = 7;
+
 int main() {
   CHECK(2, ({a = 2; a;}));
   CHECK(5, ({b = 1; int *c = &a; *c = 4; a + b;}));
@@ -89,6 +91,10 @@ int main() {
     int ans = 0;
     for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) ans += init_arr6[i][j];
     ans;
+  }));
+
+  CHECK(7, ({
+    ca;
   }));
 
   return 0;

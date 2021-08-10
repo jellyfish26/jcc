@@ -771,7 +771,7 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   if (end_tkn != NULL) *end_tkn = tkn;
   add_type(ret);
 
-  if (ret->lhs != NULL && ret->lhs->type->is_const) {
+  if (ret->kind == ND_ASSIGN && ret->lhs != NULL && ret->lhs->type->is_const) {
     errorf_tkn(ER_COMPILE, assign_tkn, "Cannot assign to const variable.");
   }
 
