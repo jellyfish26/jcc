@@ -298,5 +298,23 @@ int main() {
     ans;
   }));
 
+  CHECK (2, ({
+    const int a = 2;
+    a;
+  }));
+
+  CHECK (2, ({
+    int const a = 2;
+    a;
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+    int b = 3;
+    const int *c = &a;
+    c = &b;
+    *c;
+  }));
+
   return 0;
 }

@@ -116,6 +116,8 @@ static char *get_ident(Token *tkn) {
   return ret;
 }
 
+// get_type = ("const" type) | (type "const") | type
+// type = "char" | "short" | "int" | "long" "long"? "int"?
 static Type *get_type(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
@@ -129,6 +131,11 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     INT   = 1 << 6,
     LONG  = 1 << 8,
   };
+
+  bool is_const = false;
+  if (consume(tkn, &tkn, "const")) {
+    is_const = true;
+  }
   
   int type_cnt = 0;
   Type *ret = NULL;
@@ -189,6 +196,17 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
     }
     tkn = tkn->next;
+  }
+
+  if (equal(tkn, "const")) {
+    if (is_const) {
+      errorf_tkn(ER_COMPILE, tkn, "Duplicate const.");
+    }
+    is_const = true;
+    tkn = tkn->next;
+  }
+  if (ret != NULL) {
+    ret->is_const = is_const;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -324,10 +342,13 @@ static Node *create_init_node(Initializer *init, Node **end_node) {
   return head->lhs;
 }
 
-// pointers = ("*")*
+// pointers = ("*" "const"?)*
 static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
   while (consume(tkn, &tkn, "*")) {
     ty = pointer_to(ty);
+    if (consume(tkn, &tkn, "const")) {
+      ty->is_const = true;
+    }
   }
   if (end_tkn != NULL) *end_tkn = tkn;
   return ty;
@@ -721,6 +742,7 @@ static Node *declarations(Token *tkn, Token**end_tkn, bool is_global) {
 //                   "&=" assign | "^=" assign | "|=" assign)?
 static Node *assign(Token *tkn, Token **end_tkn) {
   Node *ret = ternary(tkn, &tkn);
+  Token *assign_tkn = tkn;
 
   if (consume(tkn, &tkn, "=")) {
     ret = new_assign(ND_ASSIGN, ret, assign(tkn, &tkn));
@@ -745,8 +767,14 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   } else if (consume(tkn, &tkn, "|=")) {
     ret = new_assign(ND_BITWISEOR, ret, assign(tkn, &tkn));
   }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   add_type(ret);
+
+  if (ret->lhs != NULL && ret->lhs->type->is_const) {
+    errorf_tkn(ER_COMPILE, assign_tkn, "Cannot assign to const variable.");
+  }
+
   return ret;
 }
 

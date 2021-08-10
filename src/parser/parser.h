@@ -125,6 +125,7 @@ struct Type {
   int array_len; // Array length if kind is TY_ARRAY
 
   bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
+  bool is_const;
 };
 
 Type *new_type(TypeKind kind, bool is_real);
