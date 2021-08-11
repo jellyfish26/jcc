@@ -64,6 +64,7 @@ struct Node {
   Node *lhs;     // Left side node
   Node *rhs;     // Right side node
   Type *type;
+  Token *tkn;    // Representative token
 
   Obj *use_var; // Use target
   bool is_var_define_only;
@@ -91,9 +92,13 @@ struct Node {
   int str_lit_label;
 };
 
-Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
-Node *new_num(int val);
-Node *new_cast(Node *lhs, Type *type);
+Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs);
+Node *new_num(Token *tkn, int val);
+Node *new_cast(Token *tkn, Node *lhs, Type *type);
+Node *new_var(Token *tkn, Obj *obj);
+Node *new_strlit(Token *tkn, char *strlit);
+Node *new_assign(NodeKind kind, Token *tkn, Node *lhs, Node *rhs);
+
 Node *program(Token *tkn);
 
 //

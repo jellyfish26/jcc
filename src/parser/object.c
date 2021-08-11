@@ -198,8 +198,8 @@ static bool comp_type(Type *left, Type *right) {
 
 static void implicit_cast(Node **lhs, Node **rhs) {
   Type *type = comp_type((*lhs)->type, (*rhs)->type) ? (*rhs)->type : (*lhs)->type;
-  *lhs = new_cast(*lhs, type);
-  *rhs = new_cast(*rhs, type);
+  *lhs = new_cast((*lhs)->tkn, *lhs, type);
+  *rhs = new_cast((*rhs)->tkn, *rhs, type);
 }
 
 void add_type(Node *node) {
