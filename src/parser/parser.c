@@ -83,7 +83,6 @@ Node *new_var(Token *tkn, Obj *obj) {
 Node *new_strlit(Token *tkn, char *strlit) {
   Obj *obj = new_obj(new_type(TY_STR, false), strlit);
   Node *ret = new_var(tkn, obj);
-  ret->is_var_define_only = false;
   add_gvar(obj);
   return ret;
 }
@@ -513,7 +512,6 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
     Node *arg = new_var(tkn, lvar);
     arg->lhs = func->args;
     func->args = arg;
-    func->args->is_var_define_only = true;
     func->argc++;
 
     if (consume(tkn, &tkn, ",")) {
@@ -1050,7 +1048,6 @@ static Node *priority(Token *tkn, Token **end_tkn) {
     Obj *var = new_obj(new_type(TY_STR, false), tkn->str_lit);
     tkn = tkn->next;
     Node *ret = new_var(tkn, var);
-    ret->is_var_define_only = false;
     add_gvar(var);
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
@@ -1097,7 +1094,6 @@ static Node *priority(Token *tkn, Token **end_tkn) {
         errorf_tkn(ER_COMPILE, tkn, "This variable is not definition.");
       }
       Node *ret = new_var(tkn, use_var);
-      ret->is_var_define_only = false;
       while (consume(tkn, &tkn, "[")) {
         ret = new_node(ND_ADD, tkn, ret, assign(tkn, &tkn));
 
@@ -1121,9 +1117,11 @@ static Node *num(Token *tkn, Token **end_tkn) {
     if (end_tkn != NULL) *end_tkn = tkn->next;
     return new_num(tkn, tkn->val);
   }
+
   if (tkn->kind != TK_CHAR) {
     errorf_tkn(ER_COMPILE, tkn, "Not value.");
   }
+
   if (end_tkn != NULL) *end_tkn = tkn->next;
   return new_num(tkn, tkn->c_lit);
 }

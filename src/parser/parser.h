@@ -67,7 +67,6 @@ struct Node {
   Token *tkn;    // Representative token
 
   Obj *use_var; // Use target
-  bool is_var_define_only;
 
   Node *init;  // Initialization (variable, for statement)
 

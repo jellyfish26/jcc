@@ -512,9 +512,7 @@ void compile_node(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
-      if (!node->is_var_define_only) {
-        expand_variable(node);
-      }
+      expand_variable(node);
       return;
     case ND_ADDR:
       if (node->lhs->kind == ND_VAR) {
