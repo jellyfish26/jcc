@@ -26,7 +26,7 @@ static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
-static Node *declarations(Token *tkn, Token**end_tkn, bool is_global);
+static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global);
 static Node *assign(Token *tkn, Token **end_tkn);
 static Node *ternary(Token *tkn, Token **end_tkn);
 static Node *logical_or(Token *tkn, Token **end_tkn);
@@ -164,6 +164,7 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
         dup_type = typename[i];
       }
     }
+
     // Check long
     if (((LONG * 3)&type_cnt) == (LONG * 3)) {
       dup_type = "long";
@@ -275,6 +276,9 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
 
 // string_initializer = string literal
 static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
+  // If type is not Array, initializer return address of string literal.
+  // Otherwise, char number store in each elements of Array.
+
   if (init->ty->kind != TY_ARRAY) {
     init->node = new_strlit(tkn, tkn->str_lit);
     tkn = tkn->next;
@@ -325,21 +329,19 @@ static Node *create_init_node(Initializer *init, Node **end_node) {
   Node *head = calloc(1, sizeof(Node));
 
   if (init->children == NULL) {
-    Node *tmp = calloc(1, sizeof(Node));
-    tmp->kind = ND_INIT;
-    tmp->init = init->node;
-    head->lhs = tmp;
+    head->kind = ND_INIT;
+    head->init = init->node;
 
-    if (end_node != NULL) *end_node = head->lhs;
-  } else {
-    Node *now = head;
-
-    for (int i = 0; i < init->ty->array_len; i++) {
-      now->lhs = create_init_node(init->children[i], &now);
-    }
-
-    if (end_node != NULL) *end_node = now;
+    if (end_node != NULL) *end_node = head;
+    return head;
   }
+
+  Node *now = head;
+  for (int i = 0; i < init->ty->array_len; i++) {
+    now->lhs = create_init_node(init->children[i], &now);
+  }
+
+  if (end_node != NULL) *end_node = now;
   return head->lhs;
 }
 
@@ -356,19 +358,23 @@ static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
 }
 
 // arrays = "[" num "]" arrays?
-// num can empty value if empty_size is true.
-static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool empty_size) {
+// num can empty value if can_empty is true.
+static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
   if (!consume(tkn, &tkn, "[")) {
+    if (*end_tkn != NULL) *end_tkn = tkn;
     return ty;
   }
-  int val = 0;
-  if (!empty_size && tkn->kind != TK_NUM_INT) {
+
+  if (!can_empty && tkn->kind != TK_NUM_INT) {
       errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
   }
+
+  int val = 0;
   if (tkn->kind == TK_NUM_INT) {
     val = tkn->val;
     tkn = tkn->next;
   }
+
   tkn = skip(tkn, "]");
   ty = arrays(tkn, &tkn, ty, false);
 
@@ -376,33 +382,25 @@ static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool empty_size) {
   return array_to(ty, val);
 }
 
-// declare = get_type pointers? ident arrays?
-static Obj *declare(Token *tkn, Token **end_tkn, Type *ty, Type **base_ty) {
-  ty = pointers(tkn, &tkn, ty);
+// declare = ident arrays
+static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
   char *ident = get_ident(tkn);
 
   if (ident == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
   }
-  
-  tkn = tkn->next;
 
-  if (base_ty != NULL) {
-    *base_ty = calloc(1, sizeof(Type));
-    memcpy(*base_ty, ty, sizeof(Type));
-  }
-  
-  ty = arrays(tkn, &tkn, ty, true);
+  ty = arrays(tkn->next, &tkn, ty, true);
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return new_obj(ty, ident);
 }
 
-// declarator = declare ("=" initializer)?
+// declarator = pointers declare ("=" initializer)?
 // Return NULL if cannot be declared.
 static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
-  Type *base_ty;
-  Obj *var = declare(tkn, &tkn, ty, &base_ty);
+  ty = pointers(tkn, &tkn, ty);
+  Obj *var = declare(tkn, &tkn, ty);
 
   if (is_global) {
     add_gvar(var);
@@ -419,7 +417,7 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   if (consume(tkn, &tkn, "=")) {
     Initializer *init = initializer(tkn, &tkn, var->type);
     ret = new_node(ND_INIT, tkn, ret, create_init_node(init, NULL));
-    ret->type = base_ty;
+    ret->type = ty;
 
     // If the lengh of the array is empty, Type will be updated,
     // so it needs to be passed to var as well.
@@ -451,7 +449,7 @@ Node *program(Token *tkn) {
 }
 
 // topmost = get_type ident "(" params?")" statement |
-//           declarations ";"
+//           get_type declarations ";"
 // params = get_type ident ("," get_type ident)*
 static Node *topmost(Token *tkn, Token **end_tkn) {
   Token *head_tkn = tkn;
@@ -461,73 +459,56 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
     errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
   }
 
-  char *ident = get_ident(tkn);
-  if (ident == NULL) {
-    errorf_tkn(ER_COMPILE, tkn,
-        "Identifiers are required for function and variable definition.");
-  }
-
-  tkn = tkn->next;
-
-  // Global variable definition
-  if (!consume(tkn, &tkn, "(")) {
-    Node *ret = declarations(head_tkn, &tkn, true);
+  // Global variable declare
+  if (!equal(tkn->next, "(")) {
+    Node *ret = declarations(tkn, &tkn, ty, true);
 
     if (!consume(tkn, &tkn, ";")) {
-      errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the definition.");
+      errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the declaration.");
     }
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
+  char *ident = get_ident(tkn);
+  if (ident == NULL) {
+    errorf_tkn(ER_COMPILE, tkn,
+        "Identifiers are required for function declaration.");
+  }
+
   // Fuction definition
   Node *ret = new_node(ND_FUNC, tkn, NULL, NULL);
-  Obj *func = new_obj(ty, ident);
-  ret->func = func;
+  ret->func = new_obj(ty, ident);
   new_scope_definition();
 
-  bool end_define = false;
-  if (consume(tkn, &tkn, ")")) {
-    end_define = true;
+  if (!consume(tkn->next, &tkn, "(")) {
+    errorf_tkn(ER_COMPILE, tkn, "Function declaration must start with '('.");
   }
 
   // Set arguments
-  while (!end_define) {
-    Type *arg_type = get_type(tkn, &tkn);
-    if (arg_type == NULL) {
+  if (!consume(tkn, &tkn, ")")) while (true) {
+    Type *arg_ty = get_type(tkn, &tkn);
+    if (arg_ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
     }
-    
-    ident = get_ident(tkn);
-    if (ident == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Identifiers are required for variable definition.");
-    }
-    if (find_var(ident) != NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "This variable already define.");
-    }
-    tkn = tkn->next;
-    Obj *lvar = new_obj(arg_type, ident);
-    add_lvar(lvar);
-    Node *arg = new_var(tkn, lvar);
-    arg->lhs = func->args;
-    func->args = arg;
-    func->argc++;
 
-    if (consume(tkn, &tkn, ",")) {
-      continue;
-    }
+    Node *lvar = new_var(tkn, declare(tkn, &tkn, arg_ty));
+    add_lvar(lvar->use_var);
+    lvar->lhs = ret->func->args;
+    ret->func->args = lvar;
+    ret->func->argc++;
 
-    if (consume(tkn, &tkn, ")")) {
+    if (!equal(tkn, ",") && consume(tkn, &tkn, ")")) {
       break;
-    } else {
-      errorf_tkn(ER_COMPILE, tkn, "Define function must tend with \")\".");
     }
+
+    consume(tkn, &tkn, ",");
   }
 
   ret->next_stmt = statement(tkn, &tkn, false);
   out_scope_definition();
-  func->vars_size = init_offset();
+  ret->func->vars_size = init_offset();
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
@@ -614,7 +595,8 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     }
 
     if (!consume(tkn, &tkn, ";")) {
-      ret->init = declarations(tkn, &tkn, false);
+      Type *ty =get_type(tkn, &tkn);
+      ret->init = declarations(tkn, &tkn, ty, false);
       if (!consume(tkn, &tkn, ";")) {
         errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
       }
@@ -706,7 +688,8 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
-  ret = declarations(tkn, &tkn, false);
+  Type *ty = get_type(tkn, &tkn);
+  ret = declarations(tkn, &tkn, ty, false);
   if (!consume(tkn, &tkn, ";")) {
     errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
   }
@@ -714,11 +697,10 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   return ret;
 }
 
-// declarations = get_type declarator ("," declarator)* |
+// declarations = declarator ("," declarator)* |
 //                assign
 // Return last node, head is connect node.
-static Node *declarations(Token *tkn, Token**end_tkn, bool is_global) {
-  Type *ty = get_type(tkn, &tkn);
+static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) {
   if (ty == NULL) {
     Node *ret = assign(tkn, &tkn);
     if (end_tkn != NULL) *end_tkn = tkn;
