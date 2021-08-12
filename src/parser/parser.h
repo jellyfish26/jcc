@@ -14,6 +14,7 @@ typedef struct Function Function;
 //
 
 typedef enum {
+  ND_VOID,        // Nothing
   ND_FUNC,        // Function
   ND_ADD,         // +
   ND_SUB,         // -
@@ -116,6 +117,7 @@ typedef enum {
 
 struct Type {
   TypeKind kind;
+  Token *tkn;  // Representative token
 
   // Pointer and Array require the same behavior,
   // and need a base type to calculate the memory movement distance.
