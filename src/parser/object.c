@@ -207,12 +207,11 @@ void add_type(Node *node) {
 
   add_type(node->lhs);
   add_type(node->rhs);
-  add_type(node->judge);
-  add_type(node->exec_if);
-  add_type(node->exec_else);
+  add_type(node->cond);
+  add_type(node->then);
+  add_type(node->other);
   add_type(node->init);
-  add_type(node->repeat_for);
-  add_type(node->stmt_for);
+  add_type(node->loop);
   add_type(node->next_stmt);
   add_type(node->next_block);
 

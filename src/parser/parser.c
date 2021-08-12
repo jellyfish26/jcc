@@ -525,45 +525,44 @@ static Node *inside_roop; // inside for or while
 //             "continue;" |
 //             declarations ";"
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
-  Node *ret;
 
   // Block statement
-  if (consume(tkn, &tkn, "{")) {
-    if (new_scope) {
-      new_scope_definition();
-    }
-    ret = new_node(ND_BLOCK, tkn, NULL, NULL);
+  if (equal(tkn, "{")) {
+    if (new_scope) new_scope_definition();
+
+    Node *ret = new_node(ND_BLOCK, tkn, NULL, NULL);
+
     Node *head = calloc(1, sizeof(Node));
     Node *now = head;
+    
+    tkn = tkn->next;
     while (!consume(tkn, &tkn, "}")) {
       now->next_stmt = statement(tkn, &tkn, true);
       now = last_stmt(now);
     }
+
     ret->next_block = head->next_stmt;
-    if (new_scope) {
-      out_scope_definition();
-    }
+
+    if (new_scope) out_scope_definition();
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(tkn, &tkn, "if")) {
+  if (equal(tkn, "if")) {
+    tkn = skip(tkn->next, "(");
     new_scope_definition();
-    ret = new_node(ND_IF, tkn, NULL, NULL);
 
-    if (!consume(tkn, &tkn, "(")) {
-      errorf_tkn(ER_COMPILE, tkn, "If statement must start with \"(\"");
-    }
-    ret->judge = assign(tkn, &tkn);
-    Obj *top_var = lvars->objs;
-    if (!consume(tkn, &tkn, ")")) {
-      errorf_tkn(ER_COMPILE, tkn, "If statement must end with \")\".");
-    }
-    ret->exec_if = statement(tkn, &tkn, false);
-    // Transfer varaibles
-    if (top_var && lvars->objs == top_var) {
+    Node *ret = new_node(ND_IF, tkn, NULL, NULL);
+    ret->cond = assign(tkn, &tkn);
+    Obj *top_var= lvars->objs;
+    tkn = skip(tkn, ")");
+
+    ret->then = statement(tkn, &tkn, false);
+
+    // Transfer variables.
+    if (top_var != NULL && lvars->objs == top_var) {
       lvars->objs = NULL;
-    } else if (top_var) {
+    } else if (top_var != NULL) {
       for (Obj *obj = lvars->objs; obj != NULL; obj = obj->next) {
         if (obj->next == top_var) {
           obj->next = NULL;
@@ -571,128 +570,113 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
         }
       }
     }
+    
     out_scope_definition();
-    if (consume(tkn, &tkn, "else")) {
+
+    if (equal(tkn, "else")) {
       new_scope_definition();
-      if (top_var) {
-        add_lvar(top_var);
-      }
-      ret->exec_else = statement(tkn, &tkn, false);
+
+      if (top_var != NULL) add_lvar(top_var);
+      ret->other = statement(tkn->next, &tkn, false);
+
       out_scope_definition();
     }
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(tkn, &tkn, "for")) {
+  if (equal(tkn, "for")) {
+    tkn = skip(tkn->next, "(");
     new_scope_definition();
+
     Node *roop_state = inside_roop;
-    ret = new_node(ND_FOR, tkn, NULL, NULL);
+    Node *ret = new_node(ND_FOR, tkn, NULL, NULL);
     inside_roop = ret;
 
-    if (!consume(tkn, &tkn, "(")) {
-      errorf_tkn(ER_COMPILE, tkn, "For statement must start with \"(\".");
-    }
 
     if (!consume(tkn, &tkn, ";")) {
-      Type *ty =get_type(tkn, &tkn);
+      Type *ty = get_type(tkn, &tkn);
       ret->init = declarations(tkn, &tkn, ty, false);
-      if (!consume(tkn, &tkn, ";")) {
-        errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
-      }
+      
+      tkn = skip(tkn, ";");
     }
 
     if (!consume(tkn, &tkn, ";")) {
-      ret->judge = assign(tkn, &tkn);
-      if (!consume(tkn, &tkn, ";")) {
-        errorf_tkn(ER_COMPILE, tkn, "After defining an expression, it must end with \";\". ");
-      }
+      ret->cond = assign(tkn, &tkn);
+      tkn = skip(tkn, ";");
     }
 
     if (!consume(tkn, &tkn, ")")) {
-      ret->repeat_for = assign(tkn, &tkn);
-      if (!consume(tkn, &tkn, ")")) {
-        errorf_tkn(ER_COMPILE, tkn, "For statement must end with \")\".");
-      }
+      ret->loop = assign(tkn, &tkn);
+      tkn = skip(tkn, ")");
     }
 
-    ret->stmt_for = statement(tkn, &tkn, false);
+    ret->then = statement(tkn, &tkn, false);
     out_scope_definition();
 
     inside_roop = roop_state;
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(tkn, &tkn, "while")) {
+  if (equal(tkn, "while")) {
+    tkn = skip(tkn->next, "(");
     new_scope_definition();
+
     Node *roop_state = inside_roop;
-    ret = new_node(ND_WHILE, tkn, NULL, NULL);
+    Node *ret = new_node(ND_WHILE, tkn, NULL, NULL);
     inside_roop = ret;
 
-    if (!consume(tkn, &tkn, "(")) {
-      errorf_tkn(ER_COMPILE, tkn, "While statement must start with \"(\".");
-    }
+    ret->cond = assign(tkn, &tkn);
 
-    ret->judge = assign(tkn, &tkn);
+    tkn = skip(tkn, ")");
 
-    if (!consume(tkn, &tkn, ")")) {
-      errorf_tkn(ER_COMPILE, tkn, "While statement must end with \")\".");
-    }
-
-    ret->stmt_for = statement(tkn, &tkn, false);
+    ret->then = statement(tkn, &tkn, false);
     inside_roop = roop_state;
+
     out_scope_definition();
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  if (equal(tkn, "return")) {
+    Node *ret = new_node(ND_RETURN, tkn, assign(tkn->next, &tkn), NULL);
+    tkn = skip(tkn, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(tkn, &tkn, "return")) {
-    ret = new_node(ND_RETURN, tkn, assign(tkn, &tkn), NULL);
-
-    if (!consume(tkn, &tkn, ";")) {
-      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
+  if (equal(tkn, "break")) {
+    if (inside_roop == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
     }
+
+    Node *ret = new_node(ND_LOOPBREAK, tkn, inside_roop, NULL);
+    tkn = skip(tkn->next, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
-  if (consume(tkn, &tkn, "break")) {
-    if (!inside_roop) {
-      errorf_tkn(ER_COMPILE, tkn, "%s", "Not whithin loop");
+  if (equal(tkn, "continue")) {
+    if (inside_roop == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
     }
 
-    ret = new_node(ND_LOOPBREAK, tkn, NULL, NULL);
-    ret->lhs = inside_roop;
+    Node *ret = new_node(ND_CONTINUE, tkn, inside_roop, NULL);
+    tkn = skip(tkn->next, ";");
 
-    if (!consume(tkn, &tkn, ";")) {
-      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
-    }
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
-  if (consume(tkn, &tkn, "continue")) {
-    if (!inside_roop) {
-      errorf_tkn(ER_COMPILE, tkn, "%s", "continue statement not within loop");
-    }
-    ret = new_node(ND_CONTINUE, tkn, NULL, NULL);
-    ret->lhs = inside_roop;
-    if (!consume(tkn, &tkn, ";")) {
-      errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
-    }
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
   Type *ty = get_type(tkn, &tkn);
-  ret = declarations(tkn, &tkn, ty, false);
-  if (!consume(tkn, &tkn, ";")) {
-    errorf_tkn(ER_COMPILE, tkn, "Expression must end with \";\".");
-  }
+  Node *ret = declarations(tkn, &tkn, ty, false);
+  tkn = skip(tkn, ";");
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
@@ -771,7 +755,7 @@ static Node *ternary(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "The ternary operator requires \":\".");
     }
     tmp->rhs = ternary(tkn, &tkn);
-    tmp->exec_if = ret;
+    tmp->cond = ret;
     ret = tmp;
   }
   if (end_tkn != NULL) *end_tkn = tkn;

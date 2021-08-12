@@ -69,13 +69,10 @@ struct Node {
   Obj *use_var; // Use target
 
   Node *init;  // Initialization (variable, for statement)
-
-  Node *judge;     // judge ("if" statement, "for" statement, "while" statement)
-  Node *exec_if;   // exec ("if" statement)
-  Node *exec_else; // exec ("else" statement)
-
-  Node *repeat_for; // repeat in exec "for"
-  Node *stmt_for;   // statement in exec "for"
+  Node *cond;  // condition (if, for, while)
+  Node *then;  // cond true statement
+  Node *other; // cond false statement
+  Node *loop;  // Loop statement
 
   Node *next_stmt;  // Next statement
   Node *next_block; // Next Block

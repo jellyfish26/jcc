@@ -343,7 +343,7 @@ void expand_logical_or(Node *node, int label) {
 }
 
 void expand_ternary(Node *node, int label) {
-  compile_node(node->exec_if);
+  compile_node(node->cond);
   println("  cmp rax, 0");
   println("  je .Lfalse%d", label);
 
@@ -532,18 +532,18 @@ void compile_node(Node *node) {
       return;
     case ND_IF: {
       int now_label = label++;
-      compile_node(node->judge);
+      compile_node(node->cond);
       println("  cmp rax, 0");
       println("  je .Lelse%d", now_label);
 
       // "true"
-      compile_node(node->exec_if);
+      compile_node(node->then);
       println("  jmp .Lend%d", now_label);
 
       println(".Lelse%d:", now_label);
       // "else" statement
-      if (node->exec_else) {
-        compile_node(node->exec_else);
+      if (node->other != NULL) {
+        compile_node(node->other);
       }
 
       // continue
@@ -566,18 +566,18 @@ void compile_node(Node *node) {
       println(".Lbegin%d:", now_label);
 
       // judege expr
-      if (node->judge) {
-        compile_node(node->judge);
+      if (node->cond != NULL) {
+        compile_node(node->cond);
         println("  cmp rax, 0");
         println("  je .Lend%d", now_label);
       }
 
-      compile_node(node->stmt_for);
+      compile_node(node->then);
 
       // repeat expr
-      if (node->repeat_for) {
+      if (node->loop != NULL) {
         int stack_cnt = push_cnt;
-        compile_node(node->repeat_for);
+        compile_node(node->loop);
         if (push_cnt - stack_cnt >= 1) {
           gen_emptypop(push_cnt - stack_cnt);
         }
