@@ -90,6 +90,12 @@ Node *new_strlit(Token *tkn, char *strlit) {
 // kind is ND_ASSIGN if operation only assign
 Node *new_assign(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   Node *ret = new_node(ND_ASSIGN, tkn, lhs, rhs);
+
+  add_type(ret);
+  if (lhs != NULL && lhs->type->is_const) {
+    errorf_tkn(ER_COMPILE, tkn, "Cannot assign to const variable.");
+  }
+
   ret->assign_type = kind;
   return ret;
 }
@@ -685,18 +691,16 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
 //                assign
 // Return last node, head is connect node.
 static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) {
-  if (ty == NULL) {
-    Node *ret = assign(tkn, &tkn);
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
+  if (ty == NULL) return assign(tkn, end_tkn);
 
   Node *ret = declarator(tkn, &tkn, ty, is_global);
   Node *now = ret;
+
   while (consume(tkn, &tkn, ",")) {
     now->next_stmt = declarator(tkn, &tkn, ty, is_global);
     now = now->next_stmt;
   }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
@@ -708,39 +712,53 @@ static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) 
 //                   "&=" assign | "^=" assign | "|=" assign)?
 static Node *assign(Token *tkn, Token **end_tkn) {
   Node *ret = ternary(tkn, &tkn);
-  Token *assign_tkn = tkn;
 
-  if (consume(tkn, &tkn, "=")) {
-    ret = new_assign(ND_ASSIGN, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "+=")) {
-    ret = new_assign(ND_ADD, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "-=")) {
-    ret = new_assign(ND_SUB, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "*=")) {
-    ret = new_assign(ND_MUL, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "/=")) {
-    ret = new_assign(ND_DIV, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "%=")) {
-    ret = new_assign(ND_REMAINDER, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "<<=")) {
-    ret = new_assign(ND_LEFTSHIFT, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, ">>=")) {
-    ret = new_assign(ND_RIGHTSHIFT, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "&=")) {
-    ret = new_assign(ND_BITWISEAND, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "^=")) {
-    ret = new_assign(ND_BITWISEXOR, tkn, ret, assign(tkn, &tkn));
-  } else if (consume(tkn, &tkn, "|=")) {
-    ret = new_assign(ND_BITWISEOR, tkn, ret, assign(tkn, &tkn));
+  if (equal(tkn, "=")) {
+    return new_assign(ND_ASSIGN, tkn, ret, assign(tkn->next, end_tkn));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+  if (equal(tkn, "+=")) {
+    return new_assign(ND_ADD, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "-=")) {
+    return new_assign(ND_SUB, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "*=")) {
+    return new_assign(ND_MUL, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "/=")) {
+    return new_assign(ND_DIV, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "%=")) {
+    return new_assign(ND_REMAINDER, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "<<=")) {
+    return new_assign(ND_LEFTSHIFT, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, ">>=")) {
+    return new_assign(ND_RIGHTSHIFT, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "&=")) {
+    return new_assign(ND_BITWISEAND, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "^=")) {
+    return new_assign(ND_BITWISEXOR, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "|=")) {
+    return new_assign(ND_BITWISEOR, tkn, ret, assign(tkn->next, end_tkn));
+  }
+
   add_type(ret);
-
-  if (ret->kind == ND_ASSIGN && ret->lhs != NULL && ret->lhs->type->is_const) {
-    errorf_tkn(ER_COMPILE, assign_tkn, "Cannot assign to const variable.");
-  }
-
+  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
