@@ -109,6 +109,16 @@ Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
+  Node *node = new_node(kind, tkn, lhs, rhs);
+  add_type(node);
+
+  if (node->lhs->type->kind == TY_PTR || node->rhs->type->kind == TY_PTR) {
+    errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
+  }
+  return node;
+}
+
 Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   // Remove implicit cast 
   if (lhs->kind == ND_CAST) {
@@ -788,28 +798,28 @@ static Node *assign(Token *tkn, Token **end_tkn) {
     return to_assign(tkn, new_sub(tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "*="))
-    return to_assign(tkn, new_node(ND_MUL, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_MUL, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "/="))
-    return to_assign(tkn, new_node(ND_DIV, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_DIV, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "%="))
-    return to_assign(tkn, new_node(ND_REMAINDER, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_REMAINDER, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "<<="))
-    return to_assign(tkn, new_node(ND_LEFTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_LEFTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, ">>="))
-    return to_assign(tkn, new_node(ND_RIGHTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_RIGHTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "&="))
-    return to_assign(tkn, new_node(ND_BITWISEAND, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_BITWISEAND, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "^="))
-    return to_assign(tkn, new_node(ND_BITWISEXOR, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_BITWISEXOR, tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "|="))
-    return to_assign(tkn, new_node(ND_BITWISEOR, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_calc(ND_BITWISEOR, tkn, node, assign(tkn->next, end_tkn)));
 
   add_type(node);
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -839,7 +849,8 @@ static Node *logical_or(Token *tkn, Token **end_tkn) {
   Node *ret = logical_and(tkn, &tkn);
 
   while (equal(tkn, "||")) {
-    ret = new_node(ND_LOGICALOR, tkn, ret, logical_and(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_calc(ND_LOGICALOR, operand, ret, logical_and(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -851,7 +862,8 @@ static Node *logical_and(Token *tkn, Token **end_tkn) {
   Node *ret = bitwise_or(tkn, &tkn);
 
   while (equal(tkn, "&&")) {
-    ret = new_node(ND_LOGICALAND, tkn, ret, bitwise_or(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_calc(ND_LOGICALAND, operand, ret, bitwise_or(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -863,7 +875,8 @@ static Node *bitwise_or(Token *tkn, Token **end_tkn) {
   Node *ret = bitwise_xor(tkn, &tkn);
 
   while (equal(tkn, "|")) {
-    ret = new_node(ND_BITWISEOR, tkn, ret, bitwise_xor(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_calc(ND_BITWISEOR, operand, ret, bitwise_xor(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -875,7 +888,8 @@ static Node *bitwise_xor(Token *tkn, Token **end_tkn) {
   Node *ret = bitwise_and(tkn, &tkn);
 
   while (equal(tkn, "^")) {
-    ret = new_node(ND_BITWISEXOR, tkn, ret, bitwise_and(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_calc(ND_BITWISEXOR, operand, ret, bitwise_and(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -887,7 +901,8 @@ static Node *bitwise_and(Token *tkn, Token **end_tkn) {
   Node *ret = same_comp(tkn, &tkn);
 
   while (equal(tkn, "&")) {
-    ret = new_node(ND_BITWISEAND, tkn, ret, same_comp(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_calc(ND_BITWISEAND, operand, ret, same_comp(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -900,7 +915,8 @@ static Node *same_comp(Token *tkn, Token **end_tkn) {
 
   while (equal(tkn, "==") || equal(tkn, "!=")) {
     NodeKind kind = equal(tkn, "==") ? ND_EQ : ND_NEQ;
-    ret = new_node(kind, tkn,  ret, same_comp(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_node(kind, operand, ret, same_comp(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -941,7 +957,8 @@ static Node *bitwise_shift(Token *tkn, Token **end_tkn) {
 
   while (equal(tkn, "<<") || equal(tkn, ">>")) {
     NodeKind kind = equal(tkn, "<<") ? ND_LEFTSHIFT : ND_RIGHTSHIFT;
-    ret = new_node(kind, tkn, ret, add(tkn->next, &tkn));
+    Token *operand = tkn;
+    ret = new_calc(kind, operand, ret, add(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -973,6 +990,7 @@ static Node *mul(Token *tkn, Token **end_tkn) {
 
   while (equal(tkn, "*") || equal(tkn, "/") || equal(tkn, "%")) {
     NodeKind kind = ND_VOID;
+    Token *operand = tkn;
 
     if (equal(tkn, "*")) {
       kind = ND_MUL;
@@ -982,7 +1000,7 @@ static Node *mul(Token *tkn, Token **end_tkn) {
       kind = ND_REMAINDER;
     }
 
-    ret = new_node(kind, tkn, ret, cast(tkn->next, &tkn));
+    ret = new_node(kind, operand, ret, cast(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
