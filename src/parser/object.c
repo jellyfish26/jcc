@@ -99,16 +99,16 @@ void add_lvar(Obj *var) {
   lvars->objs = var;
 }
 
-void add_gvar(Obj *var) {
+void add_gvar(Obj *var, bool is_substance) {
   var->is_global = true;
   var->next = gvars;
   if (gvars == NULL) {
     var->offset = 0;
   } else {
-    if (var->type->kind == TY_STR) {
-      var->offset = gvars->offset + 1;
-    } else {
+    if (is_substance) {
       var->offset = gvars->offset;
+    } else {
+      var->offset = gvars->offset + 1;
     }
   }
   gvars = var;
@@ -241,8 +241,10 @@ void add_type(Node *node) {
       implicit_cast(&node->lhs, &node->rhs);
       node->type = node->lhs->type;
       return;
-    case ND_BITWISENOT:
     case ND_ASSIGN:
+      node->type = node->lhs->type;
+      break;
+    case ND_BITWISENOT:
     case ND_EQ:
     case ND_NEQ:
     case ND_LC:

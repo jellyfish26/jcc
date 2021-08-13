@@ -162,7 +162,7 @@ extern Obj *used_vars;
 void new_scope_definition();
 void out_scope_definition();
 void add_lvar(Obj *var);
-void add_gvar(Obj *var);
+void add_gvar(Obj *var, bool is_substance);
 Obj *find_var(char *name);
 bool check_already_define(char *name, bool is_global);
 int init_offset();

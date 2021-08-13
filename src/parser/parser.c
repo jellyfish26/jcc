@@ -85,11 +85,36 @@ Node *new_var(Token *tkn, Obj *obj) {
 Node *new_strlit(Token *tkn, char *strlit) {
   Obj *obj = new_obj(new_type(TY_STR, false), strlit);
   Node *ret = new_var(tkn, obj);
-  add_gvar(obj);
+  add_gvar(obj, false);
   return ret;
 }
 
+Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
+  Node *node = new_node(ND_ADD, tkn, lhs, rhs);
+  add_type(node);
+
+  if (node->lhs->type->kind == TY_PTR && node->rhs->type->kind == TY_PTR) {
+    errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
+  }
+  return node;
+}
+
+Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
+  Node *node = new_node(ND_SUB, tkn, lhs, rhs);
+  add_type(node);
+
+  if (node->lhs->type->kind == TY_PTR && node->rhs->type->kind == TY_PTR) {
+    node->type = new_type(TY_LONG, false);
+  }
+  return node;
+}
+
 Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
+  // Remove implicit cast 
+  if (lhs->kind == ND_CAST) {
+    lhs = lhs->lhs;
+  }
+
   Node *ret = new_node(ND_ASSIGN, tkn, lhs, rhs);
 
   add_type(ret);
@@ -414,7 +439,7 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   Obj *var = declare(tkn, &tkn, ty);
 
   if (is_global) {
-    add_gvar(var);
+    add_gvar(var, true);
   } else {
     add_lvar(var);
   }
@@ -757,10 +782,10 @@ static Node *assign(Token *tkn, Token **end_tkn) {
     return new_assign(tkn, node, assign(tkn->next, end_tkn));
 
   if (equal(tkn, "+="))
-    return to_assign(tkn, new_node(ND_ADD, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_add(tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "-="))
-    return to_assign(tkn, new_node(ND_SUB, tkn, node, assign(tkn->next, end_tkn)));
+    return to_assign(tkn, new_sub(tkn, node, assign(tkn->next, end_tkn)));
 
   if (equal(tkn, "*="))
     return to_assign(tkn, new_node(ND_MUL, tkn, node, assign(tkn->next, end_tkn)));
@@ -928,8 +953,14 @@ static Node *add(Token *tkn, Token **end_tkn) {
   Node *ret = mul(tkn, &tkn);
 
   while (equal(tkn, "+") || equal(tkn, "-")) {
-    NodeKind kind = equal(tkn, "+") ? ND_ADD : ND_SUB;
-    ret = new_node(kind, tkn, ret, add(tkn->next, &tkn));
+    Token *operand = tkn;
+    if (equal(tkn, "+")) {
+      ret = new_add(operand, ret, mul(tkn->next, &tkn));
+    }
+
+    if (equal(tkn, "-")) {
+      ret = new_sub(operand, ret, mul(tkn->next, &tkn));
+    }
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -1030,18 +1061,27 @@ static Node *indirection(Token *tkn, Token **end_tkn) {
 // Convert ++a to (a += 1), --a to (a -= 1)
 // Convert a++ to ((a += 1) - 1), a-- to ((a -= 1) + 1);
 static Node *inc_dec(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "++") || equal(tkn, "--")) {
-    NodeKind kind = equal(tkn, "++") ? ND_ADD : ND_SUB;
-    return to_assign(tkn, new_node(kind, tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
+  if (equal(tkn, "++")) {
+    return to_assign(tkn, new_add(tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
+  }
+
+  if (equal(tkn, "--")) {
+    return to_assign(tkn, new_sub(tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
   }
 
   Node *node = priority(tkn, &tkn);
-  if (equal(tkn, "++") || equal(tkn, "--")) {
-    NodeKind assign_kind = equal(tkn, "++") ? ND_ADD : ND_SUB;
-    NodeKind post_kind = equal(tkn, "++") ? ND_SUB : ND_ADD;
 
-    node = to_assign(tkn, new_node(assign_kind, tkn, node, new_num(tkn, 1)));
-    node = new_node(post_kind, tkn, node, new_num(tkn, 1));
+  if (equal(tkn, "++")) {
+    node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
+    node = new_sub(tkn, node, new_num(tkn, 1));
+
+    if (end_tkn != NULL) *end_tkn = tkn->next;
+    return node;
+  }
+
+  if (equal(tkn, "--")) {
+    node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
+    node = new_add(tkn, node, new_num(tkn, 1));
     tkn = tkn->next;
   }
 
@@ -1130,11 +1170,8 @@ static Node *priority(Token *tkn, Token **end_tkn) {
 //       number literal
 static Node *num(Token *tkn, Token **end_tkn) {
   if (tkn->kind == TK_STR) {
-    Obj *var = new_obj(new_type(TY_STR, false), tkn->str_lit);
-    Node *ret = new_var(tkn, var);
-    add_gvar(var);
     if (end_tkn != NULL) *end_tkn = tkn->next;
-    return ret;
+    return new_strlit(tkn, tkn->str_lit);
   }
 
   if (tkn->kind == TK_NUM_INT) {

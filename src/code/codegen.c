@@ -239,7 +239,8 @@ void gen_assignable_address(Node *node) {
   } else if (node->kind == ND_CONTENT) {
     compile_node(node->lhs);
   } else {
-    errorf(ER_COMPILE, "Cannot assign");
+    fprintf(stderr, "%d\n", node->kind);
+    errorf_tkn(ER_COMPILE, node->tkn, "Cannot assign");
   }
 }
 
