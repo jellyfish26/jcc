@@ -128,6 +128,27 @@ int main() {
     sizeof(1);
   }));
 
+  CHECK(4, ({
+    sizeof(int);
+  }));
+
+  CHECK(8, ({
+    sizeof(int*);
+  }));
+
+  CHECK(8, ({
+    sizeof(long);
+  }));
+
+  CHECK(32, ({
+    sizeof(int[8]);
+  }));
+
+  CHECK(64, ({
+    sizeof(int[4][4]);
+  }));
+
+
   CHECK(3, ({
     short a = 2;
     short b = 1;

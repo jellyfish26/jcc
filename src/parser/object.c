@@ -243,9 +243,6 @@ void add_type(Node *node) {
       return;
     case ND_BITWISENOT:
     case ND_ASSIGN:
-    case ND_SIZEOF:
-      node->type = node->lhs->type;
-      return;
     case ND_EQ:
     case ND_NEQ:
     case ND_LC:

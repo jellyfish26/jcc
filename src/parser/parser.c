@@ -977,7 +977,21 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 //         address_op
 static Node *unary(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "sizeof")) {
-    return new_node(ND_SIZEOF, tkn, unary(tkn->next, end_tkn), NULL);
+    // Type size
+    if (equal(tkn->next, "(") && get_type(tkn->next->next, NULL) != NULL) {
+      Type *ty = get_type(tkn->next->next, &tkn);
+      ty = pointers(tkn, &tkn, ty);
+      ty = arrays(tkn, &tkn, ty, false);
+
+      tkn = skip(tkn, ")");
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return new_num(tkn, ty->var_size);
+    }
+
+    Node *node = unary(tkn->next, end_tkn);
+    add_type(node);
+
+    return new_num(tkn, node->type->var_size);
   }
 
   if (equal(tkn, "+") || equal(tkn, "-")) {

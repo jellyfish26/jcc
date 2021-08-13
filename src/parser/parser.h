@@ -50,7 +50,6 @@ typedef enum {
   ND_FUNCCALL,    // Function call
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
-  ND_SIZEOF,      // "sizeof"
   ND_INT,         // Number (int)
   ND_CAST,        // Cast
   ND_INIT,        // Initializer
@@ -79,8 +78,6 @@ struct Node {
   Obj *func;  // Function or Function call
 
   int val;        // value if kind is ND_INT
-  char *str_lit;  // value if kind is ND_STR
-  int str_lit_label;
 };
 
 Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs);

@@ -579,10 +579,6 @@ void compile_node(Node *node) {
       gen_operation(REG_RAX, REG_RDI, 8, OP_BITWISE_XOR);
       return;
     }
-    case ND_SIZEOF: {
-      println("  mov rax, %d", node->type->var_size);
-      return;
-    }
     default:
       break;
   }
