@@ -245,69 +245,14 @@ void gen_assignable_address(Node *node) {
 
 // Right to left
 void expand_assign(Node *node) {
-  if (node->rhs->kind == ND_ASSIGN) {
-    expand_assign(node->rhs);
-  } else {
-    compile_node(node->rhs);
-  }
+  compile_node(node->rhs);
   gen_push(REG_RAX);
+
   // The left node must be assignable.
   gen_assignable_address(node->lhs);
   gen_pop(REG_RDI);
-  int reg_size = get_type_size(node->lhs->type);
 
-  switch (node->assign_type) {
-    case ND_ADD: {
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_ADD);
-      break;
-    }
-    case ND_SUB: {
-      gen_push(REG_RAX);
-      gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_SUB);
-      gen_operation(REG_RDI, REG_RAX, reg_size, OP_MOV);
-      gen_pop(REG_RAX);
-      break;
-    }
-    case ND_MUL: {
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MUL);
-      break;
-    }
-    case ND_DIV:
-    case ND_REMAINDER: {
-      gen_push(REG_RAX);
-      if (node->assign_type == ND_DIV) {
-        gen_operation(REG_MEM, REG_RDI, reg_size, OP_DIV);
-      } else {
-        gen_operation(REG_MEM, REG_RDI, reg_size, OP_REMAINDER);
-      }
-      gen_pop(REG_RAX);
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MOV);
-      break;
-    }
-    case ND_LEFTSHIFT:
-      gen_operation(REG_MEM, REG_RDI, reg_size, OP_LEFT_SHIFT);
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MOV);
-      break;
-    case ND_RIGHTSHIFT:
-      gen_operation(REG_MEM, REG_RDI, reg_size, OP_RIGHT_SHIFT);
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MOV);
-      break;
-    case ND_BITWISEAND:
-      gen_operation(REG_MEM, REG_RDI, reg_size, OP_BITWISE_AND);
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MOV);
-      break;
-    case ND_BITWISEXOR:
-      gen_operation(REG_MEM, REG_RDI, reg_size, OP_BITWISE_XOR);
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MOV);
-      break;
-    case ND_BITWISEOR:
-      gen_operation(REG_MEM, REG_RDI, reg_size, OP_BITWISE_OR);
-      gen_operation(REG_RDI, REG_MEM, reg_size, OP_MOV);
-      break;
-    default:
-      break;
-  }
+  int reg_size = get_type_size(node->lhs->type);
   gen_operation(REG_MEM, REG_RDI, reg_size, OP_MOV);
   gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
 }

@@ -74,8 +74,6 @@ struct Node {
   Node *next_stmt;  // Next statement
   Node *next_block; // Next Block
 
-  NodeKind assign_type; // Type of assign
-
   int label; // label (only "for" or "while" statement)
 
   Obj *func;  // Function or Function call
@@ -90,7 +88,8 @@ Node *new_num(Token *tkn, int val);
 Node *new_cast(Token *tkn, Node *lhs, Type *type);
 Node *new_var(Token *tkn, Obj *obj);
 Node *new_strlit(Token *tkn, char *strlit);
-Node *new_assign(NodeKind kind, Token *tkn, Node *lhs, Node *rhs);
+Node *new_assign(Token *tkn, Node *lhs, Node *rhs);
+Node *to_assign(Token *tkn, Node *rhs);
 
 Node *program(Token *tkn);
 

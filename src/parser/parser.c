@@ -89,8 +89,7 @@ Node *new_strlit(Token *tkn, char *strlit) {
   return ret;
 }
 
-// kind is ND_ASSIGN if operation only assign
-Node *new_assign(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
+Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   Node *ret = new_node(ND_ASSIGN, tkn, lhs, rhs);
 
   add_type(ret);
@@ -98,9 +97,13 @@ Node *new_assign(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
     errorf_tkn(ER_COMPILE, tkn, "Cannot assign to const variable.");
   }
 
-  ret->assign_type = kind;
   return ret;
 }
+
+Node *to_assign(Token *tkn, Node *rhs) {
+  return new_assign(tkn, rhs->lhs, rhs);
+}
+
 
 char *typename[] = {
   "void", "char", "short", "int", "long"
@@ -748,55 +751,44 @@ static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) 
 //                   "<<=" assign | ">>=" assign
 //                   "&=" assign | "^=" assign | "|=" assign)?
 static Node *assign(Token *tkn, Token **end_tkn) {
-  Node *ret = ternary(tkn, &tkn);
+  Node *node = ternary(tkn, &tkn);
 
-  if (equal(tkn, "=")) {
-    return new_assign(ND_ASSIGN, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "="))
+    return new_assign(tkn, node, assign(tkn->next, end_tkn));
 
-  if (equal(tkn, "+=")) {
-    return new_assign(ND_ADD, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "+="))
+    return to_assign(tkn, new_node(ND_ADD, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "-=")) {
-    return new_assign(ND_SUB, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "-="))
+    return to_assign(tkn, new_node(ND_SUB, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "*=")) {
-    return new_assign(ND_MUL, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "*="))
+    return to_assign(tkn, new_node(ND_MUL, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "/=")) {
-    return new_assign(ND_DIV, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "/="))
+    return to_assign(tkn, new_node(ND_DIV, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "%=")) {
-    return new_assign(ND_REMAINDER, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "%="))
+    return to_assign(tkn, new_node(ND_REMAINDER, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "<<=")) {
-    return new_assign(ND_LEFTSHIFT, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "<<="))
+    return to_assign(tkn, new_node(ND_LEFTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, ">>=")) {
-    return new_assign(ND_RIGHTSHIFT, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, ">>="))
+    return to_assign(tkn, new_node(ND_RIGHTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "&=")) {
-    return new_assign(ND_BITWISEAND, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "&="))
+    return to_assign(tkn, new_node(ND_BITWISEAND, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "^=")) {
-    return new_assign(ND_BITWISEXOR, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "^="))
+    return to_assign(tkn, new_node(ND_BITWISEXOR, tkn, node, assign(tkn->next, end_tkn)));
 
-  if (equal(tkn, "|=")) {
-    return new_assign(ND_BITWISEOR, tkn, ret, assign(tkn->next, end_tkn));
-  }
+  if (equal(tkn, "|="))
+    return to_assign(tkn, new_node(ND_BITWISEOR, tkn, node, assign(tkn->next, end_tkn)));
 
-  add_type(ret);
+  add_type(node);
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return node;
 }
 
 // ternary = logical_or ("?" ternary ":" ternary)?
@@ -1026,7 +1018,7 @@ static Node *indirection(Token *tkn, Token **end_tkn) {
 static Node *inc_dec(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "++") || equal(tkn, "--")) {
     NodeKind kind = equal(tkn, "++") ? ND_ADD : ND_SUB;
-    return new_assign(kind, tkn, priority(tkn->next, end_tkn), new_num(tkn, 1));
+    return to_assign(tkn, new_node(kind, tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
   }
 
   Node *node = priority(tkn, &tkn);
@@ -1034,7 +1026,7 @@ static Node *inc_dec(Token *tkn, Token **end_tkn) {
     NodeKind assign_kind = equal(tkn, "++") ? ND_ADD : ND_SUB;
     NodeKind post_kind = equal(tkn, "++") ? ND_SUB : ND_ADD;
 
-    node = new_assign(assign_kind, tkn, node, new_num(tkn, 1));
+    node = to_assign(tkn, new_node(assign_kind, tkn, node, new_num(tkn, 1)));
     node = new_node(post_kind, tkn, node, new_num(tkn, 1));
     tkn = tkn->next;
   }
