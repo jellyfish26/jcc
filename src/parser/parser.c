@@ -24,6 +24,7 @@ struct Initializer {
 // Prototype
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
+static bool is_const_expr(Node *node);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global);
@@ -62,6 +63,7 @@ Node *new_num(Token *tkn, int val) {
   ret->tkn = tkn;
   ret->val = val;
   ret->type = new_type(TY_INT, false);
+  ret->type->is_const = true;
   return ret;
 }
 
@@ -432,6 +434,41 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
+}
+
+
+// TODO: I will make the nodes a little more concise and then implement them.
+static bool is_const_expr(Node *node) {
+  add_type(node);
+
+  switch (node->kind) {
+    case ND_ADD:
+    case ND_SUB:
+    case ND_MUL:
+    case ND_DIV:
+    case ND_REMAINDER:
+    case ND_EQ:
+    case ND_NEQ:
+    case ND_LC:
+    case ND_LEC:
+    case ND_RC:
+    case ND_REC:
+    case ND_LEFTSHIFT:
+    case ND_RIGHTSHIFT:
+    case ND_BITWISEAND:
+    case ND_BITWISEOR:
+    case ND_BITWISEXOR:
+    case ND_BITWISENOT:
+    case ND_LOGICALAND:
+    case ND_LOGICALOR:
+      return is_const_expr(node->lhs) && is_const_expr(node->rhs);
+    case ND_LOGICALNOT:
+      return is_const_expr(node->lhs);
+    case ND_TERNARY:
+      return is_const_expr(node->cond);
+    default:
+      return false;
+  }
 }
 
 static Node *last_stmt(Node *now) {
@@ -1056,7 +1093,6 @@ static Node *priority(Token *tkn, Token **end_tkn) {
       if (consume(tkn, &tkn, ")")) {
         break;
       }
-
 
       tkn = skip(tkn, ",");
     }
