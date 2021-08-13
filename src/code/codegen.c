@@ -245,15 +245,12 @@ void gen_assignable_address(Node *node) {
 
 // Right to left
 void expand_assign(Node *node) {
-  switch (node->rhs->kind) {
-    case ND_ASSIGN:
-      expand_assign(node->rhs);
-      break;
-    default:
-      compile_node(node->rhs);
-      gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
+  if (node->rhs->kind == ND_ASSIGN) {
+    expand_assign(node->rhs);
+  } else {
+    compile_node(node->rhs);
   }
-  gen_push(REG_RDI);
+  gen_push(REG_RAX);
   // The left node must be assignable.
   gen_assignable_address(node->lhs);
   gen_pop(REG_RDI);
@@ -312,6 +309,7 @@ void expand_assign(Node *node) {
       break;
   }
   gen_operation(REG_MEM, REG_RDI, reg_size, OP_MOV);
+  gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
 }
 
 void expand_logical_and(Node *node, int label) {
@@ -623,32 +621,6 @@ void compile_node(Node *node) {
       println(".Ltrue%d:", now_label);
       println("  mov rax, 1");
       println(".Lnext%d:", now_label);
-      return;
-    }
-    case ND_PREFIX_INC:
-    case ND_PREFIX_DEC: {
-      gen_assignable_address(node->lhs);
-      println("  mov rdi, 1");
-      if (node->kind == ND_PREFIX_INC) {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_ADD);
-      } else {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_SUB);
-      }
-      compile_node(node->lhs);
-      return;
-    }
-    case ND_SUFFIX_INC:
-    case ND_SUFFIX_DEC: {
-      compile_node(node->lhs);
-      gen_push(REG_RAX);
-      gen_assignable_address(node->lhs);
-      println("  mov rdi, 1");
-      if (node->kind == ND_SUFFIX_INC) {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_ADD);
-      } else {
-        gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_SUB);
-      }
-      gen_pop(REG_RAX);
       return;
     }
     case ND_BITWISENOT: {

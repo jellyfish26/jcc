@@ -50,10 +50,6 @@ typedef enum {
   ND_FUNCCALL,    // Function call
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
-  ND_PREFIX_INC,  // Prefix increment
-  ND_PREFIX_DEC,  // Prefix decrement
-  ND_SUFFIX_INC,  // Suffix increment
-  ND_SUFFIX_DEC,  // Suffix decrement
   ND_SIZEOF,      // "sizeof"
   ND_INT,         // Number (int)
   ND_CAST,        // Cast

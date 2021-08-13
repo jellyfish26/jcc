@@ -44,7 +44,7 @@ static Node *cast(Token *tkn, Token **end_tkn);
 static Node *unary(Token *tkn, Token **end_tkn);
 static Node *address_op(Token *tkn, Token **end_tkn);
 static Node *indirection(Token *tkn, Token **end_tkn);
-static Node *increment_and_decrement(Token *tkn, Token **end_tkn);
+static Node *inc_dec(Token *tkn, Token **end_tkn);
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
 
@@ -1010,34 +1010,37 @@ static Node *address_op(Token *tkn, Token **end_tkn) {
   return indirection(tkn, end_tkn);
 }
 
-// indirection = (increment_and_decrement | "*" indirection)
+// indirection = (inc_and_dec | "*" indirection)
 static Node *indirection(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "*")) {
     return new_node(ND_CONTENT, tkn, indirection(tkn->next, end_tkn), NULL);
   }
 
-  return increment_and_decrement(tkn, end_tkn);
+  return inc_dec(tkn, end_tkn);
 }
 
-// increment_and_decrement = priority |
-//                           ("++" | "--") priority |
-//                           priority ("++" | "--")
-static Node *increment_and_decrement(Token *tkn, Token **end_tkn) {
+// inc_dec = priority | ("++" | "--") priority | priority ("++" | "--")
+//
+// Convert ++a to (a += 1), --a to (a -= 1)
+// Convert a++ to ((a += 1) - 1), a-- to ((a -= 1) + 1);
+static Node *inc_dec(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "++") || equal(tkn, "--")) {
-    NodeKind kind = equal(tkn, "++") ? ND_PREFIX_INC : ND_PREFIX_DEC;
-    return new_node(kind, tkn, priority(tkn->next, end_tkn), NULL);
+    NodeKind kind = equal(tkn, "++") ? ND_ADD : ND_SUB;
+    return new_assign(kind, tkn, priority(tkn->next, end_tkn), new_num(tkn, 1));
   }
 
-  Node *ret = priority(tkn, &tkn);
-
+  Node *node = priority(tkn, &tkn);
   if (equal(tkn, "++") || equal(tkn, "--")) {
-    NodeKind kind = equal(tkn, "++") ? ND_SUFFIX_INC : ND_SUFFIX_DEC;
-    ret = new_node(kind, tkn, ret, NULL);
+    NodeKind assign_kind = equal(tkn, "++") ? ND_ADD : ND_SUB;
+    NodeKind post_kind = equal(tkn, "++") ? ND_SUB : ND_ADD;
+
+    node = new_assign(assign_kind, tkn, node, new_num(tkn, 1));
+    node = new_node(post_kind, tkn, node, new_num(tkn, 1));
     tkn = tkn->next;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return node;
 }
 
 // priority = "({" statement statement* "})" |
