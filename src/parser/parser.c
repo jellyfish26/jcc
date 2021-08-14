@@ -91,13 +91,35 @@ Node *new_strlit(Token *tkn, char *strlit) {
   return ret;
 }
 
+static bool is_addr_type(Node *node) {
+  switch (node->type->kind) {
+    case TY_PTR:
+    case TY_ARRAY:
+    case TY_STR:
+      return true;
+    default:
+      return false;
+  }
+}
+
+Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
+  Node *node = new_node(kind, tkn, lhs, rhs);
+  add_type(node);
+
+  if (node->lhs->type->kind == TY_PTR || node->rhs->type->kind == TY_PTR) {
+    errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
+  }
+  return node;
+}
+
 Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
   Node *node = new_node(ND_ADD, tkn, lhs, rhs);
   add_type(node);
 
-  if (node->lhs->type->kind == TY_PTR && node->rhs->type->kind == TY_PTR) {
+  if (is_addr_type(node->lhs) && is_addr_type(node->rhs)) {
     errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
   }
+
   return node;
 }
 
@@ -108,16 +130,7 @@ Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
   if (node->lhs->type->kind == TY_PTR && node->rhs->type->kind == TY_PTR) {
     node->type = new_type(TY_LONG, false);
   }
-  return node;
-}
 
-Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
-  Node *node = new_node(kind, tkn, lhs, rhs);
-  add_type(node);
-
-  if (node->lhs->type->kind == TY_PTR || node->rhs->type->kind == TY_PTR) {
-    errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
-  }
   return node;
 }
 
@@ -510,10 +523,6 @@ static int64_t eval_expr(Node *node) {
       return eval_expr(node->lhs) < eval_expr(node->rhs);
     case ND_LEC:
       return eval_expr(node->lhs) <= eval_expr(node->rhs);
-    case ND_RC:
-      return eval_expr(node->lhs) > eval_expr(node->rhs);
-    case ND_REC:
-      return eval_expr(node->lhs) >= eval_expr(node->rhs);
     case ND_LEFTSHIFT:
       return eval_expr(node->lhs) << eval_expr(node->rhs);
     case ND_RIGHTSHIFT:
@@ -567,8 +576,6 @@ static bool is_const_expr(Node *node) {
     case ND_NEQ:
     case ND_LC:
     case ND_LEC:
-    case ND_RC:
-    case ND_REC:
     case ND_LEFTSHIFT:
     case ND_RIGHTSHIFT:
     case ND_BITWISEAND:
@@ -592,6 +599,7 @@ static bool is_const_expr(Node *node) {
         default:
           return false;
       }
+    case ND_ADDR:
     case ND_INT:
       return true;
     case ND_VAR: {
@@ -1026,19 +1034,13 @@ static Node *size_comp(Token *tkn, Token **end_tkn) {
 
   while (equal(tkn, "<") || equal(tkn, ">") ||
          equal(tkn, "<=") || equal(tkn, ">=")) {
-    NodeKind kind = ND_VOID;
+    NodeKind kind = equal(tkn, "<") || equal(tkn, ">") ? ND_LC : ND_LEC;
 
-    if (equal(tkn, "<")) {
-      kind = ND_LC;
-    } else if (equal(tkn, ">")) {
-      kind = ND_RC;
-    } else if (equal(tkn, "<=")) {
-      kind = ND_LEC;
+    if (equal(tkn, ">") || equal(tkn, ">=")) {
+      ret = new_node(kind, tkn, bitwise_shift(tkn->next, &tkn), ret);
     } else {
-      kind = ND_REC;
+      ret = new_node(kind, tkn, ret, bitwise_shift(tkn->next, &tkn));
     }
-
-    ret = new_node(kind, tkn, ret, bitwise_shift(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;

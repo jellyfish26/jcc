@@ -249,8 +249,6 @@ void add_type(Node *node) {
     case ND_NEQ:
     case ND_LC:
     case ND_LEC:
-    case ND_RC:
-    case ND_REC:
     case ND_LOGICALAND:
     case ND_LOGICALOR:
     case ND_LOGICALNOT:

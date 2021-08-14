@@ -26,8 +26,6 @@ typedef enum {
   ND_NEQ,         // !=
   ND_LC,          // <  (Left Compare)
   ND_LEC,         // <= (Left Equal Compare)
-  ND_RC,          // >  (Right Compare)
-  ND_REC,         // >= (Right Equal Compare)
   ND_LEFTSHIFT,   // << (Bitwise left shift)
   ND_RIGHTSHIFT,  // >> (Bitwise right shift)
   ND_BITWISEAND,  // "&" (Bitwise AND)

@@ -132,9 +132,6 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op)
       println("  sub %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
       return true;
     case OP_MUL: {
-      if (left_reg == REG_MEM) {
-        return false;
-      }
       if (reg_size == 1) {
         reg_size = 2;
       }
@@ -612,10 +609,6 @@ void compile_node(Node *node) {
   gen_pop(REG_RDI);
   gen_pop(REG_RAX);
 
-  if (node->type->kind >= TY_PTR) {
-    println("  imul rdi, %d", node->type->base->var_size);
-  }
-
   int reg_size = get_type_size(node->type);
   int min_reg_size = 8;
   if (node->lhs->type != NULL && min_reg_size > get_type_size(node->lhs->type)) {
@@ -629,6 +622,9 @@ void compile_node(Node *node) {
   // calculation
   switch (node->kind) {
     case ND_ADD:
+      if (node->type->kind >= TY_PTR) {
+        println("  imul rdi, %d", node->type->base->var_size);
+      }
       gen_operation(REG_RAX, REG_RDI, reg_size, OP_ADD);
       break;
     case ND_SUB:
@@ -669,12 +665,6 @@ void compile_node(Node *node) {
       break;
     case ND_LEC:
       gen_compare("setle", min_reg_size);
-      break;
-    case ND_RC:
-      gen_compare("setg", min_reg_size);
-      break;
-    case ND_REC:
-      gen_compare("setge", min_reg_size);
       break;
     default:
       break;
