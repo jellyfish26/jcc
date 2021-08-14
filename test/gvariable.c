@@ -20,6 +20,13 @@ int init_arr5[] = {1, 2, 3};
 int init_arr6[][2] = {{1, 2}, {3, 4}};
 
 const int ca = 7;
+int const_expr1 = 2 + 3;
+int const_expr2 = (2 + 1) * (4 + 2) / 2; 
+int const_expr3 = 'a' + 2;
+int const_expr4 = 1<<5;
+int const_expr5 = 256>>2;
+int const_expr6 = 423145 | 41321;
+int const_expr7 = 1 == 1 ? 4 : 5;
 
 int main() {
   CHECK(2, ({a = 2; a;}));
@@ -95,6 +102,34 @@ int main() {
 
   CHECK(7, ({
     ca;
+  }));
+
+  CHECK(5, ({
+    const_expr1;
+  }));
+
+  CHECK(9, ({
+    const_expr2;
+  }));
+
+  CHECK(99, ({
+    const_expr3;
+  }));
+
+  CHECK(32, ({
+    const_expr4;
+  }));
+
+  CHECK(64, ({
+    const_expr5;
+  }));
+
+  CHECK(456169, ({
+    const_expr6;
+  }));
+
+  CHECK(4, ({
+    const_expr7;
   }));
 
   return 0;
