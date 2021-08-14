@@ -591,9 +591,6 @@ void compile_node(Node *node) {
   // calculation
   switch (node->kind) {
     case ND_ADD:
-      if (node->type->kind >= TY_PTR) {
-        println("  imul rdi, %d", node->type->base->var_size);
-      }
       gen_operation(REG_RAX, REG_RDI, reg_size, OP_ADD);
       break;
     case ND_SUB:

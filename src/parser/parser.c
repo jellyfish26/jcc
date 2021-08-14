@@ -120,6 +120,14 @@ Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
     errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
   }
 
+  if (is_addr_type(node->lhs)) {
+    node->rhs = new_calc(ND_MUL, tkn, node->rhs, new_num(tkn, node->lhs->type->base->var_size));
+  }
+
+  if (is_addr_type(node->rhs)) {
+    node->lhs = new_calc(ND_MUL, tkn, node->lhs, new_num(tkn, node->rhs->type->base->var_size));
+  }
+
   return node;
 }
 
@@ -129,6 +137,14 @@ Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
 
   if (node->lhs->type->kind == TY_PTR && node->rhs->type->kind == TY_PTR) {
     node->type = new_type(TY_LONG, false);
+  }
+
+  if (is_addr_type(node->lhs) && !is_addr_type(node->rhs)) {
+    node->rhs = new_calc(ND_MUL, tkn, node->rhs, new_num(tkn, node->lhs->type->base->var_size));
+  }
+
+  if (is_addr_type(node->rhs) && !is_addr_type(node->lhs)) {
+    node->lhs = new_calc(ND_MUL, tkn, node->lhs, new_num(tkn, node->rhs->type->base->var_size));
   }
 
   return node;
@@ -1271,7 +1287,7 @@ static Node *priority(Token *tkn, Token **end_tkn) {
   Node *ret = new_var(tkn, var);
   tkn = tkn->next;
   while (consume(tkn, &tkn, "[")) {
-    ret = new_node(ND_ADD, tkn, ret, assign(tkn, &tkn));
+    ret = new_add(tkn, ret, assign(tkn, &tkn));
     ret = new_node(ND_CONTENT, tkn, ret, NULL);
     tkn = skip(tkn, "]");
   }
