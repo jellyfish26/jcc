@@ -304,7 +304,7 @@ Token *tokenize(char *file_name) {
     // Check keywords
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
-      if (memcmp(now_str, permit_keywords[i], keyword_len) == 0) {
+      if (memcmp(now_str, permit_keywords[i], keyword_len) == 0 && *(now_str + keyword_len + 1) == ' ') {
         ret = new_token(TK_KEYWORD, ret, now_str, keyword_len);
         now_str += keyword_len;
         check = true;

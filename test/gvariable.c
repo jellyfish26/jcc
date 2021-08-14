@@ -26,7 +26,8 @@ int const_expr3 = 'a' + 2;
 int const_expr4 = 1<<5;
 int const_expr5 = 256>>2;
 int const_expr6 = 423145 | 41321;
-int const_expr7 = 1 == 1 ? 4 : 5;
+const int const_expr7 = 1 == 1 ? 4 : 5;
+int const_expr8 = const_expr7 * 3;
 
 int main() {
   CHECK(2, ({a = 2; a;}));
@@ -130,6 +131,10 @@ int main() {
 
   CHECK(4, ({
     const_expr7;
+  }));
+
+  CHECK(12, ({
+    const_expr8;
   }));
 
   return 0;

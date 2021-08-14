@@ -470,9 +470,12 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
   if (equal(tkn, "=")) {
     Initializer *init = initializer(tkn->next, &tkn, var->type);
-
     ret = new_node(ND_INIT, tkn, ret, create_init_node(init, NULL, is_global));
     ret->type = ty;
+
+    if (is_global) {
+      ret->lhs->use_var->val = ret->rhs->init->val;
+    }
 
     // If the lengh of the array is empty, Type will be updated,
     // so it needs to be passed to var as well.
@@ -542,6 +545,8 @@ static int64_t eval_expr(Node *node) {
         default:
           return 0;
       }
+    case ND_VAR:
+      return node->use_var->val;
     case ND_INT:
       return node->val;
     default:
@@ -583,12 +588,16 @@ static bool is_const_expr(Node *node) {
         case TY_SHORT:
         case TY_INT:
         case TY_LONG:
-          return true;
+          return is_const_expr(node->lhs);
         default:
           return false;
       }
     case ND_INT:
       return true;
+    case ND_VAR: {
+      Obj *var = node->use_var;
+      return var->is_global && var->type->is_const;
+    }
     default:
       return false;
   }

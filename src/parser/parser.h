@@ -2,6 +2,7 @@
 #include "token/tokenize.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct Type Type;
 typedef struct Obj Obj;
@@ -144,6 +145,8 @@ struct Obj {
   int argc;
   Node *args;
   int vars_size;
+
+  int64_t val;
 };
 
 Obj *new_obj(Type *type, char *name);
