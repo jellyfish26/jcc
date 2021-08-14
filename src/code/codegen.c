@@ -201,43 +201,39 @@ void compile_node(Node *node);
 void expand_logical_and(Node *node, int label);
 void expand_logical_or(Node *node, int label);
 
-void gen_var_address(Node *node) {
-  if (node->kind != ND_VAR && node->kind != ND_ADDR) {
-    errorf(ER_COMPILE, "Not variable");
-  }
-  Obj *var = node->use_var;
+// Compute the address of a given node.
+// In the case of a local variable, it computes the relative address to the base pointer,
+// and stores the absolute address in the RAX register.
+void gen_addr(Node *node) {
+  switch (node->kind) {
+    case ND_VAR:
+      // String literal
+      if (node->use_var->type->kind == TY_STR) {
+        println("  mov rax, offset .LC%d", node->use_var->offset);
+        return;
+      }
 
-  // String literal
-  if (var->type->kind == TY_STR) {
-    println("  mov rax, offset .LC%d", var->offset);
-  } else if (var->is_global) {
-    char *var_name = calloc(var->name_len + 1, sizeof(char));
-    memcpy(var_name, var->name, var->name_len);
-    println("  mov rax, offset %s", var_name);
-  } else {
-    println("  mov rax, rbp");
-    println("  sub rax, %d", node->use_var->offset);
+      if (node->use_var->is_global) {
+        println("  mov rax, offset %s", node->use_var->name);
+        return;
+      }
+
+      println("  mov rax, rbp");
+      println("  sub rax, %d", node->use_var->offset);
+      return;
+    case ND_CONTENT:
+      compile_node(node->lhs);
+      return;
+    default:
+      errorf_tkn(ER_COMPILE, node->tkn, "Not a variable.");
   }
 }
 
 void expand_variable(Node *node) {
-  gen_var_address(node);
+  gen_addr(node);
   Type *var_type = node->use_var->type;
   if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
     gen_operation(REG_RAX, REG_MEM, get_type_size(var_type), OP_MOV);
-  }
-}
-
-// If left node is a direct variable, get the address of the variable.
-// If left node is a indirect, get original address.
-void gen_assignable_address(Node *node) {
-  if (node->kind == ND_VAR) {
-    gen_var_address(node);
-  } else if (node->kind == ND_CONTENT) {
-    compile_node(node->lhs);
-  } else {
-    fprintf(stderr, "%d\n", node->kind);
-    errorf_tkn(ER_COMPILE, node->tkn, "Cannot assign");
   }
 }
 
@@ -247,7 +243,7 @@ void expand_assign(Node *node) {
   gen_push(REG_RAX);
 
   // The left node must be assignable.
-  gen_assignable_address(node->lhs);
+  gen_addr(node->lhs);
   gen_pop(REG_RDI);
 
   int reg_size = get_type_size(node->lhs->type);
@@ -349,7 +345,7 @@ void gen_cast(Node *node) {
 }
 
 static void gen_lvar_init(Node *node) {
-  gen_assignable_address(node->lhs);
+  gen_addr(node->lhs);
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
     gen_push(REG_RAX);
@@ -446,7 +442,7 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_INIT) {
-    gen_assignable_address(node->lhs);
+    gen_addr(node->lhs);
     gen_lvar_init(node);
     return;
   }
@@ -456,11 +452,7 @@ void compile_node(Node *node) {
       expand_variable(node);
       return;
     case ND_ADDR:
-      if (node->lhs->kind == ND_VAR) {
-        gen_var_address(node->lhs);
-      } else if (node->lhs->kind == ND_CONTENT) {
-        compile_node(node->lhs->lhs);
-      }
+      gen_addr(node->lhs);
       return;
     case ND_ASSIGN:
       expand_assign(node);
@@ -708,7 +700,7 @@ void codegen(Node *head, char *filename) {
     int argc = func->argc - 1;
     for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
       if (argc < 6) {
-        gen_var_address(arg);
+        gen_addr(arg);
         gen_operation(REG_MEM, args_reg[argc], get_type_size(arg->use_var->type), OP_MOV);
       }
       argc--;
@@ -718,7 +710,7 @@ void codegen(Node *head, char *filename) {
     argc = func->argc - 1;
     for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
       if (argc >= 6) {
-        gen_var_address(arg);
+        gen_addr(arg);
         gen_push(REG_RAX);
         println("  mov rax, QWORD PTR [rbp + %d]", 8 + (argc - 5) * 8);
         println("  mov rdi, rax");
