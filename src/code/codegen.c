@@ -78,6 +78,58 @@ int get_type_size(Type *type) {
   }
 }
 
+const RegKind args_reg[] = {
+  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
+};
+
+static char i16i8[] = "movsx ax, al";
+static char i32i8[] = "movsx eax, al";
+static char i32i16[] = "movsx eax, ax";
+static char i64i8[] = "movsx rax, al";
+static char i64i16[] = "movsx rax, ax";
+static char i64i32[] = "movsxd rax, eax";
+static char u16u8[] = "movzx ax, al";
+static char u32u8[] = "movzx eax, al";
+static char u32u16[] = "movzx eax, ax";
+static char u64u8[] = "movzx rax, al";
+static char u64u16[] = "movzx rax, ax";
+static char u64u32[] = "mov eax, eax";
+
+static const char *cast_table[][4] = {
+  // i8,  i16,    i32,    i64       to/from
+  {NULL,  i16i8,  i32i8,  i64i8},   // i8
+  {i64i8, NULL,   i32i16, i64i16},  // i16
+  {i64i8, i64i16, NULL,   i64i32},  // i32
+  {i64i8, i64i16, i64i32, NULL}     // i64
+};
+
+static int type_to_cast_table_idx(Type *type) {
+  switch (type->kind) {
+    case TY_CHAR:
+      return 0;
+    case TY_SHORT:
+      return 1;
+    case TY_INT:
+      return 2;
+    case TY_LONG:
+      return 3;
+    default:
+      return 0;
+  };
+}
+
+void gen_cast(Node *node) {
+  if (node->kind != ND_CAST) {
+    return;
+  }
+  compile_node(node->lhs);
+  int from = type_to_cast_table_idx(node->lhs->type);
+  int to = type_to_cast_table_idx(node->type);
+  if (cast_table[from][to] != NULL) {
+    println("  %s", cast_table[from][to]);
+  }
+}
+
 void gen_compare(char *comp_op, int reg_size) {
   println("  cmp %s, %s", get_reg(REG_RAX, reg_size), get_reg(REG_RDI, reg_size));
   println("  %s al", comp_op);
@@ -195,11 +247,9 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op)
   return false;
 }
 
-int label = 0;
+int branch_label = 0;
 
 void compile_node(Node *node);
-void expand_logical_and(Node *node, int label);
-void expand_logical_or(Node *node, int label);
 
 // Compute the address of a given node.
 // In the case of a local variable, it computes the relative address to the base pointer,
@@ -251,32 +301,26 @@ void expand_assign(Node *node) {
   gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
 }
 
-void expand_logical_and(Node *node, int label) {
+static void gen_logical(Node *node, int label) {
   compile_node(node->lhs);
+  println("  cmp rax, 0");
+
+  if (node->kind == ND_LOGICALAND) {
+    println("  je .Lfalse%d", label);
+  } else {
+    println("  jne .Ltrue%d", label);
+  }
+
+  compile_node(node->rhs);
   println("  cmp rax, 0");
   println("  je .Lfalse%d", label);
 
-  if (node->rhs && node->rhs->kind == ND_LOGICALAND) {
-    expand_logical_and(node->rhs, label);
-  } else {
-    compile_node(node->rhs);
-    println("  cmp rax, 0");
-    println("  je .Lfalse%d", label);
-  }
-}
-
-void expand_logical_or(Node *node, int label) {
-  compile_node(node->lhs);
-  println("  cmp rax, 0");
-  println("  jne .Ltrue%d", label);
-
-  if (node->rhs && node->rhs->kind == ND_LOGICALAND) {
-    expand_logical_or(node->rhs, label);
-  } else {
-    compile_node(node->rhs);
-    println("  cmp rax, 0");
-    println("  jne .Ltrue%d", label);
-  }
+  println(".Ltrue%d:", label);
+  println("  mov rax, 1");
+  println("  jmp .Lthen%d", label);
+  println(".Lfalse%d:", label);
+  println("  mov rax, 0");
+  println(".Lthen%d:", label);
 }
 
 void expand_ternary(Node *node, int label) {
@@ -290,58 +334,6 @@ void expand_ternary(Node *node, int label) {
 
   compile_node(node->rhs);
   println(".Lnext%d:", label);
-}
-
-const RegKind args_reg[] = {
-  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
-};
-
-static char i16i8[] = "movsx ax, al";
-static char i32i8[] = "movsx eax, al";
-static char i32i16[] = "movsx eax, ax";
-static char i64i8[] = "movsx rax, al";
-static char i64i16[] = "movsx rax, ax";
-static char i64i32[] = "movsxd rax, eax";
-static char u16u8[] = "movzx ax, al";
-static char u32u8[] = "movzx eax, al";
-static char u32u16[] = "movzx eax, ax";
-static char u64u8[] = "movzx rax, al";
-static char u64u16[] = "movzx rax, ax";
-static char u64u32[] = "mov eax, eax";
-
-static const char *cast_table[][4] = {
-  // i8,  i16,    i32,    i64       to/from
-  {NULL,  i16i8,  i32i8,  i64i8},   // i8
-  {i64i8, NULL,   i32i16, i64i16},  // i16
-  {i64i8, i64i16, NULL,   i64i32},  // i32
-  {i64i8, i64i16, i64i32, NULL}     // i64
-};
-
-static int type_to_cast_table_idx(Type *type) {
-  switch (type->kind) {
-    case TY_CHAR:
-      return 0;
-    case TY_SHORT:
-      return 1;
-    case TY_INT:
-      return 2;
-    case TY_LONG:
-      return 3;
-    default:
-      return 0;
-  };
-}
-
-void gen_cast(Node *node) {
-  if (node->kind != ND_CAST) {
-    return;
-  }
-  compile_node(node->lhs);
-  int from = type_to_cast_table_idx(node->lhs->type);
-  int to = type_to_cast_table_idx(node->type);
-  if (cast_table[from][to] != NULL) {
-    println("  %s", cast_table[from][to]);
-  }
 }
 
 static void gen_lvar_init(Node *node) {
@@ -464,7 +456,7 @@ void compile_node(Node *node) {
       println("  ret");
       return;
     case ND_IF: {
-      int now_label = label++;
+      int now_label = branch_label++;
       compile_node(node->cond);
       println("  cmp rax, 0");
       println("  je .Lelse%d", now_label);
@@ -484,13 +476,13 @@ void compile_node(Node *node) {
       return;
     }
     case ND_TERNARY: {
-      int now_label = label++;
-      expand_ternary(node, label);
+      int now_label = branch_label++;
+      expand_ternary(node, branch_label);
       return;
     }
     case ND_WHILE:
     case ND_FOR: {
-      int now_label = label++;
+      int now_label = branch_label++;
       node->label = now_label;
       if (node->init) {
         compile_node(node->init);
@@ -538,24 +530,9 @@ void compile_node(Node *node) {
       }
       return;
     }
-    case ND_LOGICALAND: {
-      int now_label = label++;
-      expand_logical_and(node, now_label);
-      println("  mov rax, 1");
-      println("  jmp .Lnext%d", now_label);
-      println(".Lfalse%d:", now_label);
-      println("  mov rax, 0");
-      println(".Lnext%d:", now_label);
-      return;
-    }
+    case ND_LOGICALAND:
     case ND_LOGICALOR: {
-      int now_label = label++;
-      expand_logical_or(node, now_label);
-      println("  mov rax, 0");
-      println("  jmp .Lnext%d", now_label);
-      println(".Ltrue%d:", now_label);
-      println("  mov rax, 1");
-      println(".Lnext%d:", now_label);
+      gen_logical(node, branch_label++);
       return;
     }
     case ND_BITWISENOT: {
