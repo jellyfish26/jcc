@@ -1170,7 +1170,7 @@ static Node *add(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// mul =  cast ("*" cast | "/" cast | "%" cast )*
+// mul = cast ("*" cast | "/" cast | "%" cast )*
 static Node *mul(Token *tkn, Token **end_tkn) {
   Node *ret = cast(tkn, &tkn);
 
@@ -1207,6 +1207,7 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 
   return unary(tkn, end_tkn);
 }
+
 
 // unary = ("sizeof" | "+" | "-" | "!" | "~") unary |
 //         address_op
@@ -1251,7 +1252,7 @@ static Node *address_op(Token *tkn, Token **end_tkn) {
   return indirection(tkn, end_tkn);
 }
 
-// indirection = (inc_and_dec | "*" indirection)
+// indirection = (inc_dec | "*" indirection)
 static Node *indirection(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "*")) {
     return new_node(ND_CONTENT, tkn, indirection(tkn->next, end_tkn), NULL);
@@ -1259,6 +1260,7 @@ static Node *indirection(Token *tkn, Token **end_tkn) {
 
   return inc_dec(tkn, end_tkn);
 }
+
 
 // inc_dec = priority | ("++" | "--") priority | priority ("++" | "--")
 //

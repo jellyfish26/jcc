@@ -519,10 +519,18 @@ void compile_node(Node *node) {
       gen_comp("setne", rax, rdi);
       break;
     case ND_LC:
-      gen_comp("setl", rax, rdi);
+      if (node->type->is_unsigned) {
+        gen_comp("setb", rax, rdi);
+      } else {
+        gen_comp("setl", rax, rdi);
+      }
       break;
     case ND_LEC:
-      gen_comp("setle", rax, rdi);
+      if (node->type->is_unsigned) {
+        gen_comp("setbe", rax, rdi);
+      } else {
+        gen_comp("setle", rax, rdi);
+      }
       break;
     default:
       break;

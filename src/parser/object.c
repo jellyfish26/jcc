@@ -187,15 +187,12 @@ bool check_already_define(char *name, bool is_global) {
 // if type size left < right is true
 // other is false
 static bool comp_type(Type *left, Type *right) {
-  if (left == NULL || right == NULL) {
-    return false;
-  }
   if (left->kind < right->kind) {
     return true;
   }
 
   if (left->kind == right->kind) {
-    return left->is_unsigned ? false : true;
+    return right->is_unsigned;
   }
 
   return false;
@@ -235,11 +232,18 @@ void add_type(Node *node) {
     case ND_BITWISEOR:
     case ND_BITWISEXOR:
     case ND_TERNARY:
-      if (node->lhs->type != NULL && node->lhs->type->kind >= TY_PTR) {
+    case ND_EQ:
+    case ND_NEQ:
+    case ND_LC:
+    case ND_LEC:
+    case ND_LOGICALAND:
+    case ND_LOGICALOR:
+      if (node->lhs->type->kind >= TY_PTR) {
         node->type = node->lhs->type;
         return;
       }
-      if (node->rhs->type != NULL && node->rhs->type->kind >= TY_PTR) {
+
+      if (node->rhs->type->kind >= TY_PTR) {
         node->type = node->rhs->type;
         return;
       }
@@ -247,15 +251,9 @@ void add_type(Node *node) {
       node->type = node->lhs->type;
       return;
     case ND_ASSIGN:
+    case ND_BITWISENOT:
       node->type = node->lhs->type;
       break;
-    case ND_BITWISENOT:
-    case ND_EQ:
-    case ND_NEQ:
-    case ND_LC:
-    case ND_LEC:
-    case ND_LOGICALAND:
-    case ND_LOGICALOR:
     case ND_LOGICALNOT:
     case ND_INT:
       node->type = new_type(TY_INT, false);
