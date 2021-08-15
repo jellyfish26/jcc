@@ -22,6 +22,10 @@ static void println(char *fmt, ...) {
 // About assembly
 //
 
+void compile_node(Node *node);
+bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op);
+int get_type_size(Type *type);
+
 static const char *reg_8byte[] = {
   "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
   "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
@@ -46,7 +50,68 @@ static const char *reg_1byte[] = {
   "BYTE PTR [rax]"
 };
 
-void compile_node(Node *node);
+static void gen_push(const char *reg) {
+  println("  push %s", reg);
+}
+
+static void gen_pop(const char *reg) {
+  println("  pop %s", reg);
+}
+
+static void gen_emptypop(int num) {
+  println("  add rsp, %d", num * 8);
+}
+
+// Compute the address of a given node.
+// In the case of a local variable, it computes the relative address to the base pointer,
+// and stores the absolute address in the RAX register.
+void gen_addr(Node *node) {
+  switch (node->kind) {
+    case ND_VAR:
+      // String literal
+      if (node->use_var->type->kind == TY_STR) {
+        println("  mov rax, offset .LC%d", node->use_var->offset);
+        return;
+      }
+
+      if (node->use_var->is_global) {
+        println("  mov rax, offset %s", node->use_var->name);
+        return;
+      }
+
+      println("  mov rax, rbp");
+      println("  sub rax, %d", node->use_var->offset);
+      return;
+    case ND_CONTENT:
+      compile_node(node->lhs);
+      return;
+    default:
+      errorf_tkn(ER_COMPILE, node->tkn, "Not a variable.");
+  }
+}
+
+// Store the value of the rax register at the address pointed to by the top of the stack.
+static void gen_store(Type *ty) {
+  gen_pop("rdi");
+
+  if (ty->var_size == 1) {
+    println("  mov BYTE PTR [rdi], al");
+  } else if (ty->var_size == 2) {
+    println("  mov WORD PTR [rdi], ax");
+  } else if (ty->var_size == 4) {
+    println("  mov DWORD PTR [rdi], eax");
+  } else {
+    println("  mov QWORD PTR [rdi], rax");
+  }
+}
+
+void expand_variable(Node *node) {
+  gen_addr(node);
+  Type *var_type = node->use_var->type;
+  if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
+    gen_operation(REG_RAX, REG_MEM, get_type_size(var_type), OP_MOV);
+  }
+}
 
 static const char *get_reg(RegKind reg, int reg_size) {
   switch (reg_size) {
@@ -149,18 +214,6 @@ void gen_compare(char *comp_op, int reg_size) {
   println("  movzx rax, al");
 }
 
-static void gen_push(const char *reg) {
-  println("  push %s", reg);
-}
-
-static void gen_pop(const char *reg) {
-  println("  pop %s", reg);
-}
-
-void gen_emptypop(int num) {
-  println("  add rsp, %d", num * 8);
-}
-
 // OP_MOV: left_reg = right_reg
 // OP_MOVSX: left_reg = right_reg (Move with Sign-Extension, Size of left_reg is REG_SIZE_4)
 // OP_ADD: left_reg = left_reg + right_reg
@@ -257,56 +310,18 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op)
 
 int branch_label = 0;
 
-void compile_node(Node *node);
-
-// Compute the address of a given node.
-// In the case of a local variable, it computes the relative address to the base pointer,
-// and stores the absolute address in the RAX register.
-void gen_addr(Node *node) {
-  switch (node->kind) {
-    case ND_VAR:
-      // String literal
-      if (node->use_var->type->kind == TY_STR) {
-        println("  mov rax, offset .LC%d", node->use_var->offset);
-        return;
-      }
-
-      if (node->use_var->is_global) {
-        println("  mov rax, offset %s", node->use_var->name);
-        return;
-      }
-
-      println("  mov rax, rbp");
-      println("  sub rax, %d", node->use_var->offset);
-      return;
-    case ND_CONTENT:
-      compile_node(node->lhs);
-      return;
-    default:
-      errorf_tkn(ER_COMPILE, node->tkn, "Not a variable.");
-  }
-}
-
-void expand_variable(Node *node) {
-  gen_addr(node);
-  Type *var_type = node->use_var->type;
-  if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
-    gen_operation(REG_RAX, REG_MEM, get_type_size(var_type), OP_MOV);
-  }
-}
 
 // Right to left
 void expand_assign(Node *node) {
-  compile_node(node->rhs);
+  gen_addr(node->lhs);
   gen_push("rax");
 
-  // The left node must be assignable.
-  gen_addr(node->lhs);
-  gen_pop("rdi");
+  compile_node(node->rhs);
+  gen_store(node->type);
 
-  int reg_size = get_type_size(node->lhs->type);
-  gen_operation(REG_MEM, REG_RDI, reg_size, OP_MOV);
-  gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
+  // int reg_size = get_type_size(node->lhs->type);
+  // gen_operation(REG_MEM, REG_RDI, reg_size, OP_MOV);
+  // gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
 }
 
 static void gen_logical(Node *node, int label) {
