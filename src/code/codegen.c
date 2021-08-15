@@ -210,7 +210,7 @@ static int type_to_cast_table_idx(Type *type) {
   return ret;
 }
 
-void gen_cast(Node *node) {
+static void gen_cast(Node *node) {
   if (node->kind != ND_CAST) {
     return;
   }
@@ -223,8 +223,8 @@ void gen_cast(Node *node) {
   }
 }
 
-void gen_compare(char *comp_op, int reg_size) {
-  println("  cmp %s, %s", get_reg(REG_RAX, reg_size), get_reg(REG_RDI, reg_size));
+static void gen_comp(char *comp_op, char *lreg, char *rreg) {
+  println("  cmp %s, %s", lreg, rreg);
   println("  %s al", comp_op);
   println("  movzx rax, al");
 }
@@ -381,10 +381,10 @@ static void gen_lvar_init(Node *node) {
     } else {
       println("  mov rax, 0");
     }
-    gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
-    gen_pop("rax");
-    gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_MOV);
-    println("  add rax, %d", get_type_size(node->type));
+
+    gen_store(node->type);
+    println("  mov rax, rdi");
+    println("  add rax, %d", node->type->var_size);
   }
 }
 
@@ -562,9 +562,7 @@ void compile_node(Node *node) {
     }
     case ND_CONTENT: {
       compile_node(node->lhs);
-      if (node->type->kind != TY_ARRAY) {
-        gen_operation(REG_RAX, REG_MEM, get_type_size(node->type), OP_MOV);
-      }
+      gen_load(node->type);
       return;
     }
     case ND_LOGICALAND:
@@ -574,13 +572,14 @@ void compile_node(Node *node) {
     }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
-      gen_operation(REG_RAX, REG_RAX, get_type_size(node->type), OP_BITWISE_NOT);
+      println("  not rax");
       return;
     }
     case ND_LOGICALNOT: {
       compile_node(node->lhs);
-      println("  mov rdi, 1");
-      gen_operation(REG_RAX, REG_RDI, 8, OP_BITWISE_XOR);
+      println("  cmp rax, 0");
+      println("  sete al");
+      println("  movzx rax, al");
       return;
     }
     default:
@@ -612,15 +611,6 @@ void compile_node(Node *node) {
   gen_push("rax");
   compile_node(node->lhs);
   gen_pop("rdi");
-
-  int reg_size = get_type_size(node->type);
-  int min_reg_size = 8;
-  if (node->lhs->type != NULL && min_reg_size > get_type_size(node->lhs->type)) {
-    min_reg_size = get_type_size(node->lhs->type);
-  }
-  if (node->rhs->type != NULL && min_reg_size > get_type_size(node->rhs->type)) {
-    min_reg_size = get_type_size(node->rhs->type);
-  }
 
   // Default register is 32bit
   char *rax = "eax", *rdi = "edi", *rdx = "edx";
@@ -682,16 +672,16 @@ void compile_node(Node *node) {
       println("  or %s, %s", rax, rdi);
       break;
     case ND_EQ:
-      gen_compare("sete", min_reg_size);
+      gen_comp("sete", rax, rdi);
       break;
     case ND_NEQ:
-      gen_compare("setne", min_reg_size);
+      gen_comp("setne", rax, rdi);
       break;
     case ND_LC:
-      gen_compare("setl", min_reg_size);
+      gen_comp("setl", rax, rdi);
       break;
     case ND_LEC:
-      gen_compare("setle", min_reg_size);
+      gen_comp("setle", rax, rdi);
       break;
     default:
       break;
