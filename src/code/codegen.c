@@ -152,10 +152,6 @@ static int get_type_idx(Type *type) {
 }
 
 static void gen_cast(Node *node) {
-  if (node->kind != ND_CAST) {
-    return;
-  }
-
   compile_node(node->lhs);
   int from = get_type_idx(node->lhs->type);
   int to = get_type_idx(node->type);

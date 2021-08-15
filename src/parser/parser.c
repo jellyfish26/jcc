@@ -22,6 +22,8 @@ struct Initializer {
   Node *node;
 };
 
+typedef struct VarAttr VarAttr;
+
 // Prototype
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
@@ -172,7 +174,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 }
 
 char *typename[] = {
-  "void", "char", "short", "int", "long"
+  "void", "char", "short", "int", "long", "signed", "unsigned", "const"
 };
 
 static bool is_typename(Token *tkn) {
@@ -194,8 +196,8 @@ static char *get_ident(Token *tkn) {
   return ret;
 }
 
-// get_type = ("unsigned" | "signed")? (("const" type) | (type "const") | type)
-// type = "char" | "short" | "int" | "long" "long"? "int"?
+// get_type = typename typename*
+// typename = "char" | "short" | "int" | "long" | "signed" | "unsigned"
 static Type *get_type(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
@@ -203,29 +205,28 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
   // and the high bit are 1.
   // Otherwise, we have a duplicate when the high is 1.
   enum {
-    VOID  = 1 << 0,
-    CHAR  = 1 << 2,
-    SHORT = 1 << 4,
-    INT   = 1 << 6,
-    LONG  = 1 << 8,
+    VOID     = 1 << 0,
+    CHAR     = 1 << 2,
+    SHORT    = 1 << 4,
+    INT      = 1 << 6,
+    LONG     = 1 << 8,
+    SIGNED   = 1 << 10,
+    UNSIGNED = 1 << 12,
   };
 
-  bool is_unsigned = false;
   bool is_const = false;
 
-  if (consume(tkn, &tkn, "unsigned")) {
-    is_unsigned = true;
-  } else {
-    consume(tkn, &tkn, "signed");
-  }
-
-  if (consume(tkn, &tkn, "const")) {
-    is_const = true;
-  }
-  
   int type_cnt = 0;
   Type *ret = NULL;
   while (is_typename(tkn)) {
+    if (equal(tkn, "const")) {
+      if (is_const) {
+        errorf_tkn(ER_COMPILE, tkn, "Duplicate const.");
+      }
+      is_const = true;
+      tkn = tkn->next;
+      continue;
+    }
 
     // Counting Types
     if (equal(tkn,"void")) {
@@ -238,13 +239,21 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
       type_cnt += INT;
     } else if (equal(tkn, "long")) {
       type_cnt += LONG;
+    } else if (equal(tkn, "signed")) {
+      type_cnt += SIGNED;
+    } else if (equal(tkn, "unsigned")) {
+      type_cnt += UNSIGNED;
     }
 
     // Detect duplicates
     char *dup_type = NULL;
 
-    // Avoid check long (so, range -1)
-    for (int i = 0; i < (sizeof(typename) / sizeof(char *)) - 1; i++) {
+    // Avoid check long
+    for (int i = 0; i < (sizeof(typename) / sizeof(char *) - 1); i++) {
+      if (memcmp(typename[i], "long", 4) == 0) {
+        continue;
+      }
+
       if (((type_cnt>>(i * 2 + 1))&1) == 1) {
         dup_type = typename[i];
       }
@@ -264,20 +273,50 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
         ret = new_type(TY_VOID, false);
         break;
       case CHAR:
+      case SIGNED + CHAR:
         ret = new_type(TY_CHAR, true);
+        break;
+      case UNSIGNED + CHAR:
+        ret =  new_type(TY_CHAR, true);
+        ret->is_unsigned = true;
         break;
       case SHORT:
       case SHORT + INT:
+      case SIGNED + SHORT:
+      case SIGNED + SHORT + INT:
         ret = new_type(TY_SHORT, true);
         break;
+      case UNSIGNED + SHORT:
+      case UNSIGNED + SHORT + INT:
+        ret = new_type(TY_SHORT, true);
+        ret->is_unsigned = true;
+        break;
       case INT:
+      case SIGNED:
+      case SIGNED + INT:
         ret = new_type(TY_INT, true);
+        break;
+      case UNSIGNED:
+      case UNSIGNED + INT:
+        ret = new_type(TY_INT, true);
+        ret->is_unsigned = true;
         break;
       case LONG:
       case LONG + INT:
       case LONG + LONG:
       case LONG + LONG + INT:
+      case SIGNED + LONG:
+      case SIGNED + LONG + INT:
+      case SIGNED + LONG + LONG:
+      case SIGNED + LONG + LONG + INT:
         ret = new_type(TY_LONG, true);
+        break;
+      case UNSIGNED + LONG:
+      case UNSIGNED + LONG + INT:
+      case UNSIGNED + LONG + LONG:
+      case UNSIGNED + LONG + LONG + INT:
+        ret = new_type(TY_LONG, true);
+        ret->is_unsigned = true;
         break;
       default:
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
@@ -285,17 +324,8 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     tkn = tkn->next;
   }
 
-  if (equal(tkn, "const")) {
-    if (is_const) {
-      errorf_tkn(ER_COMPILE, tkn, "Duplicate const.");
-    }
-    is_const = true;
-    tkn = tkn->next;
-  }
-
   if (ret != NULL) {
     ret->is_const = is_const;
-    ret->is_unsigned = is_unsigned;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
