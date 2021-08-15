@@ -242,7 +242,6 @@ void add_type(Node *node) {
         node->type = node->lhs->type;
         return;
       }
-
       if (node->rhs->type->kind >= TY_PTR) {
         node->type = node->rhs->type;
         return;
@@ -255,7 +254,6 @@ void add_type(Node *node) {
       node->type = node->lhs->type;
       break;
     case ND_LOGICALNOT:
-    case ND_INT:
       node->type = new_type(TY_INT, false);
       return;
     case ND_ADDR: {

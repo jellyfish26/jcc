@@ -49,6 +49,11 @@ static Node *unary(Token *tkn, Token **end_tkn);
 static Node *address_op(Token *tkn, Token **end_tkn);
 static Node *indirection(Token *tkn, Token **end_tkn);
 static Node *inc_dec(Token *tkn, Token **end_tkn);
+static Node *primary(Token *tkn, Token **end_tkn);
+static Node *identifier(Token *tkn, Token **end_tkn);
+static Node *constant(Token *tkn, Token **end_tkn);
+
+
 static Node *priority(Token *tkn, Token **end_tkn);
 static Node *num(Token *tkn, Token **end_tkn);
 
@@ -1262,20 +1267,20 @@ static Node *indirection(Token *tkn, Token **end_tkn) {
 }
 
 
-// inc_dec = priority | ("++" | "--") priority | priority ("++" | "--")
+// inc_dec = primary | ("++" | "--") primary | primary ("++" | "--")
 //
 // Convert ++a to (a += 1), --a to (a -= 1)
 // Convert a++ to ((a += 1) - 1), a-- to ((a -= 1) + 1);
 static Node *inc_dec(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "++")) {
-    return to_assign(tkn, new_add(tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
+    return to_assign(tkn, new_add(tkn, primary(tkn->next, end_tkn), new_num(tkn, 1)));
   }
 
   if (equal(tkn, "--")) {
-    return to_assign(tkn, new_sub(tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
+    return to_assign(tkn, new_sub(tkn, primary(tkn->next, end_tkn), new_num(tkn, 1)));
   }
 
-  Node *node = priority(tkn, &tkn);
+  Node *node = primary(tkn, &tkn);
 
   if (equal(tkn, "++")) {
     node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
@@ -1295,64 +1300,84 @@ static Node *inc_dec(Token *tkn, Token **end_tkn) {
   return node;
 }
 
-// priority = "({" statement statement* "})" |
-//            "(" assign ")" |
-//            ident ("(" params? ")")? |
-//            ident ("[" assign "]")* |
-//            num
-// params = assign ("," assign)?
-// base_type is gen_type()
-static Node *priority(Token *tkn, Token **end_tkn) {
+// primary-expression = gnu-statement-expr |
+//                      identifier
+//                      constant
+//                      string-literal
+//                      "(" expr ")"
+// 
+// gnu-statement-expr = "({" statement statement* "})"
+static Node *primary(Token *tkn, Token **end_tkn) {
   // GNU Statements
   if (equal(tkn, "(") && equal(tkn->next, "{")) {
     Node *ret = statement(tkn->next, &tkn, true);
-
+ 
     tkn = skip(tkn, ")");
-
+ 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
+  }
+
+  // identifier
+  Node *node = identifier(tkn, &tkn);
+  if (node != NULL) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
+  }
+
+  // constant
+  node = constant(tkn, &tkn);
+  if (node != NULL) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
   }
 
   if (equal(tkn, "(")) {
-    Node *ret = assign(tkn->next, &tkn);
+    Node *node = assign(tkn->next, &tkn);
 
     tkn = skip(tkn, ")");
-
     if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
+    return node;
   }
 
-  char *ident = get_ident(tkn);
+  if (tkn->kind != TK_STR) {
+    errorf_tkn(ER_COMPILE, tkn, "Grammatical error.");
+  }
 
+  if (end_tkn != NULL) *end_tkn = tkn->next;
+  return new_strlit(tkn, tkn->str_lit);
+}
+
+// identifier         = ident |
+//                      ident ( "(" params? ")" ) |
+//                      ident ( "[" expression "]" )
+// params             = expression ( "," expression )?
+static Node *identifier(Token *tkn, Token **end_tkn) {
+  char *ident = get_ident(tkn);
   if (ident == NULL) {
-    return num(tkn, end_tkn);
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return NULL;
   }
 
   if (equal(tkn->next, "(")) {
-    Node *ret = new_node(ND_FUNCCALL, tkn, NULL, NULL);
-    ret->type = new_type(TY_INT, false);
-    ret->func = new_obj(ret->type, ident);
-    tkn = tkn->next;
+    Node *node = new_node(ND_FUNCCALL, tkn, NULL, NULL);
+    node->type = new_type(TY_INT, false);
+    node->func = new_obj(node->type, ident);
+    tkn = tkn->next->next;
 
-    if (consume(tkn->next, &tkn, ")")) {
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return ret;
-    }
-
-    while (true) {
-      Node *tmp = assign(tkn, &tkn);
-      tmp->next_stmt = ret->func->args;
-      ret->func->args = tmp;
-      ret->func->argc++;
-
-      if (consume(tkn, &tkn, ")")) {
-        break;
+    while (!consume(tkn, &tkn, ")")) {
+      if (node->func->args != NULL) {
+        tkn = skip(tkn, ",");
       }
 
-      tkn = skip(tkn, ",");
+      Node *expr = assign(tkn, &tkn);
+      expr->next_stmt = node->func->args;
+      node->func->args = expr;
+      node->func->argc++;
     }
+
     if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
+    return node;
   }
 
   Obj *var = find_var(ident);
@@ -1360,35 +1385,32 @@ static Node *priority(Token *tkn, Token **end_tkn) {
     errorf_tkn(ER_COMPILE, tkn, "This variable is not declaration.");
   }
 
-  Node *ret = new_var(tkn, var);
+  Node *node = new_var(tkn, var);
   tkn = tkn->next;
   while (consume(tkn, &tkn, "[")) {
-    ret = new_add(tkn, ret, assign(tkn, &tkn));
-    ret = new_node(ND_CONTENT, tkn, ret, NULL);
+    node = new_add(tkn, node, assign(tkn, &tkn));
+    node = new_node(ND_CONTENT, tkn, node, NULL);
     tkn = skip(tkn, "]");
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return node;
 }
 
-// num = String(literal) | 
-//       number literal
-static Node *num(Token *tkn, Token **end_tkn) {
-  if (tkn->kind == TK_STR) {
-    if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_strlit(tkn, tkn->str_lit);
-  }
-
+// constant = interger-constant |
+//            character-constant
+static Node *constant(Token *tkn, Token **end_tkn) {
+  Node *node = NULL;
   if (tkn->kind == TK_NUM_INT) {
-    if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_num(tkn, tkn->val);
+    node = new_num(tkn, tkn->val);
   }
 
-  if (tkn->kind != TK_CHAR) {
-    errorf_tkn(ER_COMPILE, tkn, "Not value.");
+  if (tkn->kind == TK_CHAR) {
+    node = new_num(tkn, tkn->c_lit);
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn->next;
-  return new_num(tkn, tkn->c_lit);
+  if (end_tkn != NULL) {
+    *end_tkn = (node == NULL ? tkn : tkn->next);
+  }
+  return node;
 }
