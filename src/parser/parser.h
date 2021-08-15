@@ -103,6 +103,7 @@ typedef enum {
   TY_PTR,   // Pointer type
   TY_STR,   // String literal type
   TY_ARRAY, // Array type
+  TY_FUNC,  // Function
 } TypeKind;
 
 
@@ -165,6 +166,6 @@ void new_scope_definition();
 void out_scope_definition();
 void add_lvar(Obj *var);
 void add_gvar(Obj *var, bool is_substance);
-Obj *find_var(char *name);
+Obj *find_obj(char *name);
 bool check_already_define(char *name, bool is_global);
 int init_offset();

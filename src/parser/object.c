@@ -114,7 +114,7 @@ void add_gvar(Obj *var, bool is_substance) {
   gvars = var;
 }
 
-Obj *find_var(char *name) {
+Obj *find_obj(char *name) {
   int name_len = strlen(name);
   // Find in local variable
   for (ScopeObj *now_scope = lvars; now_scope != NULL; now_scope = now_scope->upper) {
