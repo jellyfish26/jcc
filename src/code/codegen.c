@@ -90,6 +90,29 @@ void gen_addr(Node *node) {
   }
 }
 
+static void gen_load(Type *ty) {
+  if (ty->kind == TY_ARRAY || ty->kind == TY_STR) {
+    // If it is an array or a string, it will automatically be treated as a pointer
+    // and we cannot load the content direclty.
+    return;
+  }
+
+  char *unsi = ty->is_unsigned ? "movz" : "movs";
+
+  // When char and short size values are loaded with mov instructions,
+  // they may contain garbage in the lower 32bits,
+  // so we are always extended to int.
+  if (ty->var_size == 1) {
+    println("  %sx eax, BYTE PTR [rax]", unsi);
+  } else if (ty->var_size == 2) {
+    println("  %sx eax, WORD PTR [rax]", unsi);
+  } else if (ty->var_size == 4) {
+    println("  mov eax, DWORD PTR [rax]");
+  } else {
+    println("  mov rax, QWORD PTR [rax]");
+  }
+}
+
 // Store the value of the rax register at the address pointed to by the top of the stack.
 static void gen_store(Type *ty) {
   gen_pop("rdi");
@@ -102,14 +125,6 @@ static void gen_store(Type *ty) {
     println("  mov DWORD PTR [rdi], eax");
   } else {
     println("  mov QWORD PTR [rdi], rax");
-  }
-}
-
-void expand_variable(Node *node) {
-  gen_addr(node);
-  Type *var_type = node->use_var->type;
-  if (var_type->kind != TY_ARRAY && var_type->kind != TY_STR) {
-    gen_operation(REG_RAX, REG_MEM, get_type_size(var_type), OP_MOV);
   }
 }
 
@@ -318,10 +333,6 @@ void expand_assign(Node *node) {
 
   compile_node(node->rhs);
   gen_store(node->type);
-
-  // int reg_size = get_type_size(node->lhs->type);
-  // gen_operation(REG_MEM, REG_RDI, reg_size, OP_MOV);
-  // gen_operation(REG_RAX, REG_MEM, reg_size, OP_MOV);
 }
 
 static void gen_logical(Node *node, int label) {
@@ -469,7 +480,8 @@ void compile_node(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
-      expand_variable(node);
+      gen_addr(node);
+      gen_load(node->type);
       return;
     case ND_ADDR:
       gen_addr(node->lhs);
