@@ -229,6 +229,7 @@ void gen_compare(char *comp_op, int reg_size) {
   println("  movzx rax, al");
 }
 
+
 // OP_MOV: left_reg = right_reg
 // OP_MOVSX: left_reg = right_reg (Move with Sign-Extension, Size of left_reg is REG_SIZE_4)
 // OP_ADD: left_reg = left_reg + right_reg
@@ -606,13 +607,11 @@ void compile_node(Node *node) {
     return;
   }
 
-  compile_node(node->lhs);
-  gen_push("rax");
+  // lhs: rax, rhs: rdi
   compile_node(node->rhs);
   gen_push("rax");
-
+  compile_node(node->lhs);
   gen_pop("rdi");
-  gen_pop("rax");
 
   int reg_size = get_type_size(node->type);
   int min_reg_size = 8;
@@ -623,38 +622,64 @@ void compile_node(Node *node) {
     min_reg_size = get_type_size(node->rhs->type);
   }
 
+  // Default register is 32bit
+  char *rax = "eax", *rdi = "edi", *rdx = "edx";
+
+  if (node->lhs->type->kind == TY_LONG || node->lhs->type->base != NULL) {
+    rax = "rax";
+    rdi = "rdi";
+    rdx = "rdx";
+  }
 
   // calculation
   switch (node->kind) {
     case ND_ADD:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_ADD);
+      println("  add %s, %s", rax, rdi);
       break;
     case ND_SUB:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_SUB);
+      println("  sub %s, %s", rax, rdi);
       break;
     case ND_MUL:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_MUL);
+      println("  imul %s, %s", rax, rdi);
       break;
     case ND_DIV:
-      gen_operation(REG_RAX, REG_RDI, min_reg_size, OP_DIV);
-      break;
     case ND_REMAINDER:
-      gen_operation(REG_RAX, REG_RDI, min_reg_size, OP_REMAINDER);
+      if (node->type->is_unsigned) {
+        println("  mov rdx, 0");
+        println("  div %s", rdi);
+      } else {
+        if (node->lhs->type->var_size == 8) {
+          println("  cqo");
+        } else {
+          println("  cdq");
+        }
+        println("  idiv %s", rdi);
+      }
+
+      if (node->kind == ND_REMAINDER) {
+        println("  mov rax, rdx");
+      }
       break;
     case ND_LEFTSHIFT:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_LEFT_SHIFT);
+      println("  mov rcx, rdi");
+      println("  sal %s, cl", rax);
       break;
     case ND_RIGHTSHIFT:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_RIGHT_SHIFT);
+      println("  mov rcx, rdi");
+      if (node->lhs->type->is_unsigned) {
+        println("  shr %s, cl", rax);
+      } else {
+        println("  sar %s, cl", rax);
+      }
       break;
     case ND_BITWISEAND:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_BITWISE_AND);
+      println("  and %s, %s", rax, rdi);
       break;
     case ND_BITWISEXOR:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_BITWISE_XOR);
+      println("  xor %s, %s", rax, rdi);
       break;
     case ND_BITWISEOR:
-      gen_operation(REG_RAX, REG_RDI, reg_size, OP_BITWISE_OR);
+      println("  or %s, %s", rax, rdi);
       break;
     case ND_EQ:
       gen_compare("sete", min_reg_size);
