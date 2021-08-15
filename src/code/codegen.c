@@ -23,32 +23,7 @@ static void println(char *fmt, ...) {
 //
 
 void compile_node(Node *node);
-bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op);
 int get_type_size(Type *type);
-
-static const char *reg_8byte[] = {
-  "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
-  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
-  "QWORD PTR [rax]"
-};
-
-static const char *reg_4byte[] = {
-  "eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp",
-  "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d",
-  "DWORD PTR [rax]"
-};
-
-static const char *reg_2byte[] = {
-  "ax", "bx", "cx", "dx", "si", "di", "bp", "sp",
-  "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w",
-  "WORD PTR [rax]"
-};
-
-static const char *reg_1byte[] = {
-  "al", "bl", "cl", "dl", "sil", "dil", "bpl", "spl",
-  "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b",
-  "BYTE PTR [rax]"
-};
 
 static void gen_push(const char *reg) {
   println("  push %s", reg);
@@ -65,7 +40,7 @@ static void gen_emptypop(int num) {
 // Compute the address of a given node.
 // In the case of a local variable, it computes the relative address to the base pointer,
 // and stores the absolute address in the RAX register.
-void gen_addr(Node *node) {
+static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       // String literal
@@ -128,42 +103,8 @@ static void gen_store(Type *ty) {
   }
 }
 
-static const char *get_reg(RegKind reg, int reg_size) {
-  switch (reg_size) {
-    case 1:
-      return reg_1byte[reg];
-    case 2:
-      return reg_2byte[reg];
-    case 4:
-      return reg_4byte[reg];
-    case 8:
-      return reg_8byte[reg];
-    default:
-      return reg_8byte[reg];
-  }
-}
-
-int get_type_size(Type *type) {
-  switch (type->kind) {
-    case TY_CHAR:
-      return 1;
-    case TY_SHORT:
-      return 2;
-    case TY_INT:
-      return 4;
-    case TY_LONG:
-      return 8;
-    default:
-      return 8;
-  }
-}
-
 static const char *args_reg[] = {
   "rdi", "rsi", "rdx", "rcx", "r8", "r9",
-};
-
-static RegKind regacy_args_reg[] = {
-  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9,
 };
 
 static char i32i8[]  = "movsx eax, al";
@@ -186,7 +127,7 @@ static char *cast_table[][8] = {
   {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // u64
 };
 
-static int type_to_cast_table_idx(Type *type) {
+static int get_type_idx(Type *type) {
   int ret;
   switch (type->kind) {
     case TY_CHAR:
@@ -216,8 +157,8 @@ static void gen_cast(Node *node) {
   }
 
   compile_node(node->lhs);
-  int from = type_to_cast_table_idx(node->lhs->type);
-  int to = type_to_cast_table_idx(node->type);
+  int from = get_type_idx(node->lhs->type);
+  int to = get_type_idx(node->type);
   if (cast_table[from][to] != NULL) {
     println("  %s", cast_table[from][to]);
   }
@@ -229,103 +170,7 @@ static void gen_comp(char *comp_op, char *lreg, char *rreg) {
   println("  movzx rax, al");
 }
 
-
-// OP_MOV: left_reg = right_reg
-// OP_MOVSX: left_reg = right_reg (Move with Sign-Extension, Size of left_reg is REG_SIZE_4)
-// OP_ADD: left_reg = left_reg + right_reg
-// OP_SUB: left_reg = left_reg - right_reg
-// OP_MUL: left_reg = left_reg * right_reg (Cannot use REG_MEM both left_reg and right_reg)
-// OP_DIV: left_reg = left_reg / right_reg (Overwrite rax and rdx registers)
-// OP_REMAINDER: left_reg = left_reg % right_reg (Overwrite rax and rdx registers)
-// OP_BITWISE_SHIFT_LEFT: left_reg = left_reg << right_reg (Overwrite rcx register)
-// OP_BITWISE_SHIFT_RIGHT: left_reg = left_reg >> right_reg (overwrite rcx register)
-// OP_BITWISE_(AND | XOR | OR | NOT): left_reg = left_reg = (and | xor | or | not) right_reg
-bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op) {
-
-  // normal operation
-  switch (op) {
-    case OP_MOV:
-      if (left_reg == REG_MEM || reg_size >= 4) {
-        println("  mov %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      } else {
-        println("  movzx %s, %s", get_reg(left_reg, 8), get_reg(right_reg, reg_size));
-      }
-      return true;
-    case OP_MOVSX:
-      println("  movsx %s, %s", get_reg(left_reg, 4), get_reg(right_reg, reg_size));
-      return true;
-    case OP_ADD:
-      println("  add %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      return true;
-    case OP_SUB:
-      println("  sub %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      return true;
-    case OP_MUL: {
-      if (reg_size == 1) {
-        reg_size = 2;
-      }
-      println("  imul %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      return true;
-    }
-    case OP_DIV:
-    case OP_REMAINDER: {
-      if (left_reg == REG_MEM) {
-        gen_push("rax");
-      }
-      if (reg_size <= 2) {
-        gen_operation(REG_RAX, left_reg, reg_size, OP_MOVSX);
-      } else if (left_reg != REG_RAX) {
-        gen_operation(REG_RAX, left_reg, reg_size, OP_MOV);
-      }
-      if (reg_size == 8) {
-        println("  cqo");
-      } else {
-        println("  cdq");
-      }
-      if (reg_size <= 4) {
-        println("  idiv %s", get_reg(right_reg, 4));
-      } else {
-        println("  idiv %s", get_reg(right_reg, reg_size));
-      }
-      if (op == OP_DIV) {
-        gen_operation(REG_RDX, REG_RAX, 8, OP_MOV);
-      }
-      if (left_reg == REG_MEM) {
-        gen_pop("rax");
-      }
-      gen_operation(left_reg, REG_RDX, reg_size, OP_MOV);
-      return true;
-    }
-    case OP_LEFT_SHIFT:
-    case OP_RIGHT_SHIFT: {
-      if (right_reg != REG_RCX) {
-        gen_operation(REG_RCX, right_reg, reg_size, OP_MOV);
-      }
-      if (op == OP_LEFT_SHIFT) {
-        println("  sal %s, %s", get_reg(left_reg, reg_size), get_reg(REG_RCX, reg_size));
-      } else {
-        println("  sar %s, %s", get_reg(left_reg, reg_size), get_reg(REG_RCX, reg_size));
-      }
-      return true;
-    }
-    case OP_BITWISE_AND:
-      println("  and %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      return true;
-    case OP_BITWISE_XOR:
-      println("  xor %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      return true;
-    case OP_BITWISE_OR:
-      println("  or %s, %s", get_reg(left_reg, reg_size), get_reg(right_reg, reg_size));
-      return true;
-    case OP_BITWISE_NOT:
-      println("  not %s", get_reg(left_reg, reg_size));
-      return true;
-  }
-  return false;
-}
-
 int branch_label = 0;
-
 
 // Right to left
 void expand_assign(Node *node) {
@@ -688,7 +533,6 @@ void compile_node(Node *node) {
   }
 }
 
-
 void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
   println(".intel_syntax noprefix");
@@ -721,28 +565,32 @@ void codegen(Node *head, char *filename) {
     println("  mov rbp, rsp");
     println("  sub rsp, %d", func->vars_size);
 
-    // Set arguments (use register);
+    // Push arguments into the stack.
+    Node **args = calloc(func->argc, sizeof(Node*));
     int argc = func->argc - 1;
     for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
       if (argc < 6) {
-        gen_addr(arg);
-        gen_operation(REG_MEM, regacy_args_reg[argc], get_type_size(arg->use_var->type), OP_MOV);
+        gen_push(args_reg[argc]);
+      } else {
+        println("  mov rax, QWORD PTR [rbp + %d]", 8 + (argc - 5) * 8);
+        gen_push("rax");
       }
+      *(args + argc) = arg;
       argc--;
     }
 
-    // Set arguements (use stack due more than 7 arguments)
-    argc = func->argc - 1;
-    for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
-      if (argc >= 6) {
-        gen_addr(arg);
-        gen_push("rax");
-        println("  mov rax, QWORD PTR [rbp + %d]", 8 + (argc - 5) * 8);
-        println("  mov rdi, rax");
-        gen_pop("rax");
-        gen_operation(REG_MEM, REG_RDI, get_type_size(arg->use_var->type), OP_MOV);
-      }
-      argc--;
+    // Set arguments
+    argc = 0;
+    while (argc < func->argc) {
+      Node *arg = *(args + argc);
+
+      gen_pop("rcx");
+      gen_addr(arg);
+      gen_push("rax");
+      println("  mov rax, rcx");
+      gen_store(arg->use_var->type);
+
+      argc++;
     }
 
     compile_node(node->next_stmt);
