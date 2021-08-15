@@ -78,8 +78,12 @@ int get_type_size(Type *type) {
   }
 }
 
-const RegKind args_reg[] = {
-  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
+static const char *args_reg[] = {
+  "rdi", "rsi", "rdx", "rcx", "r8", "r9",
+};
+
+static RegKind regacy_args_reg[] = {
+  REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9,
 };
 
 static char i32i8[]  = "movsx eax, al";
@@ -139,27 +143,21 @@ void gen_cast(Node *node) {
   }
 }
 
-
 void gen_compare(char *comp_op, int reg_size) {
   println("  cmp %s, %s", get_reg(REG_RAX, reg_size), get_reg(REG_RDI, reg_size));
   println("  %s al", comp_op);
   println("  movzx rax, al");
 }
 
-int push_cnt = 0;
-
-void gen_push(RegKind reg) {
-  push_cnt++;
-  println("  push %s", get_reg(reg, 8));
+static void gen_push(const char *reg) {
+  println("  push %s", reg);
 }
 
-void gen_pop(RegKind reg) {
-  push_cnt--;
-  println("  pop %s", get_reg(reg, 8));
+static void gen_pop(const char *reg) {
+  println("  pop %s", reg);
 }
 
 void gen_emptypop(int num) {
-  push_cnt -= num;
   println("  add rsp, %d", num * 8);
 }
 
@@ -203,7 +201,7 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op)
     case OP_DIV:
     case OP_REMAINDER: {
       if (left_reg == REG_MEM) {
-        gen_push(REG_RAX);
+        gen_push("rax");
       }
       if (reg_size <= 2) {
         gen_operation(REG_RAX, left_reg, reg_size, OP_MOVSX);
@@ -224,7 +222,7 @@ bool gen_operation(RegKind left_reg, RegKind right_reg, int reg_size, OpKind op)
         gen_operation(REG_RDX, REG_RAX, 8, OP_MOV);
       }
       if (left_reg == REG_MEM) {
-        gen_pop(REG_RAX);
+        gen_pop("rax");
       }
       gen_operation(left_reg, REG_RDX, reg_size, OP_MOV);
       return true;
@@ -300,11 +298,11 @@ void expand_variable(Node *node) {
 // Right to left
 void expand_assign(Node *node) {
   compile_node(node->rhs);
-  gen_push(REG_RAX);
+  gen_push("rax");
 
   // The left node must be assignable.
   gen_addr(node->lhs);
-  gen_pop(REG_RDI);
+  gen_pop("rdi");
 
   int reg_size = get_type_size(node->lhs->type);
   gen_operation(REG_MEM, REG_RDI, reg_size, OP_MOV);
@@ -350,14 +348,14 @@ static void gen_lvar_init(Node *node) {
   gen_addr(node->lhs);
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
-    gen_push(REG_RAX);
+    gen_push("rax");
     if (init->init != NULL) {
       compile_node(init->init);
     } else {
       println("  mov rax, 0");
     }
     gen_operation(REG_RDI, REG_RAX, 8, OP_MOV);
-    gen_pop(REG_RAX);
+    gen_pop("rax");
     gen_operation(REG_MEM, REG_RDI, get_type_size(node->type), OP_MOV);
     println("  add rax, %d", get_type_size(node->type));
   }
@@ -441,7 +439,6 @@ void compile_node(Node *node) {
   } 
 
   if (node->kind == ND_BLOCK) {
-    int stack_cnt = push_cnt;
     for (Node *now_stmt = node->next_block; now_stmt;
          now_stmt = now_stmt->next_stmt) {
       compile_node(now_stmt);
@@ -468,7 +465,7 @@ void compile_node(Node *node) {
     case ND_RETURN:
       compile_node(node->lhs);
       println("  mov rsp, rbp");
-      gen_pop(REG_RBP);
+      gen_pop("rbp");
       println("  ret");
       return;
     case ND_IF: {
@@ -517,11 +514,7 @@ void compile_node(Node *node) {
 
       // repeat expr
       if (node->loop != NULL) {
-        int stack_cnt = push_cnt;
         compile_node(node->loop);
-        if (push_cnt - stack_cnt >= 1) {
-          gen_emptypop(push_cnt - stack_cnt);
-        }
       }
 
       // finally
@@ -572,7 +565,7 @@ void compile_node(Node *node) {
     int arg_count = 0;
     for (Node *now_arg = node->func->args; now_arg != NULL; now_arg = now_arg->next_stmt) {
       compile_node(now_arg);
-      gen_push(REG_RAX);
+      gen_push("rax");
       arg_count++;
     }
 
@@ -587,12 +580,12 @@ void compile_node(Node *node) {
   }
 
   compile_node(node->lhs);
-  gen_push(REG_RAX);
+  gen_push("rax");
   compile_node(node->rhs);
-  gen_push(REG_RAX);
+  gen_push("rax");
 
-  gen_pop(REG_RDI);
-  gen_pop(REG_RAX);
+  gen_pop("rdi");
+  gen_pop("rax");
 
   int reg_size = get_type_size(node->type);
   int min_reg_size = 8;
@@ -682,7 +675,7 @@ void codegen(Node *head, char *filename) {
     println("%s:", func->name);
 
     // Prologue
-    gen_push(REG_RBP);
+    gen_push("rbp");
     println("  mov rbp, rsp");
     println("  sub rsp, %d", func->vars_size);
 
@@ -691,7 +684,7 @@ void codegen(Node *head, char *filename) {
     for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
       if (argc < 6) {
         gen_addr(arg);
-        gen_operation(REG_MEM, args_reg[argc], get_type_size(arg->use_var->type), OP_MOV);
+        gen_operation(REG_MEM, regacy_args_reg[argc], get_type_size(arg->use_var->type), OP_MOV);
       }
       argc--;
     }
@@ -701,10 +694,10 @@ void codegen(Node *head, char *filename) {
     for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
       if (argc >= 6) {
         gen_addr(arg);
-        gen_push(REG_RAX);
+        gen_push("rax");
         println("  mov rax, QWORD PTR [rbp + %d]", 8 + (argc - 5) * 8);
         println("  mov rdi, rax");
-        gen_pop(REG_RAX);
+        gen_pop("rax");
         gen_operation(REG_MEM, REG_RDI, get_type_size(arg->use_var->type), OP_MOV);
       }
       argc--;
@@ -713,7 +706,7 @@ void codegen(Node *head, char *filename) {
     compile_node(node->next_stmt);
 
     println("  mov rsp, rbp");
-    gen_pop(REG_RBP);
+    gen_pop("rbp");
     println("  ret");
   }
   fclose(output_file);
