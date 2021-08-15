@@ -26,7 +26,7 @@ struct Initializer {
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static int64_t eval_expr(Node *node);
-static bool is_const_expr(Node *node);
+static bool is_const_expr(Node *node, char **ptr_label);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global);
@@ -59,11 +59,12 @@ Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return ret;
 }
 
-Node *new_num(Token *tkn, int val) {
+Node *new_num(Token *tkn, int64_t val) {
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_INT;
   ret->tkn = tkn;
   ret->val = val;
+
   ret->type = new_type(TY_INT, false);
   ret->type->is_const = true;
   return ret;
@@ -193,7 +194,7 @@ static char *get_ident(Token *tkn) {
   return ret;
 }
 
-// get_type = ("const" type) | (type "const") | type
+// get_type = ("unsigned" | "signed")? (("const" type) | (type "const") | type)
 // type = "char" | "short" | "int" | "long" "long"? "int"?
 static Type *get_type(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
@@ -209,7 +210,15 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     LONG  = 1 << 8,
   };
 
+  bool is_unsigned = false;
   bool is_const = false;
+
+  if (consume(tkn, &tkn, "unsigned")) {
+    is_unsigned = true;
+  } else {
+    consume(tkn, &tkn, "signed");
+  }
+
   if (consume(tkn, &tkn, "const")) {
     is_const = true;
   }
@@ -283,8 +292,10 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     is_const = true;
     tkn = tkn->next;
   }
+
   if (ret != NULL) {
     ret->is_const = is_const;
+    ret->is_unsigned = is_unsigned;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -366,7 +377,6 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
     int len = 0;
     for (char *chr = tkn->str_lit; *chr != '\0'; read_char(chr, &chr)) len++;
     Initializer *tmp = new_initializer(array_to(init->ty->base, len), false);
-    fprintf(stderr, "%p\n", tmp->children[0]->children);
     *init = *tmp;
   }
 
@@ -409,10 +419,14 @@ static Node *create_init_node(Initializer *init, Node **end_node, bool only_cons
     head->init = init->node;
 
     if (only_const && init->node != NULL) {
-      if (!is_const_expr(init->node)) {
+      char *ptr_label = NULL;
+      if (!is_const_expr(init->node, &ptr_label)) {
         errorf_tkn(ER_COMPILE, init->node->tkn, "Require constant expression.");
       }
+
       head->init = new_num(init->node->tkn, eval_expr(init->node));
+      head->init->use_var = calloc(1, sizeof(Obj));
+      head->init->use_var->name = ptr_label;
     }
 
     if (end_node != NULL) *end_node = head;
@@ -515,7 +529,6 @@ static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   return ret;
 }
 
-
 // Evaluate a given node as a constant expression;
 static int64_t eval_expr(Node *node) {
   add_type(node);
@@ -571,7 +584,15 @@ static int64_t eval_expr(Node *node) {
           return 0;
       }
     case ND_VAR:
+      if (is_addr_type(node)) {
+        return 0;
+      }
       return node->use_var->val;
+    case ND_CONTENT:
+      if (node->lhs->kind == ND_ADDR) {
+        return eval_expr(node->lhs->lhs);
+      }
+      return eval_expr(node->lhs);
     case ND_INT:
       return node->val;
     default:
@@ -579,7 +600,7 @@ static int64_t eval_expr(Node *node) {
   }
 }
 
-static bool is_const_expr(Node *node) {
+static bool is_const_expr(Node *node, char **ptr_label) {
   add_type(node);
 
   switch (node->kind) {
@@ -599,27 +620,50 @@ static bool is_const_expr(Node *node) {
     case ND_BITWISEXOR:
     case ND_LOGICALAND:
     case ND_LOGICALOR:
-      return is_const_expr(node->lhs) && is_const_expr(node->rhs);
+      return is_const_expr(node->lhs, ptr_label) && is_const_expr(node->rhs, ptr_label);
     case ND_LOGICALNOT:
     case ND_BITWISENOT:
-      return is_const_expr(node->lhs);
+      return is_const_expr(node->lhs, ptr_label);
     case ND_TERNARY:
-      return is_const_expr(node->cond);
+      return is_const_expr(node->cond, ptr_label);
     case ND_CAST:
       switch (node->type->kind) {
         case TY_CHAR:
         case TY_SHORT:
         case TY_INT:
         case TY_LONG:
-          return is_const_expr(node->lhs);
+          return is_const_expr(node->lhs, ptr_label);
         default:
           return false;
       }
-    case ND_ADDR:
+    case ND_ADDR: {
+      if (*ptr_label != NULL) {
+        return false;
+      }
+      if (node->lhs->kind != ND_VAR) {
+        return false;
+      }
+      *ptr_label = node->lhs->use_var->name;
+      return true;
+    }
+    case ND_CONTENT:
+      if (node->lhs->kind == ND_ADDR) {
+        return is_const_expr(node->lhs->lhs, ptr_label);
+      }
+      return is_const_expr(node->lhs, ptr_label);
     case ND_INT:
       return true;
     case ND_VAR: {
       Obj *var = node->use_var;
+      if (var->type->kind == TY_ARRAY) {
+        if (*ptr_label != NULL) {
+          return false;
+        }
+
+        *ptr_label = var->name;
+        return true;
+      }
+
       return var->is_global && var->type->is_const;
     }
     default:

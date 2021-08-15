@@ -76,11 +76,11 @@ struct Node {
 
   Obj *func;  // Function or Function call
 
-  int val;        // value if kind is ND_INT
+  int64_t val;        // value if kind is ND_INT
 };
 
 Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs);
-Node *new_num(Token *tkn, int val);
+Node *new_num(Token *tkn, int64_t val);
 Node *new_cast(Token *tkn, Node *lhs, Type *type);
 Node *new_var(Token *tkn, Obj *obj);
 Node *new_strlit(Token *tkn, char *strlit);
@@ -110,6 +110,10 @@ struct Type {
   TypeKind kind;
   Token *tkn;  // Representative token
 
+  bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
+  bool is_const;
+  bool is_unsigned;
+
   // Pointer and Array require the same behavior,
   // and need a base type to calculate the memory movement distance.
   // Otherwise, this variable have raw type.
@@ -117,9 +121,6 @@ struct Type {
 
   int var_size;  // Variable size
   int array_len; // Array length if kind is TY_ARRAY
-
-  bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
-  bool is_const;
 };
 
 Type *new_type(TypeKind kind, bool is_real);

@@ -82,46 +82,55 @@ const RegKind args_reg[] = {
   REG_RDI, REG_RSI, REG_RDX, REG_RCX, REG_R8, REG_R9
 };
 
-static char i16i8[] = "movsx ax, al";
-static char i32i8[] = "movsx eax, al";
+static char i32i8[]  = "movsx eax, al";
+static char i32u8[]  = "movzx eax, al";
 static char i32i16[] = "movsx eax, ax";
-static char i64i8[] = "movsx rax, al";
-static char i64i16[] = "movsx rax, ax";
+static char i32u16[] = "movzx eax, ax";
 static char i64i32[] = "movsxd rax, eax";
-static char u16u8[] = "movzx ax, al";
-static char u32u8[] = "movzx eax, al";
-static char u32u16[] = "movzx eax, ax";
-static char u64u8[] = "movzx rax, al";
-static char u64u16[] = "movzx rax, ax";
-static char u64u32[] = "mov eax, eax";
+static char i64u32[] = "mov eax, eax";
 
-static const char *cast_table[][4] = {
-  // i8,  i16,    i32,    i64       to/from
-  {NULL,  i16i8,  i32i8,  i64i8},   // i8
-  {i64i8, NULL,   i32i16, i64i16},  // i16
-  {i64i8, i64i16, NULL,   i64i32},  // i32
-  {i64i8, i64i16, i64i32, NULL}     // i64
+static char *cast_table[][8] = {
+// i8     i16     i32   i64     u8     u16     u32   u64      to/from
+  {NULL,  NULL,   NULL, i64i32, i32u8, i32u16, NULL, i64i32}, // i8
+  {i32i8, NULL,   NULL, i64i32, i32u8, i32u16, NULL, i64i32}, // i16
+  {i32i8, i32i16, NULL, i64i32, i32u8, i32u16, NULL, i64i32}, // i32
+  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // i64
+
+  {i32i8, NULL,   NULL, i64i32, i32u8, NULL,   NULL, i64i32}, // u8
+  {i32i8, i32i16, NULL, i64i32, i32u8, NULL,   NULL, i64i32}, // u16
+  {i32i8, i32i16, NULL, i64u32, i32u8, i32u16, NULL, i64u32}, // u32
+  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // u64
 };
 
 static int type_to_cast_table_idx(Type *type) {
+  int ret;
   switch (type->kind) {
     case TY_CHAR:
-      return 0;
+      ret = 0;
+      break;
     case TY_SHORT:
-      return 1;
+      ret = 1;
+      break;
     case TY_INT:
-      return 2;
+      ret = 2;
+      break;
     case TY_LONG:
-      return 3;
+      ret = 3;
+      break;
     default:
       return 0;
   };
+  if (type->is_unsigned) {
+    ret += 4;
+  }
+  return ret;
 }
 
 void gen_cast(Node *node) {
   if (node->kind != ND_CAST) {
     return;
   }
+
   compile_node(node->lhs);
   int from = type_to_cast_table_idx(node->lhs->type);
   int to = type_to_cast_table_idx(node->type);
@@ -129,6 +138,7 @@ void gen_cast(Node *node) {
     println("  %s", cast_table[from][to]);
   }
 }
+
 
 void gen_compare(char *comp_op, int reg_size) {
   println("  cmp %s, %s", get_reg(REG_RAX, reg_size), get_reg(REG_RDI, reg_size));
@@ -379,13 +389,19 @@ static void gen_gvar_init(Node *node) {
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
     if (init->init == NULL) {
       println("  %s 0", asm_ty);
-    } else {
+      continue;
+    }
+
+    char *ptr_label = init->init->use_var->name;
+    if (ptr_label == NULL) {
       println("  %s %d", asm_ty, init->init->val);
+    } else {
+      println("  %s %s%+d", asm_ty, ptr_label, init->init->val);
     }
   }
 }
 
-static void gen_global_var_define(Obj *var) {
+static void gen_gvar_define(Obj *var) {
   println(".data");
   if (var->type->kind == TY_STR) {
     println(".LC%d:", var->offset);
@@ -415,7 +431,7 @@ static void gen_global_var_define(Obj *var) {
 
 void compile_node(Node *node) {
   if (node->kind == ND_INT) {
-    println("  mov rax, %d", node->val);
+    println("  mov rax, %ld", node->val);
     return;
   }
 
@@ -644,7 +660,7 @@ void codegen(Node *head, char *filename) {
   for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
     // Only string literal
     if (gvar->type->kind == TY_STR) {
-      gen_global_var_define(gvar);
+      gen_gvar_define(gvar);
     }
   }
 
@@ -655,7 +671,7 @@ void codegen(Node *head, char *filename) {
         if (var->kind == ND_INIT) {
           gen_gvar_init(var);
         } else {
-          gen_global_var_define(var->use_var);
+          gen_gvar_define(var->use_var);
         }
       }
       continue;

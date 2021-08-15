@@ -29,6 +29,12 @@ int const_expr6 = 423145 | 41321;
 const int const_expr7 = 1 == 1 ? 4 : 5;
 int const_expr8 = const_expr7 * 3;
 
+int const_expr9 = 3;
+int *const_expr10 = &const_expr9;
+
+int const_expr11[2][3] = {{1, 3, 2}, {6, 9, 2}};
+int *const_expr12 = *(const_expr11 + 1) + 1;
+
 int main() {
   CHECK(2, ({a = 2; a;}));
   CHECK(5, ({b = 1; int *c = &a; *c = 4; a + b;}));
@@ -135,6 +141,14 @@ int main() {
 
   CHECK(12, ({
     const_expr8;
+  }));
+
+  CHECK(3, ({
+    *const_expr10;
+  }));
+
+  CHECK(9, ({
+    *const_expr12;
   }));
 
   return 0;

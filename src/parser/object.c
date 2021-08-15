@@ -193,6 +193,11 @@ static bool comp_type(Type *left, Type *right) {
   if (left->kind < right->kind) {
     return true;
   }
+
+  if (left->kind == right->kind) {
+    return left->is_unsigned ? false : true;
+  }
+
   return false;
 }
 

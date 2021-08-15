@@ -337,16 +337,21 @@ int main() {
     *c;
   }));
 
-  CHECK (5, ({
+  CHECK(5, ({
     const int a = 2;
     const int b = a + 3;
     b;
   }));
 
-  CHECK (3, ({
+  CHECK(3, ({
     int a[5] = {1, 2, 3, 4, 5};
     int *b = a + 4;
     *(b - 2);
+  }));
+
+  CHECK(10, ({
+    unsigned short a = 10;
+    a;
   }));
 
   return 0;

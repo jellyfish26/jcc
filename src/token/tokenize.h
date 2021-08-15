@@ -1,6 +1,7 @@
 #pragma once
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +25,8 @@ struct Token {
   char *loc;      // Token String
   int len;        // Token length
 
-  int val;        // Value if kind is TK_NUM_INT
+  int64_t val;        // Value if kind is TK_NUM_INT
+
   char c_lit;     // Char literal
   char *str_lit;  // String literal
 };
