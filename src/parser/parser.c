@@ -23,15 +23,19 @@ struct Initializer {
 };
 
 typedef struct VarAttr VarAttr;
+struct VarAttr {
+  bool is_const;
+};
 
 // Prototype
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static int64_t eval_expr(Node *node);
 static bool is_const_expr(Node *node, char **ptr_label);
+static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
+static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
-static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global);
 static Node *expr(Token *tkn, Token **end_tkn);
 static Node *assign(Token *tkn, Token **end_tkn);
 static Node *conditional(Token *tkn, Token **end_tkn);
@@ -173,7 +177,8 @@ Node *to_assign(Token *tkn, Node *rhs) {
 }
 
 char *typename[] = {
-  "void", "char", "short", "int", "long", "signed", "unsigned", "const"
+  "void", "char", "short", "int", "long", "signed", "unsigned",
+  "const"
 };
 
 static bool is_typename(Token *tkn) {
@@ -195,9 +200,27 @@ static char *get_ident(Token *tkn) {
   return ret;
 }
 
-// get_type = typename typename*
-// typename = "char" | "short" | "int" | "long" | "signed" | "unsigned"
-static Type *get_type(Token *tkn, Token **end_tkn) {
+// type-qualifier = "const"
+static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
+  bool is_qual = false;
+  if (equal(tkn, "const")) {
+    if (attr->is_const) {
+      errorf_tkn(ER_COMPILE, tkn, "Duplicate const");
+    }
+    attr->is_const = true;
+    tkn = tkn->next;
+    is_qual = true;
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return is_qual;
+};
+
+// declaration-specifiers = type-specifier declaration-specifiers?
+//                          type-qualifier declaration-specifiers?
+//
+// type-specifier = "void" | "char" | "short" | "int" | "long" | "signed" | "unsigned"
+// type-qualifier = "const"
+static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
   // If typename is 'long', we have a duplicate when the long bit
@@ -213,17 +236,12 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     UNSIGNED = 1 << 12,
   };
 
-  bool is_const = false;
+  VarAttr *attr = calloc(1, sizeof(VarAttr));
 
   int type_cnt = 0;
   Type *ret = NULL;
   while (is_typename(tkn)) {
-    if (equal(tkn, "const")) {
-      if (is_const) {
-        errorf_tkn(ER_COMPILE, tkn, "Duplicate const.");
-      }
-      is_const = true;
-      tkn = tkn->next;
+    if (typequal(tkn, &tkn, attr)) {
       continue;
     }
 
@@ -323,8 +341,8 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     tkn = tkn->next;
   }
 
-  if (ret != NULL) {
-    ret->is_const = is_const;
+  if (attr->is_const) {
+    ret->is_const = true;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -471,92 +489,6 @@ static Node *create_init_node(Initializer *init, Node **end_node, bool only_cons
   return head->lhs;
 }
 
-// pointers = ("*" "const"?)*
-static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
-  while (consume(tkn, &tkn, "*")) {
-    ty = pointer_to(ty);
-    if (consume(tkn, &tkn, "const")) {
-      ty->is_const = true;
-    }
-  }
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ty;
-}
-
-// arrays = "[" num "]" arrays?
-// num can empty value if can_empty is true.
-static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
-  if (!consume(tkn, &tkn, "[")) {
-    if (*end_tkn != NULL) *end_tkn = tkn;
-    return ty;
-  }
-
-  if (!can_empty && tkn->kind != TK_NUM_INT) {
-      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
-  }
-
-  int val = 0;
-  if (tkn->kind == TK_NUM_INT) {
-    val = tkn->val;
-    tkn = tkn->next;
-  }
-
-  tkn = skip(tkn, "]");
-  ty = arrays(tkn, &tkn, ty, false);
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return array_to(ty, val);
-}
-
-// declare = ident arrays
-static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
-  char *ident = get_ident(tkn);
-
-  if (ident == NULL) {
-    errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
-  }
-
-  ty = arrays(tkn->next, &tkn, ty, true);
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return new_obj(ty, ident);
-}
-
-// declarator = pointers declare ("=" initializer)?
-// Return NULL if cannot be declared.
-static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
-  ty = pointers(tkn, &tkn, ty);
-  Obj *var = declare(tkn, &tkn, ty);
-
-  if (is_global) {
-    add_gvar(var, true);
-  } else {
-    add_lvar(var);
-  }
-
-  Node *ret = new_var(tkn, var);
-
-  if (ty->var_size == 0 && !equal(tkn, "=")) {
-    errorf_tkn(ER_COMPILE, tkn, "Size empty array require an initializer.");
-  }
-
-  if (equal(tkn, "=")) {
-    Initializer *init = initializer(tkn->next, &tkn, var->type);
-    ret = new_node(ND_INIT, tkn, ret, create_init_node(init, NULL, is_global));
-    ret->type = ty;
-
-    if (is_global) {
-      ret->lhs->use_var->val = ret->rhs->init->val;
-    }
-
-    // If the lengh of the array is empty, Type will be updated,
-    // so it needs to be passed to var as well.
-    var->type = init->ty;
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
 
 // Evaluate a given node as a constant expression;
 static int64_t eval_expr(Node *node) {
@@ -700,6 +632,136 @@ static bool is_const_expr(Node *node, char **ptr_label) {
   }
 }
 
+
+// pointer = "*" type-qualifier-list? |
+//           "*" type-qualifier-list? pointer |
+//
+// type-qualifier-list = type-qualifier |
+//                       type-qualifier-list type-qualifier
+//
+// Implement:
+// pointer = ("*" typequal*)*
+static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
+  VarAttr *attr = calloc(1, sizeof(VarAttr));
+
+  while (consume(tkn, &tkn, "*")) {
+    ty = pointer_to(ty);
+
+    while (typequal(tkn, &tkn, attr));
+    if (attr->is_const) {
+      ty->is_const = true;
+      attr->is_const = false;
+    }
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+// arrays = "[" num "]" arrays?
+// num can empty value if can_empty is true.
+static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
+  if (!consume(tkn, &tkn, "[")) {
+    if (*end_tkn != NULL) *end_tkn = tkn;
+    return ty;
+  }
+
+  if (!can_empty && tkn->kind != TK_NUM_INT) {
+      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
+  }
+
+  int val = 0;
+  if (tkn->kind == TK_NUM_INT) {
+    val = tkn->val;
+    tkn = tkn->next;
+  }
+
+  tkn = skip(tkn, "]");
+  ty = arrays(tkn, &tkn, ty, false);
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return array_to(ty, val);
+}
+
+// declaration = declaration-specifiers init-declarator-list?
+//
+// init-declarator-list = init-declarator | 
+//                        init-declarator-list "," init-declarator
+//
+//
+// implement:
+// declaration = declspec init-declarator ("," init-declarator)* ";"
+static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
+  Type *ty = declspec(tkn, &tkn);
+
+  if (ty == NULL) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return NULL;
+  }
+
+  Node *node = initdecl(tkn, &tkn, ty, is_global);
+  Node *now = node;
+
+  while (consume(tkn, &tkn, ",")) {
+    now->next_stmt = initdecl(tkn, &tkn, ty, is_global);
+    now = now->next_stmt;
+  }
+
+  tkn = skip(tkn, ";");
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return node;
+}
+
+// init-declarator = declarator ("=" initializer)?
+static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
+  Obj *obj = declarator(tkn, &tkn, ty);
+
+  if (is_global) {
+    add_gvar(obj, true);
+  } else {
+    add_lvar(obj);
+  }
+
+  Node *node = new_var(tkn, obj);
+  if (equal(tkn, "=")) {
+    Initializer *init = initializer(tkn->next, &tkn, obj->type);
+    node = new_node(ND_INIT, tkn, node, create_init_node(init, NULL, is_global));
+
+    Type *base_ty = obj->type;
+    while (base_ty->kind == TY_ARRAY) {
+      base_ty = base_ty->base;
+    }
+    node->type = base_ty;
+
+    if (is_global) {
+      node->lhs->use_var->val = node->rhs->init->val;
+    }
+
+    // If the lengh of the array is empty, Type will be updated,
+    // so it needs to be passed to var as well.
+    obj->type = init->ty;
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return node;
+}
+
+// declarator = pointer? direct-declarator
+//
+// direct-declarator = identifier | 
+//                     direct-expression "[" assignment-expression? "]"
+//
+// Implement:
+// declarator = identifier arrays
+static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
+  ty = pointer(tkn, &tkn, ty);
+  char *ident = get_ident(tkn);
+
+  ty = arrays(tkn->next, &tkn, ty, true);
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return new_obj(ty, ident);
+}
+
 static Node *last_stmt(Node *now) {
   while (now->next_stmt != NULL) {
     now = now->next_stmt;
@@ -720,12 +782,12 @@ Node *program(Token *tkn) {
   return head->next_block;
 }
 
-// topmost = get_type ident "(" params?")" statement |
-//           get_type declarations ";"
-// params = get_type ident ("," get_type ident)*
+// topmost = declspec ident "(" params?")" statement |
+//           declaration
+// params = declspec ident ("," declspec ident)*
 static Node *topmost(Token *tkn, Token **end_tkn) {
   Token *head_tkn = tkn;
-  Type *ty = get_type(tkn, &tkn);
+  Type *ty = declspec(tkn, &tkn);
 
   if (ty == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
@@ -733,11 +795,7 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
 
   // Global variable declare
   if (!equal(tkn->next, "(")) {
-    Node *ret = declarations(tkn, &tkn, ty, true);
-
-    if (!consume(tkn, &tkn, ";")) {
-      errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the declaration.");
-    }
+    Node *ret = declaration(head_tkn, &tkn, true);
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
@@ -760,12 +818,12 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
 
   // Set arguments
   if (!consume(tkn, &tkn, ")")) while (true) {
-    Type *arg_ty = get_type(tkn, &tkn);
+    Type *arg_ty = declspec(tkn, &tkn);
     if (arg_ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
     }
 
-    Node *lvar = new_var(tkn, declare(tkn, &tkn, arg_ty));
+    Node *lvar = new_var(tkn, declarator(tkn, &tkn, arg_ty));
     add_lvar(lvar->use_var);
     lvar->lhs = ret->func->args;
     ret->func->args = lvar;
@@ -788,17 +846,23 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
 
 static Node *inside_roop; // inside for or while
 
-// statement = { statement* } |
-//             ("return")? assign ";" |
-//             "if" "(" assign ")" statement ("else" statement)? |
-//             "for" "(" declarations? ";" assign? ";" assign?")" statement |
-//             "while" "(" assign ")" statement |
-//             "break;" |
-//             "continue;" |
-//             declarations ";"
+// statement = compound-statement |
+//             selection-statement |
+//             iteratoin-statement |
+//             jump-statement |
+//             expression-statement
+//
+// compound-statement   = { ( declaration | statement )* }
+// selection-statement  = "if" "(" expression ")" statement ("else" statement)?
+// iteration-statement  = "for" "(" declaration expression? ";" expression? ")" statement |
+//                        "for" "(" expression? ";" expression? ";" expression? ")" statement |
+//                        "while" "(" expression ")" statement
+// jump-statement       = "continue;" |
+//                        "break" |
+//                        "return" expr? ";"
+// expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
-
-  // Block statement
+  // compound-statement
   if (equal(tkn, "{")) {
     if (new_scope) new_scope_definition();
 
@@ -809,7 +873,11 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     
     tkn = tkn->next;
     while (!consume(tkn, &tkn, "}")) {
-      now->next_stmt = statement(tkn, &tkn, true);
+      now->next_stmt = declaration(tkn, &tkn, false);
+      if (now->next_stmt == NULL) {
+        now->next_stmt = statement(tkn, &tkn, true);
+      }
+
       now = last_stmt(now);
     }
 
@@ -820,6 +888,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
+  // selection-statement
   if (equal(tkn, "if")) {
     tkn = skip(tkn->next, "(");
     new_scope_definition();
@@ -858,6 +927,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
+  // iteration-statement
   if (equal(tkn, "for")) {
     tkn = skip(tkn->next, "(");
     new_scope_definition();
@@ -866,16 +936,14 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     Node *ret = new_node(ND_FOR, tkn, NULL, NULL);
     inside_roop = ret;
 
-
-    if (!consume(tkn, &tkn, ";")) {
-      Type *ty = get_type(tkn, &tkn);
-      ret->init = declarations(tkn, &tkn, ty, false);
-      
+    ret->init = declaration(tkn, &tkn, false);
+    if (ret->init == NULL && !consume(tkn, &tkn, ";")) {
+      ret->init = expr(tkn, &tkn);
       tkn = skip(tkn, ";");
     }
 
     if (!consume(tkn, &tkn, ";")) {
-      ret->cond = assign(tkn, &tkn);
+      ret->cond = expr(tkn, &tkn);
       tkn = skip(tkn, ";");
     }
 
@@ -893,6 +961,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
+  // iteration-statement
   if (equal(tkn, "while")) {
     tkn = skip(tkn->next, "(");
     new_scope_definition();
@@ -901,7 +970,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     Node *ret = new_node(ND_WHILE, tkn, NULL, NULL);
     inside_roop = ret;
 
-    ret->cond = assign(tkn, &tkn);
+    ret->cond = expr(tkn, &tkn);
 
     tkn = skip(tkn, ")");
 
@@ -913,26 +982,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
-  if (equal(tkn, "return")) {
-    Node *ret = new_node(ND_RETURN, tkn, assign(tkn->next, &tkn), NULL);
-    tkn = skip(tkn, ";");
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
-  if (equal(tkn, "break")) {
-    if (inside_roop == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
-    }
-
-    Node *ret = new_node(ND_LOOPBREAK, tkn, inside_roop, NULL);
-    tkn = skip(tkn->next, ";");
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
+  // jump-statement
   if (equal(tkn, "continue")) {
     if (inside_roop == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
@@ -945,31 +995,37 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
-  Type *ty = get_type(tkn, &tkn);
-  Node *ret = declarations(tkn, &tkn, ty, false);
+  // jump-statement
+  if (equal(tkn, "break")) {
+    if (inside_roop == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
+    }
+
+    Node *ret = new_node(ND_LOOPBREAK, tkn, inside_roop, NULL);
+    tkn = skip(tkn->next, ";");
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  // jump-statement
+  if (equal(tkn, "return")) {
+    Node *ret = new_node(ND_RETURN, tkn, assign(tkn->next, &tkn), NULL);
+    tkn = skip(tkn, ";");
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  // expression-statement
+  while (consume(tkn, &tkn, ";"));
+  Node *node = expr(tkn, &tkn);
   tkn = skip(tkn, ";");
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return node;
 }
 
-// declarations = declarator ("," declarator)* |
-//                assign
-// Return last node, head is connect node.
-static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) {
-  if (ty == NULL) return assign(tkn, end_tkn);
-
-  Node *ret = declarator(tkn, &tkn, ty, is_global);
-  Node *now = ret;
-
-  while (consume(tkn, &tkn, ",")) {
-    now->next_stmt = declarator(tkn, &tkn, ty, is_global);
-    now = now->next_stmt;
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
 
 // expression = assignment-expression
 static Node *expr(Token *tkn, Token **end_tkn) {
@@ -1251,9 +1307,9 @@ static Node *mul(Token *tkn, Token **end_tkn) {
 // cast-expression = unary-expression | 
 //                   "(" type-name ")" cast-expression
 static Node *cast(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "(") && get_type(tkn->next, NULL) != NULL) {
-    Type *ty = get_type(tkn->next, &tkn);
-    ty = pointers(tkn, &tkn, ty);
+  if (equal(tkn, "(") && declspec(tkn->next, NULL) != NULL) {
+    Type *ty = declspec(tkn->next, &tkn);
+    ty = pointer(tkn, &tkn, ty);
 
     tkn = skip(tkn, ")");
 
@@ -1302,9 +1358,9 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 
   if (equal(tkn, "sizeof")) {
     // Type size
-    if (equal(tkn->next, "(") && get_type(tkn->next->next, NULL) != NULL) {
-      Type *ty = get_type(tkn->next->next, &tkn);
-      ty = pointers(tkn, &tkn, ty);
+    if (equal(tkn->next, "(") && declspec(tkn->next->next, NULL) != NULL) {
+      Type *ty = declspec(tkn->next->next, &tkn);
+      ty = pointer(tkn, &tkn, ty);
       ty = arrays(tkn, &tkn, ty, false);
 
       tkn = skip(tkn, ")");

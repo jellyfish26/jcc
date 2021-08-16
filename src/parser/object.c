@@ -271,6 +271,9 @@ void add_type(Node *node) {
     }
     case ND_FUNCCALL:
       node->type = node->func->type;
+      return;
+    case ND_INIT:
+      return;
     default:
       if (node->lhs != NULL) node->type = node->lhs->type;
       if (node->rhs != NULL) node->type = node->rhs->type;
