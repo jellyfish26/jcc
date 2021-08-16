@@ -32,23 +32,21 @@ static bool is_const_expr(Node *node, char **ptr_label);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global);
+static Node *expr(Token *tkn, Token **end_tkn);
 static Node *assign(Token *tkn, Token **end_tkn);
-static Node *ternary(Token *tkn, Token **end_tkn);
+static Node *conditional(Token *tkn, Token **end_tkn);
 static Node *logical_or(Token *tkn, Token **end_tkn);
 static Node *logical_and(Token *tkn, Token **end_tkn);
-static Node *bitwise_or(Token *tkn, Token **end_tkn);
-static Node *bitwise_xor(Token *tkn, Token **end_tkn);
-static Node *bitwise_and(Token *tkn, Token **end_tkn);
-static Node *same_comp(Token *tkn, Token **end_tkn);
-static Node *size_comp(Token *tkn, Token **end_tkn);
-static Node *bitwise_shift(Token *tkn, Token **end_tkn);
+static Node *bitor(Token *tkn, Token **end_tkn);
+static Node *bitxor(Token *tkn, Token **end_tkn);
+static Node *bitand(Token *tkn, Token **end_tkn);
+static Node *equality(Token *tkn, Token **end_tkn);
+static Node *relational(Token *tkn, Token **end_tkn);
+static Node *bitshift(Token *tkn, Token **end_tkn);
 static Node *add(Token *tkn, Token **end_tkn);
 static Node *mul(Token *tkn, Token **end_tkn);
 static Node *cast(Token *tkn, Token **end_tkn);
 static Node *unary(Token *tkn, Token **end_tkn);
-static Node *address_op(Token *tkn, Token **end_tkn);
-static Node *indirection(Token *tkn, Token **end_tkn);
-static Node *inc_dec(Token *tkn, Token **end_tkn);
 static Node *postfix(Token *tkn, Token **end_tkn);
 static Node *primary(Token *tkn, Token **end_tkn);
 static Node *constant(Token *tkn, Token **end_tkn);
@@ -599,7 +597,7 @@ static int64_t eval_expr(Node *node) {
       return !eval_expr(node->lhs);
     case ND_BITWISENOT:
       return ~eval_expr(node->lhs);
-    case ND_TERNARY:
+    case ND_COND:
       return eval_expr(node->cond) ? eval_expr(node->lhs) : eval_expr(node->rhs);
     case ND_CAST:
       switch (node->type->kind) {
@@ -655,7 +653,7 @@ static bool is_const_expr(Node *node, char **ptr_label) {
     case ND_LOGICALNOT:
     case ND_BITWISENOT:
       return is_const_expr(node->lhs, ptr_label);
-    case ND_TERNARY:
+    case ND_COND:
       return is_const_expr(node->cond, ptr_label);
     case ND_CAST:
       switch (node->type->kind) {
@@ -973,13 +971,23 @@ static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) 
   return ret;
 }
 
+// expression = assignment-expression
+static Node *expr(Token *tkn, Token **end_tkn) {
+  return assign(tkn, end_tkn);
+}
 
-// assign = ternary ("=" assign | "+=" assign | "-=" assign
-//                   "*=" assign | "/=" assign | "%=" assign
-//                   "<<=" assign | ">>=" assign
-//                   "&=" assign | "^=" assign | "|=" assign)?
+// assignment-expression = conditional-expression
+//                         unary-expression assignment-operator assignment-expression
+//
+//                         implement:
+//                         conditional-expression (assignment-operator assignment-expression)?
+//
+// assignment-operator   = "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|="
+//
+// Since conditional-expression encompassess unary-expression, for simplicity of implementation,
+// unary-expression is implemented as conditional-expression.
 static Node *assign(Token *tkn, Token **end_tkn) {
-  Node *node = ternary(tkn, &tkn);
+  Node *node = conditional(tkn, &tkn);
 
   if (equal(tkn, "="))
     return new_assign(tkn, node, assign(tkn->next, end_tkn));
@@ -1018,26 +1026,30 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
 }
-
-// ternary = logical_or ("?" ternary ":" ternary)?
-static Node *ternary(Token *tkn, Token **end_tkn) {
+// conditional-expression = logical-OR-expression |
+//                          logical-OR-expression "?" expression ":" conditional-expression
+static Node *conditional(Token *tkn, Token **end_tkn) {
   Node *ret = logical_or(tkn, &tkn);
 
   if (equal(tkn, "?")) {
-    ret = new_node(ND_TERNARY, tkn, ret, NULL);
+    ret = new_node(ND_COND, tkn, ret, NULL);
     ret->cond = ret->lhs;
-    ret->lhs = ternary(tkn->next, &tkn);
+    ret->lhs = expr(tkn->next, &tkn);
     
     tkn = skip(tkn, ":");
 
-    ret->rhs = ternary(tkn, &tkn);
+    ret->rhs = conditional(tkn, &tkn);
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// logical_or = logical_and ("||" logical_and)*
+// logical-OR-expression = logical-AND-expression |
+//                         logical-OR-expression "||" logical-AND-expression
+//
+//                         implement:
+//                         logical-AND-expression ( "||" logical-ANd-expression)
 static Node *logical_or(Token *tkn, Token **end_tkn) {
   Node *ret = logical_and(tkn, &tkn);
 
@@ -1050,87 +1062,112 @@ static Node *logical_or(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// logical_and = bitwise_or ("&&" bitwise_or)*
+// logical-AND-expression = inclusive-OR-expression | 
+//                          logical-AND-expression "&&" inclusive-OR-expression
+//
+//                          implement:
+//                          inclusive-OR-expression ( "&&" inclusive-OR-expression)
 static Node *logical_and(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_or(tkn, &tkn);
+  Node *ret = bitor(tkn, &tkn);
 
   while (equal(tkn, "&&")) {
     Token *operand = tkn;
-    ret = new_calc(ND_LOGICALAND, operand, ret, bitwise_or(tkn->next, &tkn));
+    ret = new_calc(ND_LOGICALAND, operand, ret, bitor(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// bitwise_or = bitwise_xor ("|" bitwise_xor)*
-static Node *bitwise_or(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_xor(tkn, &tkn);
+// inclusive-OR-expression = exclusive-OR-expression |
+//                           inclusive-OR-expression "|" exclusive-OR-expression
+//
+//                           implement:
+//                           exclusive-OR-expression ( "|" exclusive-OR-epxression )*
+static Node *bitor(Token *tkn, Token **end_tkn) {
+  Node *ret = bitxor(tkn, &tkn);
 
   while (equal(tkn, "|")) {
     Token *operand = tkn;
-    ret = new_calc(ND_BITWISEOR, operand, ret, bitwise_xor(tkn->next, &tkn));
+    ret = new_calc(ND_BITWISEOR, operand, ret, bitxor(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// bitwise_xor = bitwise_and ("^" bitwise_and)*
-static Node *bitwise_xor(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_and(tkn, &tkn);
+// exclusive-OR-expression = AND-expression |
+//                           exclusive-OR-expression "^" AND-expression
+//
+//                           implement:
+//                           AND-expression ( "^" AND-expression )*
+static Node *bitxor(Token *tkn, Token **end_tkn) {
+  Node *ret = bitand(tkn, &tkn);
 
   while (equal(tkn, "^")) {
     Token *operand = tkn;
-    ret = new_calc(ND_BITWISEXOR, operand, ret, bitwise_and(tkn->next, &tkn));
+    ret = new_calc(ND_BITWISEXOR, operand, ret, bitand(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// bitwise_and = same_comp ("&" same_comp)*
-static Node *bitwise_and(Token *tkn, Token **end_tkn) {
-  Node *ret = same_comp(tkn, &tkn);
+// AND-expression = equality-expression |
+//                  AND-expression "&" equality-expression
+//
+//                  implement:
+//                  equality-expression ( "&" equality-expression )*
+static Node *bitand(Token *tkn, Token **end_tkn) {
+  Node *ret = equality(tkn, &tkn);
 
   while (equal(tkn, "&")) {
     Token *operand = tkn;
-    ret = new_calc(ND_BITWISEAND, operand, ret, same_comp(tkn->next, &tkn));
+    ret = new_calc(ND_BITWISEAND, operand, ret, equality(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// same_comp = size_comp ("==" size_comp | "!=" size_comp)*
-static Node *same_comp(Token *tkn, Token **end_tkn) {
-  Node *ret = size_comp(tkn, &tkn);
+// equality-expression = relational-expression |
+//                       equality-expression "==" relational-expression |
+//                       equality-expression "!=" relational-expression |
+//                       
+//                       implement:
+//                       relational-expression ( ( "==" | "!=") relational-expression )*
+static Node *equality(Token *tkn, Token **end_tkn) {
+  Node *ret = relational(tkn, &tkn);
 
   while (equal(tkn, "==") || equal(tkn, "!=")) {
     NodeKind kind = equal(tkn, "==") ? ND_EQ : ND_NEQ;
     Token *operand = tkn;
-    ret = new_node(kind, operand, ret, same_comp(tkn->next, &tkn));
+    ret = new_node(kind, operand, ret, relational(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// size_comp = bitwise_shift ("<" bitwise_shift |
-//                            ">" bitwise_shift |
-//                            "<=" bitwise_shift|
-//                            ">=" bitwise_shift)?
-static Node *size_comp(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_shift(tkn, &tkn);
+// relational-expression = shift-expression |
+//                         relational-expression "<" shift-expression
+//                         relational-expression ">" shift-expression
+//                         relational-expression "<=" shift-expression
+//                         relational-expression ">=" shift-expression
+//
+//                         implement:
+//                         shift-expression ( ( "<" | ">" | "<=" | ">=" ) shift-expression )*
+static Node *relational(Token *tkn, Token **end_tkn) {
+  Node *ret = bitshift(tkn, &tkn);
 
   while (equal(tkn, "<") || equal(tkn, ">") ||
          equal(tkn, "<=") || equal(tkn, ">=")) {
     NodeKind kind = equal(tkn, "<") || equal(tkn, ">") ? ND_LC : ND_LEC;
 
     if (equal(tkn, ">") || equal(tkn, ">=")) {
-      ret = new_node(kind, tkn, bitwise_shift(tkn->next, &tkn), ret);
+      ret = new_node(kind, tkn, bitshift(tkn->next, &tkn), ret);
     } else {
-      ret = new_node(kind, tkn, ret, bitwise_shift(tkn->next, &tkn));
+      ret = new_node(kind, tkn, ret, bitshift(tkn->next, &tkn));
     }
   }
 
@@ -1138,8 +1175,13 @@ static Node *size_comp(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// bitwise_shift = add ("<<" add | ">>" add )*
-static Node *bitwise_shift(Token *tkn, Token **end_tkn) {
+// shift-expression = additive-expression | 
+//                    shift-expression "<<" additive-expression
+//                    shift-expression ">>" additive-expression
+//
+//                    implement:
+//                    additive-expression ( ( "<<" | ">>" ) additive-expression )*
+static Node *bitshift(Token *tkn, Token **end_tkn) {
   Node *ret = add(tkn, &tkn);
 
   while (equal(tkn, "<<") || equal(tkn, ">>")) {
@@ -1152,6 +1194,12 @@ static Node *bitwise_shift(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
+// additive-expression = multiplicative-expression |
+//                       additive-expression "+" multiplicative-expression |
+//                       additive-expression "-" multiplicative-expression
+//
+//                       implement:
+//                       multiplicative-expression ( ( "+" | "-" ) multiplicative-expression )*
 // add = mul ("+" mul | "-" mul)*
 static Node *add(Token *tkn, Token **end_tkn) {
   Node *ret = mul(tkn, &tkn);
@@ -1171,7 +1219,13 @@ static Node *add(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// mul = cast ("*" cast | "/" cast | "%" cast )*
+// multiplicative-expression = cast-expression |
+//                             multiplicative-expression "*" cast-expression
+//                             multiplicative-expression "/" cast-expression
+//                             multiplicative-expresioon "%" cast-expression
+//
+//                             implement:
+//                             cast-expression ( ( "*" | "/" | "%") cast-expression )*
 static Node *mul(Token *tkn, Token **end_tkn) {
   Node *ret = cast(tkn, &tkn);
 
@@ -1194,8 +1248,8 @@ static Node *mul(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// cast = ("(" get_type pointers? ")") cast |
-//        unary
+// cast-expression = unary-expression | 
+//                   "(" type-name ")" cast-expression
 static Node *cast(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "(") && get_type(tkn->next, NULL) != NULL) {
     Type *ty = get_type(tkn->next, &tkn);
@@ -1382,7 +1436,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
   }
 
   if (equal(tkn, "(")) {
-    Node *node = assign(tkn->next, &tkn);
+    Node *node = expr(tkn->next, &tkn);
 
     tkn = skip(tkn, ")");
     if (end_tkn != NULL) *end_tkn = tkn;

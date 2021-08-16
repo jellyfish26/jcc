@@ -231,7 +231,7 @@ void add_type(Node *node) {
     case ND_BITWISEAND:
     case ND_BITWISEOR:
     case ND_BITWISEXOR:
-    case ND_TERNARY:
+    case ND_COND:
     case ND_EQ:
     case ND_NEQ:
     case ND_LC:

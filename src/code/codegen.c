@@ -357,7 +357,7 @@ void compile_node(Node *node) {
       println(".Lend%d:", now_label);
       return;
     }
-    case ND_TERNARY: {
+    case ND_COND: {
       int now_label = branch_label++;
       expand_ternary(node, branch_label);
       return;

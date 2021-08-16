@@ -35,7 +35,7 @@ typedef enum {
   ND_LOGICALAND,  // "&&" (Logical AND)
   ND_LOGICALOR,   // "||" (Logical OR)
   ND_LOGICALNOT,  // "!" (Logical NOT)
-  ND_TERNARY,     // Ternay operator
+  ND_COND,        // "?:" conditional
   ND_ASSIGN,      // Assign
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
