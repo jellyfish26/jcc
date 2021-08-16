@@ -1210,9 +1210,42 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 }
 
 
-// unary = ("sizeof" | "+" | "-" | "!" | "~") unary |
-//         address_op
+// unary-expression = postfix-expression |
+//                    "++" unary-expression |
+//                    "--" unary-expression | 
+//                    unary-operator cast-expression |
+//                    "sizeof" unary-expression |
+//                    "sizeof" "(" type-name ")"
+//
+// unary-operator   = "&" | "*" | "+" | "-" | "~" | "!"
 static Node *unary(Token *tkn, Token **end_tkn) {
+  if (equal(tkn, "++")) {
+    return to_assign(tkn, new_add(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+  }
+
+  if (equal(tkn, "--")) {
+    return to_assign(tkn, new_sub(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+  }
+
+  // unary-operator
+  if (equal(tkn, "&")) {
+    return new_node(ND_ADDR, tkn, cast(tkn->next, end_tkn), NULL);
+  }
+
+  if (equal(tkn, "*")) {
+    return new_node(ND_CONTENT, tkn, cast(tkn->next, end_tkn), NULL);
+  }
+
+  if (equal(tkn, "+") || equal(tkn, "-")) {
+    NodeKind kind = equal(tkn, "+") ? ND_ADD : ND_SUB;
+    return new_node(kind, tkn, new_num(tkn, 0), cast(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "~") || equal(tkn, "!")) {
+    NodeKind kind = equal(tkn, "~") ? ND_BITWISENOT : ND_LOGICALNOT;
+    return new_node(kind, tkn, cast(tkn->next, end_tkn), NULL);
+  }
+
   if (equal(tkn, "sizeof")) {
     // Type size
     if (equal(tkn->next, "(") && get_type(tkn->next->next, NULL) != NULL) {
@@ -1229,51 +1262,6 @@ static Node *unary(Token *tkn, Token **end_tkn) {
     add_type(node);
 
     return new_num(tkn, node->type->var_size);
-  }
-
-  if (equal(tkn, "+") || equal(tkn, "-")) {
-    NodeKind kind = equal(tkn, "+") ? ND_ADD : ND_SUB;
-    return new_node(kind, tkn, new_num(tkn, 0), unary(tkn->next, end_tkn));
-  }
-
-  if (equal(tkn, "!") || equal(tkn, "~")) {
-    NodeKind kind = equal(tkn, "!") ? ND_LOGICALNOT : ND_BITWISENOT;
-    return new_node(kind, tkn, unary(tkn->next, end_tkn), NULL);
-  }
-
-  return address_op(tkn, end_tkn);
-}
-
-// address_op = "&"? indirection
-static Node *address_op(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "&")) {
-    return new_node(ND_ADDR, tkn, indirection(tkn->next, end_tkn), NULL);
-  }
-
-  return indirection(tkn, end_tkn);
-}
-
-// indirection = (inc_dec | "*" indirection)
-static Node *indirection(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "*")) {
-    return new_node(ND_CONTENT, tkn, indirection(tkn->next, end_tkn), NULL);
-  }
-
-  return inc_dec(tkn, end_tkn);
-}
-
-
-// inc_dec = postfix | ("++" | "--") postfix
-//
-// Convert ++a to (a += 1), --a to (a -= 1)
-// Convert a++ to ((a += 1) - 1), a-- to ((a -= 1) + 1);
-static Node *inc_dec(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "++")) {
-    return to_assign(tkn, new_add(tkn, postfix(tkn->next, end_tkn), new_num(tkn, 1)));
-  }
-
-  if (equal(tkn, "--")) {
-    return to_assign(tkn, new_sub(tkn, postfix(tkn->next, end_tkn), new_num(tkn, 1)));
   }
 
   return postfix(tkn, end_tkn);
