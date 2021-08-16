@@ -114,7 +114,7 @@ void add_gvar(Obj *var, bool is_substance) {
   gvars = var;
 }
 
-Obj *find_var(char *name) {
+Obj *find_obj(char *name) {
   int name_len = strlen(name);
   // Find in local variable
   for (ScopeObj *now_scope = lvars; now_scope != NULL; now_scope = now_scope->upper) {
@@ -231,7 +231,7 @@ void add_type(Node *node) {
     case ND_BITWISEAND:
     case ND_BITWISEOR:
     case ND_BITWISEXOR:
-    case ND_TERNARY:
+    case ND_COND:
     case ND_EQ:
     case ND_NEQ:
     case ND_LC:
@@ -242,7 +242,6 @@ void add_type(Node *node) {
         node->type = node->lhs->type;
         return;
       }
-
       if (node->rhs->type->kind >= TY_PTR) {
         node->type = node->rhs->type;
         return;
@@ -255,7 +254,6 @@ void add_type(Node *node) {
       node->type = node->lhs->type;
       break;
     case ND_LOGICALNOT:
-    case ND_INT:
       node->type = new_type(TY_INT, false);
       return;
     case ND_ADDR: {
@@ -273,6 +271,9 @@ void add_type(Node *node) {
     }
     case ND_FUNCCALL:
       node->type = node->func->type;
+      return;
+    case ND_INIT:
+      return;
     default:
       if (node->lhs != NULL) node->type = node->lhs->type;
       if (node->rhs != NULL) node->type = node->rhs->type;

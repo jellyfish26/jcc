@@ -23,34 +23,37 @@ struct Initializer {
 };
 
 typedef struct VarAttr VarAttr;
+struct VarAttr {
+  bool is_const;
+};
 
 // Prototype
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static int64_t eval_expr(Node *node);
 static bool is_const_expr(Node *node, char **ptr_label);
+static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
+static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
-static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global);
+static Node *expr(Token *tkn, Token **end_tkn);
 static Node *assign(Token *tkn, Token **end_tkn);
-static Node *ternary(Token *tkn, Token **end_tkn);
+static Node *conditional(Token *tkn, Token **end_tkn);
 static Node *logical_or(Token *tkn, Token **end_tkn);
 static Node *logical_and(Token *tkn, Token **end_tkn);
-static Node *bitwise_or(Token *tkn, Token **end_tkn);
-static Node *bitwise_xor(Token *tkn, Token **end_tkn);
-static Node *bitwise_and(Token *tkn, Token **end_tkn);
-static Node *same_comp(Token *tkn, Token **end_tkn);
-static Node *size_comp(Token *tkn, Token **end_tkn);
-static Node *bitwise_shift(Token *tkn, Token **end_tkn);
+static Node *bitor(Token *tkn, Token **end_tkn);
+static Node *bitxor(Token *tkn, Token **end_tkn);
+static Node *bitand(Token *tkn, Token **end_tkn);
+static Node *equality(Token *tkn, Token **end_tkn);
+static Node *relational(Token *tkn, Token **end_tkn);
+static Node *bitshift(Token *tkn, Token **end_tkn);
 static Node *add(Token *tkn, Token **end_tkn);
 static Node *mul(Token *tkn, Token **end_tkn);
 static Node *cast(Token *tkn, Token **end_tkn);
 static Node *unary(Token *tkn, Token **end_tkn);
-static Node *address_op(Token *tkn, Token **end_tkn);
-static Node *indirection(Token *tkn, Token **end_tkn);
-static Node *inc_dec(Token *tkn, Token **end_tkn);
-static Node *priority(Token *tkn, Token **end_tkn);
-static Node *num(Token *tkn, Token **end_tkn);
+static Node *postfix(Token *tkn, Token **end_tkn);
+static Node *primary(Token *tkn, Token **end_tkn);
+static Node *constant(Token *tkn, Token **end_tkn);
 
 Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   Node *ret = calloc(1, sizeof(Node));
@@ -174,7 +177,8 @@ Node *to_assign(Token *tkn, Node *rhs) {
 }
 
 char *typename[] = {
-  "void", "char", "short", "int", "long", "signed", "unsigned", "const"
+  "void", "char", "short", "int", "long", "signed", "unsigned",
+  "const"
 };
 
 static bool is_typename(Token *tkn) {
@@ -196,9 +200,27 @@ static char *get_ident(Token *tkn) {
   return ret;
 }
 
-// get_type = typename typename*
-// typename = "char" | "short" | "int" | "long" | "signed" | "unsigned"
-static Type *get_type(Token *tkn, Token **end_tkn) {
+// type-qualifier = "const"
+static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
+  bool is_qual = false;
+  if (equal(tkn, "const")) {
+    if (attr->is_const) {
+      errorf_tkn(ER_COMPILE, tkn, "Duplicate const");
+    }
+    attr->is_const = true;
+    tkn = tkn->next;
+    is_qual = true;
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return is_qual;
+};
+
+// declaration-specifiers = type-specifier declaration-specifiers?
+//                          type-qualifier declaration-specifiers?
+//
+// type-specifier = "void" | "char" | "short" | "int" | "long" | "signed" | "unsigned"
+// type-qualifier = "const"
+static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
   // If typename is 'long', we have a duplicate when the long bit
@@ -214,17 +236,12 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     UNSIGNED = 1 << 12,
   };
 
-  bool is_const = false;
+  VarAttr *attr = calloc(1, sizeof(VarAttr));
 
   int type_cnt = 0;
   Type *ret = NULL;
   while (is_typename(tkn)) {
-    if (equal(tkn, "const")) {
-      if (is_const) {
-        errorf_tkn(ER_COMPILE, tkn, "Duplicate const.");
-      }
-      is_const = true;
-      tkn = tkn->next;
+    if (typequal(tkn, &tkn, attr)) {
       continue;
     }
 
@@ -324,8 +341,8 @@ static Type *get_type(Token *tkn, Token **end_tkn) {
     tkn = tkn->next;
   }
 
-  if (ret != NULL) {
-    ret->is_const = is_const;
+  if (attr->is_const) {
+    ret->is_const = true;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -472,92 +489,6 @@ static Node *create_init_node(Initializer *init, Node **end_node, bool only_cons
   return head->lhs;
 }
 
-// pointers = ("*" "const"?)*
-static Type *pointers(Token *tkn, Token **end_tkn, Type *ty) {
-  while (consume(tkn, &tkn, "*")) {
-    ty = pointer_to(ty);
-    if (consume(tkn, &tkn, "const")) {
-      ty->is_const = true;
-    }
-  }
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ty;
-}
-
-// arrays = "[" num "]" arrays?
-// num can empty value if can_empty is true.
-static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
-  if (!consume(tkn, &tkn, "[")) {
-    if (*end_tkn != NULL) *end_tkn = tkn;
-    return ty;
-  }
-
-  if (!can_empty && tkn->kind != TK_NUM_INT) {
-      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
-  }
-
-  int val = 0;
-  if (tkn->kind == TK_NUM_INT) {
-    val = tkn->val;
-    tkn = tkn->next;
-  }
-
-  tkn = skip(tkn, "]");
-  ty = arrays(tkn, &tkn, ty, false);
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return array_to(ty, val);
-}
-
-// declare = ident arrays
-static Obj *declare(Token *tkn, Token **end_tkn, Type *ty) {
-  char *ident = get_ident(tkn);
-
-  if (ident == NULL) {
-    errorf_tkn(ER_COMPILE, tkn, "The variable declaration requires an identifier.");
-  }
-
-  ty = arrays(tkn->next, &tkn, ty, true);
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return new_obj(ty, ident);
-}
-
-// declarator = pointers declare ("=" initializer)?
-// Return NULL if cannot be declared.
-static Node *declarator(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
-  ty = pointers(tkn, &tkn, ty);
-  Obj *var = declare(tkn, &tkn, ty);
-
-  if (is_global) {
-    add_gvar(var, true);
-  } else {
-    add_lvar(var);
-  }
-
-  Node *ret = new_var(tkn, var);
-
-  if (ty->var_size == 0 && !equal(tkn, "=")) {
-    errorf_tkn(ER_COMPILE, tkn, "Size empty array require an initializer.");
-  }
-
-  if (equal(tkn, "=")) {
-    Initializer *init = initializer(tkn->next, &tkn, var->type);
-    ret = new_node(ND_INIT, tkn, ret, create_init_node(init, NULL, is_global));
-    ret->type = ty;
-
-    if (is_global) {
-      ret->lhs->use_var->val = ret->rhs->init->val;
-    }
-
-    // If the lengh of the array is empty, Type will be updated,
-    // so it needs to be passed to var as well.
-    var->type = init->ty;
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
 
 // Evaluate a given node as a constant expression;
 static int64_t eval_expr(Node *node) {
@@ -598,7 +529,7 @@ static int64_t eval_expr(Node *node) {
       return !eval_expr(node->lhs);
     case ND_BITWISENOT:
       return ~eval_expr(node->lhs);
-    case ND_TERNARY:
+    case ND_COND:
       return eval_expr(node->cond) ? eval_expr(node->lhs) : eval_expr(node->rhs);
     case ND_CAST:
       switch (node->type->kind) {
@@ -654,7 +585,7 @@ static bool is_const_expr(Node *node, char **ptr_label) {
     case ND_LOGICALNOT:
     case ND_BITWISENOT:
       return is_const_expr(node->lhs, ptr_label);
-    case ND_TERNARY:
+    case ND_COND:
       return is_const_expr(node->cond, ptr_label);
     case ND_CAST:
       switch (node->type->kind) {
@@ -701,6 +632,136 @@ static bool is_const_expr(Node *node, char **ptr_label) {
   }
 }
 
+
+// pointer = "*" type-qualifier-list? |
+//           "*" type-qualifier-list? pointer |
+//
+// type-qualifier-list = type-qualifier |
+//                       type-qualifier-list type-qualifier
+//
+// Implement:
+// pointer = ("*" typequal*)*
+static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
+  VarAttr *attr = calloc(1, sizeof(VarAttr));
+
+  while (consume(tkn, &tkn, "*")) {
+    ty = pointer_to(ty);
+
+    while (typequal(tkn, &tkn, attr));
+    if (attr->is_const) {
+      ty->is_const = true;
+      attr->is_const = false;
+    }
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+// arrays = "[" num "]" arrays?
+// num can empty value if can_empty is true.
+static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
+  if (!consume(tkn, &tkn, "[")) {
+    if (*end_tkn != NULL) *end_tkn = tkn;
+    return ty;
+  }
+
+  if (!can_empty && tkn->kind != TK_NUM_INT) {
+      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
+  }
+
+  int val = 0;
+  if (tkn->kind == TK_NUM_INT) {
+    val = tkn->val;
+    tkn = tkn->next;
+  }
+
+  tkn = skip(tkn, "]");
+  ty = arrays(tkn, &tkn, ty, false);
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return array_to(ty, val);
+}
+
+// declaration = declaration-specifiers init-declarator-list?
+//
+// init-declarator-list = init-declarator | 
+//                        init-declarator-list "," init-declarator
+//
+//
+// implement:
+// declaration = declspec init-declarator ("," init-declarator)* ";"
+static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
+  Type *ty = declspec(tkn, &tkn);
+
+  if (ty == NULL) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return NULL;
+  }
+
+  Node *node = initdecl(tkn, &tkn, ty, is_global);
+  Node *now = node;
+
+  while (consume(tkn, &tkn, ",")) {
+    now->next_stmt = initdecl(tkn, &tkn, ty, is_global);
+    now = now->next_stmt;
+  }
+
+  tkn = skip(tkn, ";");
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return node;
+}
+
+// init-declarator = declarator ("=" initializer)?
+static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
+  Obj *obj = declarator(tkn, &tkn, ty);
+
+  if (is_global) {
+    add_gvar(obj, true);
+  } else {
+    add_lvar(obj);
+  }
+
+  Node *node = new_var(tkn, obj);
+  if (equal(tkn, "=")) {
+    Initializer *init = initializer(tkn->next, &tkn, obj->type);
+    node = new_node(ND_INIT, tkn, node, create_init_node(init, NULL, is_global));
+
+    Type *base_ty = obj->type;
+    while (base_ty->kind == TY_ARRAY) {
+      base_ty = base_ty->base;
+    }
+    node->type = base_ty;
+
+    if (is_global) {
+      node->lhs->use_var->val = node->rhs->init->val;
+    }
+
+    // If the lengh of the array is empty, Type will be updated,
+    // so it needs to be passed to var as well.
+    obj->type = init->ty;
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return node;
+}
+
+// declarator = pointer? direct-declarator
+//
+// direct-declarator = identifier | 
+//                     direct-expression "[" assignment-expression? "]"
+//
+// Implement:
+// declarator = identifier arrays
+static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
+  ty = pointer(tkn, &tkn, ty);
+  char *ident = get_ident(tkn);
+
+  ty = arrays(tkn->next, &tkn, ty, true);
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return new_obj(ty, ident);
+}
+
 static Node *last_stmt(Node *now) {
   while (now->next_stmt != NULL) {
     now = now->next_stmt;
@@ -721,12 +782,12 @@ Node *program(Token *tkn) {
   return head->next_block;
 }
 
-// topmost = get_type ident "(" params?")" statement |
-//           get_type declarations ";"
-// params = get_type ident ("," get_type ident)*
+// topmost = declspec ident "(" params?")" statement |
+//           declaration
+// params = declspec ident ("," declspec ident)*
 static Node *topmost(Token *tkn, Token **end_tkn) {
   Token *head_tkn = tkn;
-  Type *ty = get_type(tkn, &tkn);
+  Type *ty = declspec(tkn, &tkn);
 
   if (ty == NULL) {
     errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
@@ -734,11 +795,7 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
 
   // Global variable declare
   if (!equal(tkn->next, "(")) {
-    Node *ret = declarations(tkn, &tkn, ty, true);
-
-    if (!consume(tkn, &tkn, ";")) {
-      errorf_tkn(ER_COMPILE, tkn, "A ';' is required at the end of the declaration.");
-    }
+    Node *ret = declaration(head_tkn, &tkn, true);
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
@@ -761,12 +818,12 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
 
   // Set arguments
   if (!consume(tkn, &tkn, ")")) while (true) {
-    Type *arg_ty = get_type(tkn, &tkn);
+    Type *arg_ty = declspec(tkn, &tkn);
     if (arg_ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
     }
 
-    Node *lvar = new_var(tkn, declare(tkn, &tkn, arg_ty));
+    Node *lvar = new_var(tkn, declarator(tkn, &tkn, arg_ty));
     add_lvar(lvar->use_var);
     lvar->lhs = ret->func->args;
     ret->func->args = lvar;
@@ -789,17 +846,23 @@ static Node *topmost(Token *tkn, Token **end_tkn) {
 
 static Node *inside_roop; // inside for or while
 
-// statement = { statement* } |
-//             ("return")? assign ";" |
-//             "if" "(" assign ")" statement ("else" statement)? |
-//             "for" "(" declarations? ";" assign? ";" assign?")" statement |
-//             "while" "(" assign ")" statement |
-//             "break;" |
-//             "continue;" |
-//             declarations ";"
+// statement = compound-statement |
+//             selection-statement |
+//             iteratoin-statement |
+//             jump-statement |
+//             expression-statement
+//
+// compound-statement   = { ( declaration | statement )* }
+// selection-statement  = "if" "(" expression ")" statement ("else" statement)?
+// iteration-statement  = "for" "(" declaration expression? ";" expression? ")" statement |
+//                        "for" "(" expression? ";" expression? ";" expression? ")" statement |
+//                        "while" "(" expression ")" statement
+// jump-statement       = "continue;" |
+//                        "break" |
+//                        "return" expr? ";"
+// expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
-
-  // Block statement
+  // compound-statement
   if (equal(tkn, "{")) {
     if (new_scope) new_scope_definition();
 
@@ -810,7 +873,11 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     
     tkn = tkn->next;
     while (!consume(tkn, &tkn, "}")) {
-      now->next_stmt = statement(tkn, &tkn, true);
+      now->next_stmt = declaration(tkn, &tkn, false);
+      if (now->next_stmt == NULL) {
+        now->next_stmt = statement(tkn, &tkn, true);
+      }
+
       now = last_stmt(now);
     }
 
@@ -821,6 +888,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
+  // selection-statement
   if (equal(tkn, "if")) {
     tkn = skip(tkn->next, "(");
     new_scope_definition();
@@ -859,6 +927,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
+  // iteration-statement
   if (equal(tkn, "for")) {
     tkn = skip(tkn->next, "(");
     new_scope_definition();
@@ -867,16 +936,14 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     Node *ret = new_node(ND_FOR, tkn, NULL, NULL);
     inside_roop = ret;
 
-
-    if (!consume(tkn, &tkn, ";")) {
-      Type *ty = get_type(tkn, &tkn);
-      ret->init = declarations(tkn, &tkn, ty, false);
-      
+    ret->init = declaration(tkn, &tkn, false);
+    if (ret->init == NULL && !consume(tkn, &tkn, ";")) {
+      ret->init = expr(tkn, &tkn);
       tkn = skip(tkn, ";");
     }
 
     if (!consume(tkn, &tkn, ";")) {
-      ret->cond = assign(tkn, &tkn);
+      ret->cond = expr(tkn, &tkn);
       tkn = skip(tkn, ";");
     }
 
@@ -894,6 +961,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
+  // iteration-statement
   if (equal(tkn, "while")) {
     tkn = skip(tkn->next, "(");
     new_scope_definition();
@@ -902,7 +970,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     Node *ret = new_node(ND_WHILE, tkn, NULL, NULL);
     inside_roop = ret;
 
-    ret->cond = assign(tkn, &tkn);
+    ret->cond = expr(tkn, &tkn);
 
     tkn = skip(tkn, ")");
 
@@ -914,26 +982,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
-  if (equal(tkn, "return")) {
-    Node *ret = new_node(ND_RETURN, tkn, assign(tkn->next, &tkn), NULL);
-    tkn = skip(tkn, ";");
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
-  if (equal(tkn, "break")) {
-    if (inside_roop == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
-    }
-
-    Node *ret = new_node(ND_LOOPBREAK, tkn, inside_roop, NULL);
-    tkn = skip(tkn->next, ";");
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
+  // jump-statement
   if (equal(tkn, "continue")) {
     if (inside_roop == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
@@ -946,39 +995,55 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
     return ret;
   }
 
-  Type *ty = get_type(tkn, &tkn);
-  Node *ret = declarations(tkn, &tkn, ty, false);
+  // jump-statement
+  if (equal(tkn, "break")) {
+    if (inside_roop == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
+    }
+
+    Node *ret = new_node(ND_LOOPBREAK, tkn, inside_roop, NULL);
+    tkn = skip(tkn->next, ";");
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  // jump-statement
+  if (equal(tkn, "return")) {
+    Node *ret = new_node(ND_RETURN, tkn, assign(tkn->next, &tkn), NULL);
+    tkn = skip(tkn, ";");
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  // expression-statement
+  while (consume(tkn, &tkn, ";"));
+  Node *node = expr(tkn, &tkn);
   tkn = skip(tkn, ";");
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
-
-// declarations = declarator ("," declarator)* |
-//                assign
-// Return last node, head is connect node.
-static Node *declarations(Token *tkn, Token**end_tkn, Type *ty, bool is_global) {
-  if (ty == NULL) return assign(tkn, end_tkn);
-
-  Node *ret = declarator(tkn, &tkn, ty, is_global);
-  Node *now = ret;
-
-  while (consume(tkn, &tkn, ",")) {
-    now->next_stmt = declarator(tkn, &tkn, ty, is_global);
-    now = now->next_stmt;
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return node;
 }
 
 
-// assign = ternary ("=" assign | "+=" assign | "-=" assign
-//                   "*=" assign | "/=" assign | "%=" assign
-//                   "<<=" assign | ">>=" assign
-//                   "&=" assign | "^=" assign | "|=" assign)?
+// expression = assignment-expression
+static Node *expr(Token *tkn, Token **end_tkn) {
+  return assign(tkn, end_tkn);
+}
+
+// assignment-expression = conditional-expression
+//                         unary-expression assignment-operator assignment-expression
+//
+//                         implement:
+//                         conditional-expression (assignment-operator assignment-expression)?
+//
+// assignment-operator   = "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|="
+//
+// Since conditional-expression encompassess unary-expression, for simplicity of implementation,
+// unary-expression is implemented as conditional-expression.
 static Node *assign(Token *tkn, Token **end_tkn) {
-  Node *node = ternary(tkn, &tkn);
+  Node *node = conditional(tkn, &tkn);
 
   if (equal(tkn, "="))
     return new_assign(tkn, node, assign(tkn->next, end_tkn));
@@ -1017,26 +1082,30 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
 }
-
-// ternary = logical_or ("?" ternary ":" ternary)?
-static Node *ternary(Token *tkn, Token **end_tkn) {
+// conditional-expression = logical-OR-expression |
+//                          logical-OR-expression "?" expression ":" conditional-expression
+static Node *conditional(Token *tkn, Token **end_tkn) {
   Node *ret = logical_or(tkn, &tkn);
 
   if (equal(tkn, "?")) {
-    ret = new_node(ND_TERNARY, tkn, ret, NULL);
+    ret = new_node(ND_COND, tkn, ret, NULL);
     ret->cond = ret->lhs;
-    ret->lhs = ternary(tkn->next, &tkn);
+    ret->lhs = expr(tkn->next, &tkn);
     
     tkn = skip(tkn, ":");
 
-    ret->rhs = ternary(tkn, &tkn);
+    ret->rhs = conditional(tkn, &tkn);
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// logical_or = logical_and ("||" logical_and)*
+// logical-OR-expression = logical-AND-expression |
+//                         logical-OR-expression "||" logical-AND-expression
+//
+//                         implement:
+//                         logical-AND-expression ( "||" logical-ANd-expression)
 static Node *logical_or(Token *tkn, Token **end_tkn) {
   Node *ret = logical_and(tkn, &tkn);
 
@@ -1049,87 +1118,112 @@ static Node *logical_or(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// logical_and = bitwise_or ("&&" bitwise_or)*
+// logical-AND-expression = inclusive-OR-expression | 
+//                          logical-AND-expression "&&" inclusive-OR-expression
+//
+//                          implement:
+//                          inclusive-OR-expression ( "&&" inclusive-OR-expression)
 static Node *logical_and(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_or(tkn, &tkn);
+  Node *ret = bitor(tkn, &tkn);
 
   while (equal(tkn, "&&")) {
     Token *operand = tkn;
-    ret = new_calc(ND_LOGICALAND, operand, ret, bitwise_or(tkn->next, &tkn));
+    ret = new_calc(ND_LOGICALAND, operand, ret, bitor(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// bitwise_or = bitwise_xor ("|" bitwise_xor)*
-static Node *bitwise_or(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_xor(tkn, &tkn);
+// inclusive-OR-expression = exclusive-OR-expression |
+//                           inclusive-OR-expression "|" exclusive-OR-expression
+//
+//                           implement:
+//                           exclusive-OR-expression ( "|" exclusive-OR-epxression )*
+static Node *bitor(Token *tkn, Token **end_tkn) {
+  Node *ret = bitxor(tkn, &tkn);
 
   while (equal(tkn, "|")) {
     Token *operand = tkn;
-    ret = new_calc(ND_BITWISEOR, operand, ret, bitwise_xor(tkn->next, &tkn));
+    ret = new_calc(ND_BITWISEOR, operand, ret, bitxor(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// bitwise_xor = bitwise_and ("^" bitwise_and)*
-static Node *bitwise_xor(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_and(tkn, &tkn);
+// exclusive-OR-expression = AND-expression |
+//                           exclusive-OR-expression "^" AND-expression
+//
+//                           implement:
+//                           AND-expression ( "^" AND-expression )*
+static Node *bitxor(Token *tkn, Token **end_tkn) {
+  Node *ret = bitand(tkn, &tkn);
 
   while (equal(tkn, "^")) {
     Token *operand = tkn;
-    ret = new_calc(ND_BITWISEXOR, operand, ret, bitwise_and(tkn->next, &tkn));
+    ret = new_calc(ND_BITWISEXOR, operand, ret, bitand(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// bitwise_and = same_comp ("&" same_comp)*
-static Node *bitwise_and(Token *tkn, Token **end_tkn) {
-  Node *ret = same_comp(tkn, &tkn);
+// AND-expression = equality-expression |
+//                  AND-expression "&" equality-expression
+//
+//                  implement:
+//                  equality-expression ( "&" equality-expression )*
+static Node *bitand(Token *tkn, Token **end_tkn) {
+  Node *ret = equality(tkn, &tkn);
 
   while (equal(tkn, "&")) {
     Token *operand = tkn;
-    ret = new_calc(ND_BITWISEAND, operand, ret, same_comp(tkn->next, &tkn));
+    ret = new_calc(ND_BITWISEAND, operand, ret, equality(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// same_comp = size_comp ("==" size_comp | "!=" size_comp)*
-static Node *same_comp(Token *tkn, Token **end_tkn) {
-  Node *ret = size_comp(tkn, &tkn);
+// equality-expression = relational-expression |
+//                       equality-expression "==" relational-expression |
+//                       equality-expression "!=" relational-expression |
+//                       
+//                       implement:
+//                       relational-expression ( ( "==" | "!=") relational-expression )*
+static Node *equality(Token *tkn, Token **end_tkn) {
+  Node *ret = relational(tkn, &tkn);
 
   while (equal(tkn, "==") || equal(tkn, "!=")) {
     NodeKind kind = equal(tkn, "==") ? ND_EQ : ND_NEQ;
     Token *operand = tkn;
-    ret = new_node(kind, operand, ret, same_comp(tkn->next, &tkn));
+    ret = new_node(kind, operand, ret, relational(tkn->next, &tkn));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
-// size_comp = bitwise_shift ("<" bitwise_shift |
-//                            ">" bitwise_shift |
-//                            "<=" bitwise_shift|
-//                            ">=" bitwise_shift)?
-static Node *size_comp(Token *tkn, Token **end_tkn) {
-  Node *ret = bitwise_shift(tkn, &tkn);
+// relational-expression = shift-expression |
+//                         relational-expression "<" shift-expression
+//                         relational-expression ">" shift-expression
+//                         relational-expression "<=" shift-expression
+//                         relational-expression ">=" shift-expression
+//
+//                         implement:
+//                         shift-expression ( ( "<" | ">" | "<=" | ">=" ) shift-expression )*
+static Node *relational(Token *tkn, Token **end_tkn) {
+  Node *ret = bitshift(tkn, &tkn);
 
   while (equal(tkn, "<") || equal(tkn, ">") ||
          equal(tkn, "<=") || equal(tkn, ">=")) {
     NodeKind kind = equal(tkn, "<") || equal(tkn, ">") ? ND_LC : ND_LEC;
 
     if (equal(tkn, ">") || equal(tkn, ">=")) {
-      ret = new_node(kind, tkn, bitwise_shift(tkn->next, &tkn), ret);
+      ret = new_node(kind, tkn, bitshift(tkn->next, &tkn), ret);
     } else {
-      ret = new_node(kind, tkn, ret, bitwise_shift(tkn->next, &tkn));
+      ret = new_node(kind, tkn, ret, bitshift(tkn->next, &tkn));
     }
   }
 
@@ -1137,8 +1231,13 @@ static Node *size_comp(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// bitwise_shift = add ("<<" add | ">>" add )*
-static Node *bitwise_shift(Token *tkn, Token **end_tkn) {
+// shift-expression = additive-expression | 
+//                    shift-expression "<<" additive-expression
+//                    shift-expression ">>" additive-expression
+//
+//                    implement:
+//                    additive-expression ( ( "<<" | ">>" ) additive-expression )*
+static Node *bitshift(Token *tkn, Token **end_tkn) {
   Node *ret = add(tkn, &tkn);
 
   while (equal(tkn, "<<") || equal(tkn, ">>")) {
@@ -1151,6 +1250,12 @@ static Node *bitwise_shift(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
+// additive-expression = multiplicative-expression |
+//                       additive-expression "+" multiplicative-expression |
+//                       additive-expression "-" multiplicative-expression
+//
+//                       implement:
+//                       multiplicative-expression ( ( "+" | "-" ) multiplicative-expression )*
 // add = mul ("+" mul | "-" mul)*
 static Node *add(Token *tkn, Token **end_tkn) {
   Node *ret = mul(tkn, &tkn);
@@ -1170,7 +1275,13 @@ static Node *add(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// mul = cast ("*" cast | "/" cast | "%" cast )*
+// multiplicative-expression = cast-expression |
+//                             multiplicative-expression "*" cast-expression
+//                             multiplicative-expression "/" cast-expression
+//                             multiplicative-expresioon "%" cast-expression
+//
+//                             implement:
+//                             cast-expression ( ( "*" | "/" | "%") cast-expression )*
 static Node *mul(Token *tkn, Token **end_tkn) {
   Node *ret = cast(tkn, &tkn);
 
@@ -1193,12 +1304,12 @@ static Node *mul(Token *tkn, Token **end_tkn) {
   return ret;
 }
 
-// cast = ("(" get_type pointers? ")") cast |
-//        unary
+// cast-expression = unary-expression | 
+//                   "(" type-name ")" cast-expression
 static Node *cast(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "(") && get_type(tkn->next, NULL) != NULL) {
-    Type *ty = get_type(tkn->next, &tkn);
-    ty = pointers(tkn, &tkn, ty);
+  if (equal(tkn, "(") && declspec(tkn->next, NULL) != NULL) {
+    Type *ty = declspec(tkn->next, &tkn);
+    ty = pointer(tkn, &tkn, ty);
 
     tkn = skip(tkn, ")");
 
@@ -1209,14 +1320,47 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 }
 
 
-// unary = ("sizeof" | "+" | "-" | "!" | "~") unary |
-//         address_op
+// unary-expression = postfix-expression |
+//                    "++" unary-expression |
+//                    "--" unary-expression | 
+//                    unary-operator cast-expression |
+//                    "sizeof" unary-expression |
+//                    "sizeof" "(" type-name ")"
+//
+// unary-operator   = "&" | "*" | "+" | "-" | "~" | "!"
 static Node *unary(Token *tkn, Token **end_tkn) {
+  if (equal(tkn, "++")) {
+    return to_assign(tkn, new_add(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+  }
+
+  if (equal(tkn, "--")) {
+    return to_assign(tkn, new_sub(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+  }
+
+  // unary-operator
+  if (equal(tkn, "&")) {
+    return new_node(ND_ADDR, tkn, cast(tkn->next, end_tkn), NULL);
+  }
+
+  if (equal(tkn, "*")) {
+    return new_node(ND_CONTENT, tkn, cast(tkn->next, end_tkn), NULL);
+  }
+
+  if (equal(tkn, "+") || equal(tkn, "-")) {
+    NodeKind kind = equal(tkn, "+") ? ND_ADD : ND_SUB;
+    return new_node(kind, tkn, new_num(tkn, 0), cast(tkn->next, end_tkn));
+  }
+
+  if (equal(tkn, "~") || equal(tkn, "!")) {
+    NodeKind kind = equal(tkn, "~") ? ND_BITWISENOT : ND_LOGICALNOT;
+    return new_node(kind, tkn, cast(tkn->next, end_tkn), NULL);
+  }
+
   if (equal(tkn, "sizeof")) {
     // Type size
-    if (equal(tkn->next, "(") && get_type(tkn->next->next, NULL) != NULL) {
-      Type *ty = get_type(tkn->next->next, &tkn);
-      ty = pointers(tkn, &tkn, ty);
+    if (equal(tkn->next, "(") && declspec(tkn->next->next, NULL) != NULL) {
+      Type *ty = declspec(tkn->next->next, &tkn);
+      ty = pointer(tkn, &tkn, ty);
       ty = arrays(tkn, &tkn, ty, false);
 
       tkn = skip(tkn, ")");
@@ -1230,52 +1374,59 @@ static Node *unary(Token *tkn, Token **end_tkn) {
     return new_num(tkn, node->type->var_size);
   }
 
-  if (equal(tkn, "+") || equal(tkn, "-")) {
-    NodeKind kind = equal(tkn, "+") ? ND_ADD : ND_SUB;
-    return new_node(kind, tkn, new_num(tkn, 0), unary(tkn->next, end_tkn));
-  }
-
-  if (equal(tkn, "!") || equal(tkn, "~")) {
-    NodeKind kind = equal(tkn, "!") ? ND_LOGICALNOT : ND_BITWISENOT;
-    return new_node(kind, tkn, unary(tkn->next, end_tkn), NULL);
-  }
-
-  return address_op(tkn, end_tkn);
+  return postfix(tkn, end_tkn);
 }
 
-// address_op = "&"? indirection
-static Node *address_op(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "&")) {
-    return new_node(ND_ADDR, tkn, indirection(tkn->next, end_tkn), NULL);
-  }
-
-  return indirection(tkn, end_tkn);
-}
-
-// indirection = (inc_dec | "*" indirection)
-static Node *indirection(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "*")) {
-    return new_node(ND_CONTENT, tkn, indirection(tkn->next, end_tkn), NULL);
-  }
-
-  return inc_dec(tkn, end_tkn);
-}
-
-
-// inc_dec = priority | ("++" | "--") priority | priority ("++" | "--")
+// postfix-expression       = primary-expression |
+//                            postfix-expression "[" expression "]" |
+//                            postfix-expression "(" argument-expression-list? ")" |
+//                            postfix-expression "++" |
+//                            postfix-expression "--"
 //
-// Convert ++a to (a += 1), --a to (a -= 1)
-// Convert a++ to ((a += 1) - 1), a-- to ((a -= 1) + 1);
-static Node *inc_dec(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "++")) {
-    return to_assign(tkn, new_add(tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
+//                            implement:
+//                            primary-expression ( "[" expression "]" )*
+//                            primary-expression ( "(" argument-expression-list? ")" )*
+//                            primary-expression ( "++" | "--" )
+//
+// argument-expression-list = assignment-expression |
+//                            argument-expression-list "," assignment-expression
+//
+//                            implement:
+//                            assignment-expression ( "," assignment-expression )*
+static Node *postfix(Token *tkn, Token **end_tkn) {
+  Node *node = primary(tkn, &tkn);
+
+  if (equal(tkn, "[")) {
+    while (consume(tkn, &tkn, "[")) {
+      node = new_add(tkn, node, assign(tkn, &tkn));
+      node = new_node(ND_CONTENT, tkn, node, NULL);
+      tkn = skip(tkn, "]");
+    }
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
   }
 
-  if (equal(tkn, "--")) {
-    return to_assign(tkn, new_sub(tkn, priority(tkn->next, end_tkn), new_num(tkn, 1)));
-  }
+  if (equal(tkn, "(")) {
+    Node *fcall = new_node(ND_FUNCCALL, tkn, NULL, NULL);
+    fcall->func = node->use_var;
+    fcall->type = node->use_var->type;
+    tkn = tkn->next;
 
-  Node *node = priority(tkn, &tkn);
+    while (!consume(tkn, &tkn, ")")) {
+      if (fcall->func->args != NULL) {
+        tkn = skip(tkn, ",");
+      }
+
+      Node *asn = assign(tkn, &tkn);
+      asn->next_stmt = fcall->func->args;
+      fcall->func->args = asn;
+      fcall->func->argc++;
+    }
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return fcall;
+  }
 
   if (equal(tkn, "++")) {
     node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
@@ -1295,100 +1446,81 @@ static Node *inc_dec(Token *tkn, Token **end_tkn) {
   return node;
 }
 
-// priority = "({" statement statement* "})" |
-//            "(" assign ")" |
-//            ident ("(" params? ")")? |
-//            ident ("[" assign "]")* |
-//            num
-// params = assign ("," assign)?
-// base_type is gen_type()
-static Node *priority(Token *tkn, Token **end_tkn) {
+
+// primary-expression = gnu-statement-expr |
+//                      identifier
+//                      constant
+//                      string-literal
+//                      "(" expr ")"
+// 
+// gnu-statement-expr = "({" statement statement* "})"
+static Node *primary(Token *tkn, Token **end_tkn) {
   // GNU Statements
   if (equal(tkn, "(") && equal(tkn->next, "{")) {
     Node *ret = statement(tkn->next, &tkn, true);
-
+ 
     tkn = skip(tkn, ")");
-
+ 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
+  }
+
+  // identifier
+  char *ident = get_ident(tkn);
+  if (ident != NULL) {
+    Obj *obj = find_obj(ident);
+
+    // TODO: Search function ident
+    // if (obj != NULL) {
+    //   errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
+    // }
+    //
+    if (obj == NULL) {
+      obj = new_obj(new_type(TY_INT, false), ident);
+    } 
+
+    Node *node = new_var(tkn, obj);
+    if (end_tkn != NULL) *end_tkn = tkn->next;
+    return node;
+  }
+
+  // constant
+  Node *node = constant(tkn, &tkn);
+  if (node != NULL) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
   }
 
   if (equal(tkn, "(")) {
-    Node *ret = assign(tkn->next, &tkn);
+    Node *node = expr(tkn->next, &tkn);
 
     tkn = skip(tkn, ")");
-
     if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
+    return node;
   }
 
-  char *ident = get_ident(tkn);
-
-  if (ident == NULL) {
-    return num(tkn, end_tkn);
-  }
-
-  if (equal(tkn->next, "(")) {
-    Node *ret = new_node(ND_FUNCCALL, tkn, NULL, NULL);
-    ret->type = new_type(TY_INT, false);
-    ret->func = new_obj(ret->type, ident);
-    tkn = tkn->next;
-
-    if (consume(tkn->next, &tkn, ")")) {
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return ret;
-    }
-
-    while (true) {
-      Node *tmp = assign(tkn, &tkn);
-      tmp->next_stmt = ret->func->args;
-      ret->func->args = tmp;
-      ret->func->argc++;
-
-      if (consume(tkn, &tkn, ")")) {
-        break;
-      }
-
-      tkn = skip(tkn, ",");
-    }
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
-  Obj *var = find_var(ident);
-  if (var == NULL) {
-    errorf_tkn(ER_COMPILE, tkn, "This variable is not declaration.");
-  }
-
-  Node *ret = new_var(tkn, var);
-  tkn = tkn->next;
-  while (consume(tkn, &tkn, "[")) {
-    ret = new_add(tkn, ret, assign(tkn, &tkn));
-    ret = new_node(ND_CONTENT, tkn, ret, NULL);
-    tkn = skip(tkn, "]");
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
-}
-
-// num = String(literal) | 
-//       number literal
-static Node *num(Token *tkn, Token **end_tkn) {
-  if (tkn->kind == TK_STR) {
-    if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_strlit(tkn, tkn->str_lit);
-  }
-
-  if (tkn->kind == TK_NUM_INT) {
-    if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_num(tkn, tkn->val);
-  }
-
-  if (tkn->kind != TK_CHAR) {
-    errorf_tkn(ER_COMPILE, tkn, "Not value.");
+  if (tkn->kind != TK_STR) {
+    errorf_tkn(ER_COMPILE, tkn, "Grammatical error.");
   }
 
   if (end_tkn != NULL) *end_tkn = tkn->next;
-  return new_num(tkn, tkn->c_lit);
+  return new_strlit(tkn, tkn->str_lit);
+}
+
+// constant = interger-constant |
+//            character-constant
+static Node *constant(Token *tkn, Token **end_tkn) {
+  Node *node = NULL;
+  if (tkn->kind == TK_NUM_INT) {
+    node = new_num(tkn, tkn->val);
+  }
+
+  if (tkn->kind == TK_CHAR) {
+    node = new_num(tkn, tkn->c_lit);
+  }
+
+  if (end_tkn != NULL) {
+    *end_tkn = (node == NULL ? tkn : tkn->next);
+  }
+  return node;
 }
