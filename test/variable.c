@@ -370,6 +370,23 @@ int main() {
     a;
   }));
 
+  CHECK(1, ({
+    int a = 1, b = 2;
+    _Bool c = a != b;
+    c;
+  }));
+
+  CHECK(0, ({
+    int a = 1, b = 1;
+    _Bool c = a != b;
+    c;
+  }));
+
+  CHECK(0, ({
+    _Bool a = 256;
+    a;
+  }));
+
 
   return 0;
 }

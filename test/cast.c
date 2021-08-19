@@ -33,6 +33,8 @@ int main() {
 
   CHECK(-1, (int)4294967295u);
   CHECK(-1, (int)4294967295uL);
+  
+  CHECK(0, (_Bool)256);
 
   return 0;
 }

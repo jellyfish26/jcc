@@ -177,7 +177,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 }
 
 char *typename[] = {
-  "void", "char", "short", "int", "long", "signed", "unsigned",
+  "void", "_Bool", "char", "short", "int", "long", "signed", "unsigned",
   "const"
 };
 
@@ -218,7 +218,7 @@ static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
 //
-// type-specifier = "void" | "char" | "short" | "int" | "long" | "signed" | "unsigned"
+// type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "signed" | "unsigned"
 // type-qualifier = "const"
 static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
@@ -228,12 +228,13 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
   // Otherwise, we have a duplicate when the high is 1.
   enum {
     VOID     = 1 << 0,
-    CHAR     = 1 << 2,
-    SHORT    = 1 << 4,
-    INT      = 1 << 6,
-    LONG     = 1 << 8,
-    SIGNED   = 1 << 10,
-    UNSIGNED = 1 << 12,
+    BOOL     = 1 << 2,
+    CHAR     = 1 << 4,
+    SHORT    = 1 << 6,
+    INT      = 1 << 8,
+    LONG     = 1 << 10,
+    SIGNED   = 1 << 12,
+    UNSIGNED = 1 << 14,
   };
 
   VarAttr *attr = calloc(1, sizeof(VarAttr));
@@ -248,6 +249,8 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     // Counting Types
     if (equal(tkn,"void")) {
       type_cnt += VOID;
+    } else if (equal(tkn, "_Bool")) {
+      type_cnt += BOOL;
     } else if (equal(tkn, "char")) {
       type_cnt += CHAR;
     } else if (equal(tkn, "short")) {
@@ -289,6 +292,7 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case VOID:
         ret = new_type(TY_VOID, false);
         break;
+      case BOOL:
       case CHAR:
       case SIGNED + CHAR:
         ret = new_type(TY_CHAR, true);
