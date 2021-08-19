@@ -665,12 +665,12 @@ static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
     return ty;
   }
 
-  if (!can_empty && tkn->kind != TK_NUM_INT) {
+  if (!can_empty && tkn->kind != TK_NUM) {
       errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
   }
 
   int val = 0;
-  if (tkn->kind == TK_NUM_INT) {
+  if (tkn->kind == TK_NUM) {
     val = tkn->val;
     tkn = tkn->next;
   }
@@ -1511,8 +1511,9 @@ static Node *primary(Token *tkn, Token **end_tkn) {
 //            character-constant
 static Node *constant(Token *tkn, Token **end_tkn) {
   Node *node = NULL;
-  if (tkn->kind == TK_NUM_INT) {
+  if (tkn->kind == TK_NUM) {
     node = new_num(tkn, tkn->val);
+    node->type = tkn->ty;
   }
 
   if (tkn->kind == TK_CHAR) {

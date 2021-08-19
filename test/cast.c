@@ -26,7 +26,13 @@ int main() {
   CHECK(65535, ({ unsigned short x = 65535; (int)x; }));
 
   CHECK(0, -1<(unsigned)1);
-  // CHECK(65537, ({int a = 65536; *(short *)&a=1; a;}));
+  CHECK(65537, ({int a = 65536; *(short *)&a=1; a;}));
+
+  CHECK(-1, (int)0xffffffff);
+  CHECK(-21846, (short)0xaaaaaaaaa);
+
+  CHECK(-1, (int)4294967295u);
+  CHECK(-1, (int)4294967295uL);
 
   return 0;
 }

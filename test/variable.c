@@ -354,5 +354,22 @@ int main() {
     a;
   }));
 
+  CHECK(1045224, 0xff2e8);
+  CHECK(15037183, ({
+    int a = 0xe572ff;
+    a;
+  }));
+
+  CHECK(15037183, ({
+    int a = 0xe572ff;
+    a;
+  }));
+
+  CHECK(9530, ({
+    int a = 022472;
+    a;
+  }));
+
+
   return 0;
 }

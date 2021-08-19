@@ -7,7 +7,7 @@
 #include <string.h>
 
 typedef enum {
-  TK_NUM_INT, // Number (Int)
+  TK_NUM,     // Numerical literal
   TK_PUNCT,   // Punctuators
   TK_KEYWORD, // Keywords
   TK_IDENT,   // Ident (etc. variable)
@@ -25,7 +25,8 @@ struct Token {
   char *loc;      // Token String
   int len;        // Token length
 
-  int64_t val;        // Value if kind is TK_NUM_INT
+  void *ty;       // Type if kind is TK_NUM
+  int64_t val;    // Value if kind is TK_NUM
 
   char c_lit;     // Char literal
   char *str_lit;  // String literal

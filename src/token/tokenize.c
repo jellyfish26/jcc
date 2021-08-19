@@ -1,7 +1,9 @@
 #include "token/tokenize.h"
+#include "parser/parser.h"
 
 #include <ctype.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -194,7 +196,7 @@ char read_char(char *str, char **end_ptr) {
   return *str;
 }
 
-static char *read_str(char *str, char **end_ptr) {
+static char *read_strlit(char *str, char **end_ptr) {
   int str_len = 0;
   {
     char *now_loc = str;
@@ -207,6 +209,106 @@ static char *read_str(char *str, char **end_ptr) {
   memcpy(ret, str, str_len);
   *end_ptr = str + str_len;
   return ret;
+}
+
+static int hex_to_decimal(char c) {
+  if ('0' <= c && c <= '9') {
+    return c - '0';
+  } else if ('a' <= c && c <= 'f') {
+    return c - 'a' + 10;
+  } else if ('A' <= c && c <= 'F') {
+    return c - 'A' + 10;
+  }
+  return -1;
+}
+
+static Token *read_numerical(char *str, char **end_ptr, Token *connect) {
+  Token *tkn = new_token(TK_NUM, connect, str, 0);
+  int prefix = 10;
+
+  if (memcmp(str, "0x", 2) == 0) {
+    prefix = 16;
+    str += 2;
+  } else if (*str == '0') {
+    prefix = 8;
+    str += 1;
+  }
+
+  int64_t val = 0;
+  while (true) {
+    if (prefix == 10 && (*str < '0' || *str > '9')) {
+      break;
+    }
+
+    if (prefix == 8 && (*str < '0' || *str > '7')) {
+      break;
+    }
+
+    if (prefix == 16 && hex_to_decimal(*str) == -1) {
+      break;
+    }
+
+    val *= prefix;
+    val += hex_to_decimal(*str);
+    str++;
+  }
+  Type *ty = new_type(TY_INT, false);
+
+  // Implicit type
+  if (prefix == 10 && (val>>31)>0) {
+    ty->kind = TY_LONG;
+    ty->var_size = 8;
+  }
+
+  if ((prefix == 8 || prefix == 16) && (val>>30)>0) {
+    ty->is_unsigned = true;
+  }
+
+  if ((prefix == 8 || prefix == 16) && (val>>31)>0) {
+    ty->kind = TY_LONG;
+    ty->var_size = 8;
+  }
+
+  if ((prefix == 8 || prefix == 16) && (val>>62)>0) {
+    ty->kind = TY_LONG;
+    ty->var_size = 8;
+  }
+
+  if ((prefix == 8 || prefix == 16) && (val>>63)>0) {
+    ty->kind = TY_LONG;
+    ty->var_size = 8;
+    ty->is_unsigned = true;
+  }
+
+  // Explicit type
+  if (*str == 'u' || *str == 'U') {
+    ty->is_unsigned = true;
+    str++;
+  }
+
+  if (*str == 'l' || *str == 'L') {
+    ty->kind = TY_LONG;
+    ty->var_size = 8;
+    str++;
+  } else if (memcmp(str, "ll", 2) == 0 || memcmp(str, "LL", 2) == 0) {
+    ty->kind = TY_LONG;
+    ty->var_size = 8;
+    str += 2;
+  }
+
+  if (*str == 'u' || *str == 'U') {
+    if (ty->is_unsigned) {
+      errorf_loc(ER_COMPILE, str, 1, "Invalid suffix of integer constant.");
+    }
+    ty->is_unsigned = true;
+    str++;
+  }
+
+  tkn->val = val;
+  tkn->len = str - tkn->loc;
+  tkn->ty = ty;
+  *end_ptr = str;
+  return tkn;
 }
 
 // Update source token
@@ -293,7 +395,7 @@ Token *tokenize(char *file_name) {
     if (*now_str == '"') {
       char *s_pos = now_str;
       ret = new_token(TK_STR, ret, now_str, 0);
-      ret->str_lit = read_str(now_str + 1, &now_str);
+      ret->str_lit = read_strlit(now_str + 1, &now_str);
       ret->len = (now_str - s_pos) - 2;
       if (*now_str != '"') {
         errorf_loc(ER_COMPILE, now_str, 1, "The string must end with \".");
@@ -318,10 +420,7 @@ Token *tokenize(char *file_name) {
     }
 
     if (isdigit(*now_str)) {
-      char *tmp = now_str;
-      ret = new_token(TK_NUM_INT, ret, now_str, now_str - tmp);
-      ret->val = strtol(now_str, &now_str, 10);
-      ret->len = now_str - tmp;
+      ret = read_numerical(now_str, &now_str, ret);
       continue;
     }
 
