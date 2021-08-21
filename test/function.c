@@ -23,6 +23,10 @@ int fib(int a) {
   return fib(a - 1) + a;
 }
 
+int vv(void) {
+  return 2;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -37,5 +41,7 @@ int main() {
     add8(a, b, c, d, e, f, g, h);
   }));
   CHECK(55, ({fib(10);}));
+
+  CHECK(2, vv());
   return 0;
 }

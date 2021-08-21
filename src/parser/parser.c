@@ -653,7 +653,6 @@ static bool is_const_expr(Node *node, char **ptr_label) {
   }
 }
 
-
 // pointer = "*" type-qualifier-list? |
 //           "*" type-qualifier-list? pointer |
 //
@@ -831,20 +830,26 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
     return NULL;
   }
 
-  if (!consume(tkn, &tkn, ")")) while (true) {
-    Type *ty = declspec(tkn, &tkn);
-    Node *lvar = new_node(ND_VAR, tkn, NULL, NULL);
-    lvar->use_var = declarator(tkn, &tkn, ty);
-    add_lvar(lvar->use_var);
-
-    lvar->lhs = node->func->args;
-    node->func->args = lvar;
-    node->func->argc++;
-
-    if (consume(tkn, &tkn, ")")) {
-      break;
+  if (consume(tkn, &tkn, "void")) {
+    if (!consume(tkn, &tkn, ")")) {
+      errorf_tkn(ER_COMPILE, tkn, "'void' must be the only parameter");
     }
-    tkn = skip(tkn, ",");
+  } else {
+    if (!consume(tkn, &tkn, ")")) while (true) {
+      Type *ty = declspec(tkn, &tkn);
+      Node *lvar = new_node(ND_VAR, tkn, NULL, NULL);
+      lvar->use_var = declarator(tkn, &tkn, ty);
+      add_lvar(lvar->use_var);
+
+      lvar->lhs = node->func->args;
+      node->func->args = lvar;
+      node->func->argc++;
+
+      if (consume(tkn, &tkn, ")")) {
+        break;
+      }
+      tkn = skip(tkn, ",");
+    }
   }
 
   node->next_stmt = comp_stmt(tkn, &tkn, false);
