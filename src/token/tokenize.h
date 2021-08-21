@@ -19,17 +19,18 @@ typedef enum {
 typedef struct Token Token;
 
 struct Token {
-  TokenKind kind; // Type of Token
-  Token *next;    // Next token
+  TokenKind kind;  // Type of Token
+  Token *next;     // Next token
 
-  char *loc;      // Token String
-  int len;        // Token length
+  char *loc;       // Token String
+  int len;         // Token length
 
-  void *ty;       // Type if kind is TK_NUM
-  int64_t val;    // Value if kind is TK_NUM
+  void *ty;          // Type if kind is TK_NUM
+  int64_t val;       // Value if kind is TK_NUM 
+  long double fval;  // Floating-value if kind is TK_NUM
 
-  char c_lit;     // Char literal
-  char *str_lit;  // String literal
+  char c_lit;      // Char literal
+  char *str_lit;   // String literal
 };
 
 char read_char(char *str, char **end_ptr);

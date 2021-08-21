@@ -166,7 +166,7 @@ static char *permit_panct[] = {
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "while", "break", "continue",
   "sizeof", "signed", "unsigned", "void", "_Bool", "char", "short",
-  "int", "long", "const"};
+  "int", "long", "double", "const"};
 
 char read_char(char *str, char **end_ptr) {
   if (*str == 92) {
@@ -222,7 +222,8 @@ static int hex_to_decimal(char c) {
   return -1;
 }
 
-static Token *read_numerical(char *str, char **end_ptr, Token *connect) {
+// Return null, if float constant
+static Token *read_integer(char *str, char **end_ptr, Token *connect) {
   Token *tkn = new_token(TK_NUM, connect, str, 0);
   int prefix = 10;
 
@@ -234,24 +235,11 @@ static Token *read_numerical(char *str, char **end_ptr, Token *connect) {
     str += 1;
   }
 
-  int64_t val = 0;
-  while (true) {
-    if (prefix == 10 && (*str < '0' || *str > '9')) {
-      break;
-    }
-
-    if (prefix == 8 && (*str < '0' || *str > '7')) {
-      break;
-    }
-
-    if (prefix == 16 && hex_to_decimal(*str) == -1) {
-      break;
-    }
-
-    val *= prefix;
-    val += hex_to_decimal(*str);
-    str++;
+  int64_t val = strtoull(str, &str, prefix);
+  if (*str == '.') {
+    return NULL;
   }
+
   Type *ty = new_type(TY_INT, false);
 
   // Implicit type
@@ -305,6 +293,18 @@ static Token *read_numerical(char *str, char **end_ptr, Token *connect) {
   }
 
   tkn->val = val;
+  tkn->len = str - tkn->loc;
+  tkn->ty = ty;
+  *end_ptr = str;
+  return tkn;
+}
+
+static Token *read_float(char *str, char **end_ptr, Token *connect) {
+  Token *tkn = new_token(TK_NUM, connect, str, 0);
+  long double val = strtold(str, &str);
+
+  Type *ty = new_type(TY_DOUBLE, false);
+  tkn->fval = val;
   tkn->len = str - tkn->loc;
   tkn->ty = ty;
   *end_ptr = str;
@@ -420,8 +420,17 @@ Token *tokenize(char *file_name) {
     }
 
     if (isdigit(*now_str)) {
-      ret = read_numerical(now_str, &now_str, ret);
-      continue;
+      Token *tkn = read_integer(now_str, &now_str, ret);
+      if (tkn != NULL) {
+        ret = tkn;
+        continue;
+      }
+
+      tkn = read_float(now_str, &now_str, ret);
+      if (tkn != NULL) {
+        ret = tkn;
+        continue;
+      }
     }
 
     if (is_useable_char(*now_str)) {

@@ -49,7 +49,7 @@ typedef enum {
   ND_FUNCCALL,    // Function call
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
-  ND_INT,         // Number (int)
+  ND_NUM,         // Number (int)
   ND_CAST,        // Cast
   ND_INIT,        // Initializer
 } NodeKind;
@@ -76,7 +76,8 @@ struct Node {
 
   Obj *func;  // Function or Function call
 
-  int64_t val;        // value if kind is ND_INT
+  int64_t val;        // Value if kind is ND_NUM
+  long double fval;   // Floating-value if kind is ND_NUM
 };
 
 Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs);
@@ -95,15 +96,18 @@ Node *program(Token *tkn);
 
 // Define in order of decreasing size
 typedef enum {
-  TY_VOID,  // "void" type
-  TY_CHAR,  // "char" type
-  TY_SHORT, // "short" type
-  TY_INT,   // "int" type
-  TY_LONG,  // "long" type
-  TY_PTR,   // Pointer type
-  TY_STR,   // String literal type
-  TY_ARRAY, // Array type
-  TY_FUNC,  // Function
+  TY_VOID,     // "void" 
+  TY_CHAR,     // "char"
+  TY_SHORT,    // "short"
+  TY_INT,      // "int"
+  TY_LONG,     // "long" or "long long"
+  TY_FLOAT,    // "float"
+  TY_DOUBLE,   // "double"
+  TY_LDOUBLE,  // "long double"
+  TY_PTR,      // Pointer type
+  TY_STR,      // String literal type
+  TY_ARRAY,    // Array type
+  TY_FUNC,     // Function
 } TypeKind;
 
 
@@ -147,6 +151,7 @@ struct Obj {
   int vars_size;
 
   int64_t val;
+  long double fval;
 };
 
 Obj *new_obj(Type *type, char *name);

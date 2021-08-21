@@ -44,10 +44,11 @@ static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       // String literal
-      if (node->use_var->type->kind == TY_STR) {
+      if (node->use_var->type->kind == TY_STR || node->use_var->type->kind == TY_DOUBLE) {
         println("  mov rax, offset .LC%d", node->use_var->offset);
         return;
       }
+
 
       if (node->use_var->is_global) {
         println("  mov rax, offset %s", node->use_var->name);
@@ -69,6 +70,11 @@ static void gen_load(Type *ty) {
   if (ty->kind == TY_ARRAY || ty->kind == TY_STR) {
     // If it is an array or a string, it will automatically be treated as a pointer
     // and we cannot load the content direclty.
+    return;
+  }
+
+  if (ty->kind == TY_DOUBLE) {
+    println("  movsd xmm0, QWORD PTR [rax]");
     return;
   }
 
@@ -100,6 +106,15 @@ static void gen_store(Type *ty) {
     println("  mov DWORD PTR [rdi], eax");
   } else {
     println("  mov QWORD PTR [rdi], rax");
+  }
+}
+
+// Store the value of the xmm0 register at the address pointed to by the top of the stack.
+static void gen_fstore(Type *ty) {
+  gen_pop("rdi");
+
+  if (ty->var_size == 8) {
+    println("  movsd QWORD PTR [rdi], xmm0");
   }
 }
 
@@ -174,7 +189,16 @@ void expand_assign(Node *node) {
   gen_push("rax");
 
   compile_node(node->rhs);
-  gen_store(node->type);
+
+  switch (node->type->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+    case TY_LDOUBLE:
+      gen_fstore(node->type);
+      break;
+    default:
+      gen_store(node->type);
+  }
 }
 
 static void gen_logical(Node *node, int label) {
@@ -269,11 +293,24 @@ static void gen_gvar_init(Node *node) {
 
 static void gen_gvar_define(Obj *var) {
   println(".data");
+
   if (var->type->kind == TY_STR) {
     println(".LC%d:", var->offset);
     println("  .string \"%s\"", var->name);
     return;
   }
+
+  if (var->type->kind == TY_DOUBLE) {
+    double *ptr = calloc(1, sizeof(double));
+    *ptr = (double)var->fval;
+    println(".LC%d:", var->offset);
+    println("  .long %d", *(int*)ptr);
+    println("  .long %d", *((int*)ptr + 1));
+    free(ptr);
+    return;
+  }
+
+
   println("%s:", var->name);
   switch (var->type->kind) {
     case TY_CHAR:
@@ -296,8 +333,16 @@ static void gen_gvar_define(Obj *var) {
 }
 
 void compile_node(Node *node) {
-  if (node->kind == ND_INT) {
-    println("  mov rax, %ld", node->val);
+  if (node->kind == ND_NUM) {
+    switch (node->type->kind) {
+      case TY_INT:
+      case TY_LONG:
+        println("  mov rax, %ld", node->val);
+        break;
+      case TY_DOUBLE:
+        println("  movsd xmm0, QWORD PTR .LC%d[rip]", node->use_var->offset);
+    }
+    Type *ty = node->type;
     return;
   }
 
@@ -433,6 +478,10 @@ void compile_node(Node *node) {
     int arg_count = 0;
     for (Node *now_arg = node->func->args; now_arg != NULL; now_arg = now_arg->next_stmt) {
       compile_node(now_arg);
+
+      if (now_arg->type != NULL && now_arg->type->kind == TY_DOUBLE) {
+        println("  movd rax, xmm0");
+      }
       gen_push("rax");
       arg_count++;
     }
@@ -449,9 +498,27 @@ void compile_node(Node *node) {
 
   // lhs: rax, rhs: rdi
   compile_node(node->rhs);
-  gen_push("rax");
+  if (node->rhs->type->kind == TY_DOUBLE) {
+    println("  movaps xmm1, xmm0");
+  } else {
+    gen_push("rax");
+  }
+
   compile_node(node->lhs);
-  gen_pop("rdi");
+  if (node->rhs->type->kind == TY_DOUBLE) {
+    // no
+  } else {
+    gen_pop("rdi");
+  }
+
+  if (node->type->kind == TY_DOUBLE) {
+    switch (node->kind) {
+      case ND_ADD:
+        println("  addsd xmm0, xmm1");
+        return;
+    }
+  }
+
 
   // Default register is 32bit
   char *rax = "eax", *rdi = "edi", *rdx = "edx";
@@ -542,8 +609,15 @@ void codegen(Node *head, char *filename) {
   println(".intel_syntax noprefix");
   for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
     // Only string literal
-    if (gvar->type->kind == TY_STR) {
-      gen_gvar_define(gvar);
+    switch (gvar->type->kind) {
+      case TY_STR:
+      case TY_FLOAT:
+      case TY_DOUBLE:
+      case TY_LDOUBLE:
+        gen_gvar_define(gvar);
+        break;
+      default:
+        break;
     }
   }
 

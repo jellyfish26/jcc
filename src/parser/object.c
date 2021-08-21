@@ -20,12 +20,17 @@ Type *new_type(TypeKind kind, bool is_real) {
       ret->var_size = 2;
       break;
     case TY_INT:
+    case TY_FLOAT:
       ret->var_size = 4;
       break;
-    case TY_STR:
     case TY_LONG:
+    case TY_DOUBLE:
+    case TY_STR:
     case TY_PTR:
       ret->var_size = 8;
+      break;
+    case TY_LDOUBLE:
+      ret->var_size = 16;
       break;
     default:
       return NULL;

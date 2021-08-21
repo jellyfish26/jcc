@@ -66,7 +66,7 @@ Node *new_node(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
 
 Node *new_num(Token *tkn, int64_t val) {
   Node *ret = calloc(1, sizeof(Node));
-  ret->kind = ND_INT;
+  ret->kind = ND_NUM;
   ret->tkn = tkn;
   ret->val = val;
 
@@ -92,6 +92,15 @@ Node *new_var(Token *tkn, Obj *obj) {
 
 Node *new_strlit(Token *tkn, char *strlit) {
   Obj *obj = new_obj(new_type(TY_STR, false), strlit);
+  Node *ret = new_var(tkn, obj);
+  add_gvar(obj, false);
+  return ret;
+}
+
+Node *new_floating(Token *tkn, Type *ty, long double fval) {
+  Obj *obj = calloc(1, sizeof(Obj));
+  obj->type = ty;
+  obj->fval = fval;
   Node *ret = new_var(tkn, obj);
   add_gvar(obj, false);
   return ret;
@@ -177,7 +186,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 }
 
 char *typename[] = {
-  "void", "_Bool", "char", "short", "int", "long", "signed", "unsigned",
+  "void", "_Bool", "char", "short", "int", "long", "double", "signed", "unsigned",
   "const"
 };
 
@@ -218,7 +227,7 @@ static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
 //
-// type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "signed" | "unsigned"
+// type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned"
 // type-qualifier = "const"
 static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
@@ -233,8 +242,9 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     SHORT    = 1 << 6,
     INT      = 1 << 8,
     LONG     = 1 << 10,
-    SIGNED   = 1 << 12,
-    UNSIGNED = 1 << 14,
+    DOUBLE   = 1 << 12,
+    SIGNED   = 1 << 14,
+    UNSIGNED = 1 << 16,
   };
 
   VarAttr *attr = calloc(1, sizeof(VarAttr));
@@ -259,6 +269,8 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       type_cnt += INT;
     } else if (equal(tkn, "long")) {
       type_cnt += LONG;
+    } else if (equal(tkn, "float")) {
+      type_cnt += DOUBLE;
     } else if (equal(tkn, "signed")) {
       type_cnt += SIGNED;
     } else if (equal(tkn, "unsigned")) {
@@ -338,6 +350,9 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case UNSIGNED + LONG + LONG + INT:
         ret = new_type(TY_LONG, true);
         ret->is_unsigned = true;
+        break;
+      case DOUBLE:
+        ret = new_type(TY_DOUBLE, true);
         break;
       default:
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
@@ -558,7 +573,7 @@ static int64_t eval_expr(Node *node) {
         return eval_expr(node->lhs->lhs);
       }
       return eval_expr(node->lhs);
-    case ND_INT:
+    case ND_NUM:
       return node->val;
     default:
       return 0;
@@ -616,7 +631,7 @@ static bool is_const_expr(Node *node, char **ptr_label) {
         return is_const_expr(node->lhs->lhs, ptr_label);
       }
       return is_const_expr(node->lhs, ptr_label);
-    case ND_INT:
+    case ND_NUM:
       return true;
     case ND_VAR: {
       Obj *var = node->use_var;
@@ -1516,8 +1531,21 @@ static Node *primary(Token *tkn, Token **end_tkn) {
 static Node *constant(Token *tkn, Token **end_tkn) {
   Node *node = NULL;
   if (tkn->kind == TK_NUM) {
-    node = new_num(tkn, tkn->val);
-    node->type = tkn->ty;
+    Type *ty = tkn->ty;
+    node = new_node(ND_NUM, tkn, NULL, NULL);
+    node->type = ty;
+
+    switch (ty->kind) {
+      case TY_INT:
+      case TY_LONG:
+        node->val = tkn->val;
+        break;
+      case TY_FLOAT:
+      case TY_DOUBLE:
+      case TY_LDOUBLE:
+        node = new_floating(tkn, ty, tkn->fval);
+        break;
+    }
   }
 
   if (tkn->kind == TK_CHAR) {
