@@ -28,6 +28,8 @@ struct VarAttr {
 };
 
 // Prototype
+static Node *funcdef(Token *tkn, Token **end_tkn);
+static Node *comp_stmt(Token *tkn, Token **end_tkn, bool new_scope);
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static int64_t eval_expr(Node *node);
@@ -708,7 +710,7 @@ static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
 //
 //
 // implement:
-// declaration = declspec init-declarator ("," init-declarator)* ";"
+// declaration = declspec init-declarator ("," init-declarator)* ";"?
 static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
   Type *ty = declspec(tkn, &tkn);
 
@@ -788,6 +790,12 @@ static Node *last_stmt(Node *now) {
   return now;
 }
 
+// translation-unit     = external-declaration | translation-unit external-declaration
+// external-declaration = function-definition | declaration
+//
+// Implement:
+// program = (funcdef | declaration)*
+//
 Node *program(Token *tkn) {
   lvars = NULL;
   gvars = NULL;
@@ -795,72 +803,56 @@ Node *program(Token *tkn) {
   Node *head = calloc(1, sizeof(Node));
   Node *now = head;
   while (!is_eof(tkn)) {
-    now->next_block = topmost(tkn, &tkn);
+    Node *tmp = funcdef(tkn, &tkn);
+    if (tmp == NULL) {
+      tmp = declaration(tkn, &tkn, true);
+    }
+    now->next_block = tmp;
     now = now->next_block;
   }
   return head->next_block;
 }
 
-// topmost = declspec ident "(" params?")" statement |
-//           declaration
-// params = declspec ident ("," declspec ident)*
-static Node *topmost(Token *tkn, Token **end_tkn) {
-  Token *head_tkn = tkn;
+// function-definition = declaration-specifiers declarator declaration-list? compound-statement
+//
+// declaration-list = declaration |
+//                    declaration-list declaration
+//
+// Implement:
+// funcdef = declspec declarator "(" "void" | ( declspec declarator ) ")" comp-stmt
+//
+static Node *funcdef(Token *tkn, Token **end_tkn) {
+  Node *node = new_node(ND_FUNC, tkn, NULL, NULL);
   Type *ty = declspec(tkn, &tkn);
+  node->func = declarator(tkn, &tkn, ty);
 
-  if (ty == NULL) {
-    errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
-  }
-
-  // Global variable declare
-  if (!equal(tkn->next, "(")) {
-    Node *ret = declaration(head_tkn, &tkn, true);
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
-  char *ident = get_ident(tkn);
-  if (ident == NULL) {
-    errorf_tkn(ER_COMPILE, tkn,
-        "Identifiers are required for function declaration.");
-  }
-
-  // Fuction definition
-  Node *ret = new_node(ND_FUNC, tkn, NULL, NULL);
-  ret->func = new_obj(ty, ident);
   new_scope_definition();
-
-  if (!consume(tkn->next, &tkn, "(")) {
-    errorf_tkn(ER_COMPILE, tkn, "Function declaration must start with '('.");
+  if (!consume(tkn, &tkn, "(")) {
+    return NULL;
   }
 
-  // Set arguments
   if (!consume(tkn, &tkn, ")")) while (true) {
-    Type *arg_ty = declspec(tkn, &tkn);
-    if (arg_ty == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Undefined type.");
-    }
-
-    Node *lvar = new_var(tkn, declarator(tkn, &tkn, arg_ty));
+    Type *ty = declspec(tkn, &tkn);
+    Node *lvar = new_node(ND_VAR, tkn, NULL, NULL);
+    lvar->use_var = declarator(tkn, &tkn, ty);
     add_lvar(lvar->use_var);
-    lvar->lhs = ret->func->args;
-    ret->func->args = lvar;
-    ret->func->argc++;
 
-    if (!equal(tkn, ",") && consume(tkn, &tkn, ")")) {
+    lvar->lhs = node->func->args;
+    node->func->args = lvar;
+    node->func->argc++;
+
+    if (consume(tkn, &tkn, ")")) {
       break;
     }
-
-    consume(tkn, &tkn, ",");
+    tkn = skip(tkn, ",");
   }
 
-  ret->next_stmt = statement(tkn, &tkn, false);
+  node->next_stmt = comp_stmt(tkn, &tkn, false);
   out_scope_definition();
-  ret->func->vars_size = init_offset();
+  node->func->vars_size = init_offset();
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  return node;
 }
 
 static Node *inside_roop; // inside for or while
@@ -871,7 +863,6 @@ static Node *inside_roop; // inside for or while
 //             jump-statement |
 //             expression-statement
 //
-// compound-statement   = { ( declaration | statement )* }
 // selection-statement  = "if" "(" expression ")" statement ("else" statement)?
 // iteration-statement  = "for" "(" declaration expression? ";" expression? ")" statement |
 //                        "for" "(" expression? ";" expression? ";" expression? ")" statement |
@@ -882,29 +873,10 @@ static Node *inside_roop; // inside for or while
 // expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
   // compound-statement
-  if (equal(tkn, "{")) {
-    if (new_scope) new_scope_definition();
-
-    Node *ret = new_node(ND_BLOCK, tkn, NULL, NULL);
-
-    Node *head = calloc(1, sizeof(Node));
-    Node *now = head;
-    
-    tkn = tkn->next;
-    while (!consume(tkn, &tkn, "}")) {
-      now->next_stmt = declaration(tkn, &tkn, false);
-      if (now->next_stmt == NULL) {
-        now->next_stmt = statement(tkn, &tkn, true);
-      }
-
-      now = last_stmt(now);
-    }
-
-    ret->next_block = head->next_stmt;
-
-    if (new_scope) out_scope_definition();
+  Node *node = comp_stmt(tkn, &tkn, new_scope);
+  if (node != NULL) {
     if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
+    return node;
   }
 
   // selection-statement
@@ -1038,13 +1010,42 @@ static Node *statement(Token *tkn, Token **end_tkn, bool new_scope) {
 
   // expression-statement
   while (consume(tkn, &tkn, ";"));
-  Node *node = expr(tkn, &tkn);
+  node = expr(tkn, &tkn);
   tkn = skip(tkn, ";");
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
 }
 
+// compound-statement   = { ( declaration | statement )* }
+static Node *comp_stmt(Token *tkn, Token **end_tkn, bool new_scope) {
+  if (equal(tkn, "{")) {
+    if (new_scope) new_scope_definition();
+
+    Node *ret = new_node(ND_BLOCK, tkn, NULL, NULL);
+
+    Node *head = calloc(1, sizeof(Node));
+    Node *now = head;
+    
+    tkn = tkn->next;
+    while (!consume(tkn, &tkn, "}")) {
+      now->next_stmt = declaration(tkn, &tkn, false);
+      if (now->next_stmt == NULL) {
+        now->next_stmt = statement(tkn, &tkn, true);
+      }
+
+      now = last_stmt(now);
+    }
+
+    ret->next_block = head->next_stmt;
+
+    if (new_scope) out_scope_definition();
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  return NULL;
+}
 
 // expression = assignment-expression
 static Node *expr(Token *tkn, Token **end_tkn) {
@@ -1536,15 +1537,13 @@ static Node *constant(Token *tkn, Token **end_tkn) {
     node->type = ty;
 
     switch (ty->kind) {
-      case TY_INT:
-      case TY_LONG:
-        node->val = tkn->val;
-        break;
       case TY_FLOAT:
       case TY_DOUBLE:
       case TY_LDOUBLE:
         node = new_floating(tkn, ty, tkn->fval);
         break;
+      default:
+        node->val = tkn->val;
     }
   }
 
