@@ -36,6 +36,7 @@ static int64_t eval_expr(Node *node);
 static bool is_const_expr(Node *node, char **ptr_label);
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
 static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty);
+static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *expr(Token *tkn, Token **end_tkn);
@@ -767,19 +768,44 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
 // declarator = pointer? direct-declarator
 //
-// direct-declarator = identifier | 
-//                     direct-expression "[" assignment-expression? "]"
-//
 // Implement:
-// declarator = identifier arrays
+// declarator = pointer? direct-declarator
 static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
-  char *ident = get_ident(tkn);
+  return direct_decl(tkn, end_tkn, &ty);
+}
 
-  ty = arrays(tkn->next, &tkn, ty, true);
+// direct-declarator = identifier | 
+//                     direct-declarator "[" assignment-expression? "]"
+//
+// Implement:
+// direct-decl = ident |
+//               direct-decl "[" constant? "]"
+static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty) {
+  char *ident = get_ident(tkn);
+  if (ident != NULL) {
+    tkn = tkn->next;
+  }
+
+  Obj *obj = NULL;
+  int64_t val = 0;
+  if (consume(tkn, &tkn, "[")) {
+    Node *node = constant(tkn, &tkn);
+    if (node != NULL) {
+      val = node->val;
+    }
+    tkn = skip(tkn, "]");
+
+    obj = direct_decl(tkn, &tkn, ty);
+    *ty = array_to(*ty, val);
+  }
+
+  if (ident != NULL) {
+    obj = new_obj(*ty, ident);
+  }
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return new_obj(ty, ident);
+  return obj;
 }
 
 static Node *last_stmt(Node *now) {
@@ -818,7 +844,7 @@ Node *program(Token *tkn) {
 //                    declaration-list declaration
 //
 // Implement:
-// funcdef = declspec declarator "(" "void" | ( declspec declarator ) ")" comp-stmt
+// funcdef = declspec declarator "(" "void" | ( declspec declarator ) ")" ( comp-stmt | ";" )
 //
 static Node *funcdef(Token *tkn, Token **end_tkn) {
   Node *node = new_node(ND_FUNC, tkn, NULL, NULL);
