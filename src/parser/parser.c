@@ -188,17 +188,18 @@ Node *to_assign(Token *tkn, Node *rhs) {
   return new_assign(tkn, rhs->lhs, rhs);
 }
 
-char *typename[] = {
-  "void", "_Bool", "char", "short", "int", "long", "double", "signed", "unsigned",
-  "const"
-};
-
 static bool is_typename(Token *tkn) {
-  for (int i = 0; i < sizeof(typename) / sizeof(char *); i++) {
-    if (equal(tkn, typename[i])) {
+  char *keywords[] = {
+    "void", "_Bool", "char", "short", "int", "long", "double", "signed", "unsigned",
+    "const"
+  };
+
+  for (int i = 0; i < sizeof(keywords) / sizeof(*keywords); i++) {
+    if (equal(tkn, keywords[i])) {
       return true;
     }
   }
+
   return false;
 }
 
@@ -280,29 +281,6 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       type_cnt += UNSIGNED;
     }
 
-    // Detect duplicates
-    char *dup_type = NULL;
-
-    // Avoid check long
-    for (int i = 0; i < (sizeof(typename) / sizeof(char *) - 1); i++) {
-      if (memcmp(typename[i], "long", 4) == 0) {
-        continue;
-      }
-
-      if (((type_cnt>>(i * 2 + 1))&1) == 1) {
-        dup_type = typename[i];
-      }
-    }
-
-    // Check long
-    if (((LONG * 3)&type_cnt) == (LONG * 3)) {
-      dup_type = "long";
-    }
-
-    if (dup_type != NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Duplicate declaration of '%s'", dup_type);
-    }
-
     switch (type_cnt) {
       case VOID:
         ret = new_type(TY_VOID, false);
@@ -369,6 +347,64 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
+}
+
+// pointer = "*" type-qualifier-list? |
+//           "*" type-qualifier-list? pointer |
+//
+// type-qualifier-list = type-qualifier |
+//                       type-qualifier-list type-qualifier
+//
+// Implement:
+// pointer = ("*" typequal*)*
+static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
+  VarAttr *attr = calloc(1, sizeof(VarAttr));
+
+  while (consume(tkn, &tkn, "*")) {
+    ty = pointer_to(ty);
+
+    while (typequal(tkn, &tkn, attr));
+    if (attr->is_const) {
+      ty->is_const = true;
+      attr->is_const = false;
+    }
+  }
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+// arrays = "[" num "]" arrays?
+// num can empty value if can_empty is true.
+static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
+  if (!consume(tkn, &tkn, "[")) {
+    if (*end_tkn != NULL) *end_tkn = tkn;
+    return ty;
+  }
+
+  if (!can_empty && tkn->kind != TK_NUM) {
+      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
+  }
+
+  int val = 0;
+  if (tkn->kind == TK_NUM) {
+    val = tkn->val;
+    tkn = tkn->next;
+  }
+
+  tkn = skip(tkn, "]");
+  ty = arrays(tkn, &tkn, ty, false);
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return array_to(ty, val);
+}
+
+// declarator = pointer? direct-declarator
+//
+// Implement:
+// declarator = pointer? direct-declarator
+static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
+  ty = pointer(tkn, &tkn, ty);
+  return direct_decl(tkn, end_tkn, &ty);
 }
 
 static Initializer *new_initializer(Type *ty, bool is_flexible) {
@@ -654,55 +690,6 @@ static bool is_const_expr(Node *node, char **ptr_label) {
   }
 }
 
-// pointer = "*" type-qualifier-list? |
-//           "*" type-qualifier-list? pointer |
-//
-// type-qualifier-list = type-qualifier |
-//                       type-qualifier-list type-qualifier
-//
-// Implement:
-// pointer = ("*" typequal*)*
-static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
-  VarAttr *attr = calloc(1, sizeof(VarAttr));
-
-  while (consume(tkn, &tkn, "*")) {
-    ty = pointer_to(ty);
-
-    while (typequal(tkn, &tkn, attr));
-    if (attr->is_const) {
-      ty->is_const = true;
-      attr->is_const = false;
-    }
-  }
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ty;
-}
-
-// arrays = "[" num "]" arrays?
-// num can empty value if can_empty is true.
-static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
-  if (!consume(tkn, &tkn, "[")) {
-    if (*end_tkn != NULL) *end_tkn = tkn;
-    return ty;
-  }
-
-  if (!can_empty && tkn->kind != TK_NUM) {
-      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
-  }
-
-  int val = 0;
-  if (tkn->kind == TK_NUM) {
-    val = tkn->val;
-    tkn = tkn->next;
-  }
-
-  tkn = skip(tkn, "]");
-  ty = arrays(tkn, &tkn, ty, false);
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return array_to(ty, val);
-}
-
 // declaration = declaration-specifiers init-declarator-list?
 //
 // init-declarator-list = init-declarator | 
@@ -764,15 +751,6 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
-}
-
-// declarator = pointer? direct-declarator
-//
-// Implement:
-// declarator = pointer? direct-declarator
-static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
-  ty = pointer(tkn, &tkn, ty);
-  return direct_decl(tkn, end_tkn, &ty);
 }
 
 // direct-declarator = identifier | 
