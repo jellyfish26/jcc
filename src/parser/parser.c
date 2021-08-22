@@ -36,6 +36,7 @@ static int64_t eval_expr(Node *node);
 static bool is_const_expr(Node *node, char **ptr_label);
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
 static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty);
+static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty);
 static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
@@ -369,42 +370,109 @@ static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
       attr->is_const = false;
     }
   }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return ty;
 }
 
-// arrays = "[" num "]" arrays?
-// num can empty value if can_empty is true.
-static Type *arrays(Token *tkn, Token **end_tkn, Type *ty, bool can_empty) {
-  if (!consume(tkn, &tkn, "[")) {
-    if (*end_tkn != NULL) *end_tkn = tkn;
-    return ty;
-  }
+static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
 
-  if (!can_empty && tkn->kind != TK_NUM) {
-      errorf_tkn(ER_COMPILE, tkn, "Specify the size of array.");
+// array-dimension = constant "]" type-suffix
+static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
+  int64_t val = 0;
+  Node *node = constant(tkn, &tkn);
+  if (node != NULL) {
+    val = node->val;
   }
-
-  int val = 0;
-  if (tkn->kind == TK_NUM) {
-    val = tkn->val;
-    tkn = tkn->next;
-  }
-
   tkn = skip(tkn, "]");
-  ty = arrays(tkn, &tkn, ty, false);
 
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return array_to(ty, val);
+  return array_to(type_suffix(tkn, end_tkn, ty), val);
+}
+
+// type-suffix = "[" array-dimension | None
+static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty) {
+  if (equal(tkn, "[")) {
+    return array_dimension(tkn->next, end_tkn, ty);
+  }
+
+  if (*end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+// type-name = specifier-qualifier-list abstract-declarator?
+//
+// Implement:
+// type-name = declspec abstract-declarator | None
+static Type *typename(Token *tkn, Token **end_tkn) {
+  Type *ty = declspec(tkn, &tkn);
+  if (ty == NULL) {
+    return NULL;
+  }
+
+  return abstract_declarator(tkn, end_tkn, ty);
 }
 
 // declarator = pointer? direct-declarator
 //
+// direct-declarator = identifier |
+//                     direct-declarator 
+//
 // Implement:
-// declarator = pointer? direct-declarator
+// declarator = pointer? ident type-suffix | None
 static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
-  return direct_decl(tkn, end_tkn, &ty);
+  
+  char *ident = get_ident(tkn);
+  if (ident == NULL) {
+    return NULL;
+  }
+  ty = type_suffix(tkn->next, end_tkn, ty);
+  return new_obj(ty, ident);
+}
+
+// abstract-declarator = pointer | pointer? direct-abstract-declarator
+//
+// direct-abstract-declarator = type-suffix
+//
+// Implement:
+// abstract-declarator = pointer? type-suffix
+static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty) {
+  ty = pointer(tkn, &tkn, ty);
+  return type_suffix(tkn, end_tkn, ty);
+}
+
+
+// direct-declarator = identifier | 
+//                     direct-declarator "[" assignment-expression? "]"
+//
+// Implement:
+// direct-decl = ident |
+//               direct-decl "[" constant? "]"
+static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty) {
+  char *ident = get_ident(tkn);
+  if (ident != NULL) {
+    tkn = tkn->next;
+  }
+
+  Obj *obj = NULL;
+  int64_t val = 0;
+  if (consume(tkn, &tkn, "[")) {
+    Node *node = constant(tkn, &tkn);
+    if (node != NULL) {
+      val = node->val;
+    }
+    tkn = skip(tkn, "]");
+
+    obj = direct_decl(tkn, &tkn, ty);
+    *ty = array_to(*ty, val);
+  }
+
+  if (ident != NULL) {
+    obj = new_obj(*ty, ident);
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return obj;
 }
 
 static Initializer *new_initializer(Type *ty, bool is_flexible) {
@@ -751,39 +819,6 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
-}
-
-// direct-declarator = identifier | 
-//                     direct-declarator "[" assignment-expression? "]"
-//
-// Implement:
-// direct-decl = ident |
-//               direct-decl "[" constant? "]"
-static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty) {
-  char *ident = get_ident(tkn);
-  if (ident != NULL) {
-    tkn = tkn->next;
-  }
-
-  Obj *obj = NULL;
-  int64_t val = 0;
-  if (consume(tkn, &tkn, "[")) {
-    Node *node = constant(tkn, &tkn);
-    if (node != NULL) {
-      val = node->val;
-    }
-    tkn = skip(tkn, "]");
-
-    obj = direct_decl(tkn, &tkn, ty);
-    *ty = array_to(*ty, val);
-  }
-
-  if (ident != NULL) {
-    obj = new_obj(*ty, ident);
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return obj;
 }
 
 static Node *last_stmt(Node *now) {
@@ -1386,18 +1421,20 @@ static Node *unary(Token *tkn, Token **end_tkn) {
   }
 
   if (equal(tkn, "sizeof")) {
-    // Type size
-    if (equal(tkn->next, "(") && declspec(tkn->next->next, NULL) != NULL) {
-      Type *ty = declspec(tkn->next->next, &tkn);
-      ty = pointer(tkn, &tkn, ty);
-      ty = arrays(tkn, &tkn, ty, false);
+    Token *start = tkn;
+    tkn = tkn->next;
 
-      tkn = skip(tkn, ")");
-      if (end_tkn != NULL) *end_tkn = tkn;
-      return new_num(tkn, ty->var_size);
+    // type-name
+    if (equal(tkn, "(")) {
+      Type *ty = typename(tkn->next, &tkn);
+      if (ty != NULL) {
+        tkn = skip(tkn, ")");
+        if (end_tkn != NULL) *end_tkn = tkn;
+        return new_num(tkn, ty->var_size);
+      }
     }
 
-    Node *node = unary(tkn->next, end_tkn);
+    Node *node = unary(start->next, end_tkn);
     add_type(node);
 
     return new_num(tkn, node->type->var_size);
@@ -1494,6 +1531,14 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     return ret;
   }
 
+  if (equal(tkn, "(")) {
+    Node *node = expr(tkn->next, &tkn);
+
+    tkn = skip(tkn, ")");
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
+  }
+
   // identifier
   char *ident = get_ident(tkn);
   if (ident != NULL) {
@@ -1516,14 +1561,6 @@ static Node *primary(Token *tkn, Token **end_tkn) {
   // constant
   Node *node = constant(tkn, &tkn);
   if (node != NULL) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return node;
-  }
-
-  if (equal(tkn, "(")) {
-    Node *node = expr(tkn->next, &tkn);
-
-    tkn = skip(tkn, ")");
     if (end_tkn != NULL) *end_tkn = tkn;
     return node;
   }
