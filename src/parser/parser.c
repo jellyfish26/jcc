@@ -28,16 +28,16 @@ struct VarAttr {
 };
 
 // Prototype
-static Node *funcdef(Token *tkn, Token **end_tkn);
-static Node *comp_stmt(Token *tkn, Token **end_tkn, bool new_scope);
+static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
+static Type *declarator(Token *tkn, Token **end_tkn, Type *ty);
+static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty);
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
-static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static int64_t eval_expr(Node *node);
 static bool is_const_expr(Node *node, char **ptr_label);
+static Node *funcdef(Token *tkn, Token **end_tkn);
+static Node *comp_stmt(Token *tkn, Token **end_tkn, bool new_scope);
+static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
-static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty);
-static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty);
-static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
 static Node *expr(Token *tkn, Token **end_tkn);
@@ -375,8 +375,6 @@ static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
   return ty;
 }
 
-static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
-
 // array-dimension = constant "]" type-suffix
 static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
   int64_t val = 0;
@@ -419,15 +417,17 @@ static Type *typename(Token *tkn, Token **end_tkn) {
 //
 // Implement:
 // declarator = pointer? ident type-suffix | None
-static Obj *declarator(Token *tkn, Token **end_tkn, Type *ty) {
+static Type *declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
   
   char *ident = get_ident(tkn);
   if (ident == NULL) {
     return NULL;
   }
+
   ty = type_suffix(tkn->next, end_tkn, ty);
-  return new_obj(ty, ident);
+  ty->name = ident;
+  return ty;
 }
 
 // abstract-declarator = pointer | pointer? direct-abstract-declarator
@@ -789,7 +789,8 @@ static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
 
 // init-declarator = declarator ("=" initializer)?
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
-  Obj *obj = declarator(tkn, &tkn, ty);
+  ty = declarator(tkn, &tkn, ty);
+  Obj *obj = new_obj(ty, ty->name);
 
   if (is_global) {
     add_gvar(obj, true);
@@ -862,7 +863,8 @@ Node *program(Token *tkn) {
 static Node *funcdef(Token *tkn, Token **end_tkn) {
   Node *node = new_node(ND_FUNC, tkn, NULL, NULL);
   Type *ty = declspec(tkn, &tkn);
-  node->func = declarator(tkn, &tkn, ty);
+  ty = declarator(tkn, &tkn, ty);
+  node->func = new_obj(ty, ty->name);
 
   new_scope_definition();
   if (!consume(tkn, &tkn, "(")) {
@@ -876,8 +878,9 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   } else {
     if (!consume(tkn, &tkn, ")")) while (true) {
       Type *ty = declspec(tkn, &tkn);
+      ty = declarator(tkn, &tkn, ty);
       Node *lvar = new_node(ND_VAR, tkn, NULL, NULL);
-      lvar->use_var = declarator(tkn, &tkn, ty);
+      lvar->use_var = new_obj(ty, ty->name);
       add_lvar(lvar->use_var);
 
       lvar->lhs = node->func->args;

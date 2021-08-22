@@ -119,6 +119,9 @@ struct Type {
   bool is_const;
   bool is_unsigned;
 
+  // Declaration
+  char *name;
+
   // Pointer and Array require the same behavior,
   // and need a base type to calculate the memory movement distance.
   // Otherwise, this variable have raw type.
@@ -126,6 +129,11 @@ struct Type {
 
   int var_size;  // Variable size
   int array_len; // Array length if kind is TY_ARRAY
+
+  // Function type
+  Type *ret_ty;
+  Type *params;
+  Type *next;
 };
 
 Type *new_type(TypeKind kind, bool is_real);
