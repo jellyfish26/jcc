@@ -6,7 +6,6 @@
 
 typedef struct Type Type;
 typedef struct Obj Obj;
-typedef struct ScopeObj ScopeObj;
 typedef struct Node Node;
 typedef struct Function Function;
 
@@ -164,22 +163,11 @@ struct Obj {
 };
 
 Obj *new_obj(Type *type, char *name);
-
-struct ScopeObj {
-  int depth; // Scope depth -> 0 is general, over 1 is local
-  int use_address;
-  ScopeObj *upper;
-  Obj *objs;
-};
-
-extern ScopeObj *lvars;
-extern Obj *gvars;
-extern Obj *used_vars;
-
-void new_scope_definition();
-void out_scope_definition();
+void new_scope();
+void del_scope();
 void add_lvar(Obj *var);
 void add_gvar(Obj *var, bool is_substance);
 Obj *find_obj(char *name);
-bool check_already_define(char *name, bool is_global);
+Obj *get_gvars();
+bool check_scope(char *name);
 int init_offset();

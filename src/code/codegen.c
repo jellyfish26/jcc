@@ -614,7 +614,7 @@ void compile_node(Node *node) {
 void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
   println(".intel_syntax noprefix");
-  for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
+  for (Obj *gvar = get_gvars(); gvar != NULL; gvar = gvar->next) {
     // Only string literal
     switch (gvar->type->kind) {
       case TY_STR:

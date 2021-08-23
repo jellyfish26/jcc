@@ -68,125 +68,128 @@ Obj *new_obj(Type *type, char *name) {
   return ret;
 }
 
-ScopeObj *lvars;
-Obj *gvars;
-Obj *used_vars;
+typedef struct Scope Scope;
+struct Scope {
+  Scope *up;
 
-void new_scope_definition() {
-  ScopeObj *new_scope = calloc(1, sizeof(ScopeObj));
-  if (lvars == NULL) {
-    new_scope->depth = 0;
-  } else {
-    new_scope->depth = lvars->depth + 1;
-  }
-  new_scope->upper = lvars;
-  lvars = new_scope;
+  Obj *vars;
+  Obj *others;  // Tag: function declaration / function definition
+};
+
+Scope *lscope;
+Scope *gscope;
+Obj *used_objs;
+
+void new_scope() {
+  Scope *scope = calloc(1, sizeof(Scope));
+  scope->up = lscope;
+  lscope = scope;
 }
 
-void out_scope_definition() {
-  if (!lvars) {
-    errorf(ER_INTERNAL, "Internal Error at scope");
+void del_scope() {
+  if (lscope == NULL) {
+    errorf(ER_INTERNAL, "Internal error at scope");
   }
-  Obj *used = lvars->objs;
-  while (used && used->next) {
-    used = used->next;
+
+  if (lscope->vars != NULL) {
+    Obj *end = lscope->vars;
+    while (end->next != NULL) {
+      end = end->next;
+    }
+    end->next = used_objs;
+    used_objs = lscope->vars;
   }
-  if (used) {
-    used->next = used_vars;
-    used_vars = lvars->objs;
-  }
-  lvars = lvars->upper;
+
+  lscope = lscope->up;
 }
 
 void add_lvar(Obj *var) {
   var->is_global = false;
-  var->next = lvars->objs;
-  lvars->objs = var;
+  var->next = lscope->vars;
+  lscope->vars = var;
 }
 
 void add_gvar(Obj *var, bool is_substance) {
   var->is_global = true;
-  var->next = gvars;
-  if (gvars == NULL) {
+  if (gscope == NULL) {
+    gscope = calloc(1, sizeof(Scope));
+  }
+
+  if (gscope->vars == NULL) {
     var->offset = 0;
   } else {
-    if (is_substance) {
-      var->offset = gvars->offset;
-    } else {
-      var->offset = gvars->offset + 1;
-    }
+    var->offset = gscope->vars->offset + (is_substance ? 0 : 1);
   }
-  gvars = var;
+
+  var->next = gscope->vars;
+  gscope->vars = var;
 }
 
-Obj *find_obj(char *name) {
-  int name_len = strlen(name);
-  // Find in local variable
-  for (ScopeObj *now_scope = lvars; now_scope != NULL; now_scope = now_scope->upper) {
-    for (Obj *obj = now_scope->objs; obj != NULL; obj = obj->next) {
-      if (name_len != obj->name_len) {
-        continue;
-      }
-
-      if (memcmp(name, obj->name, name_len) == 0) {
-        return obj;
-      }
-    }
-  }
-
-  // Find in global varaible
-  for (Obj *obj = gvars; obj != NULL; obj = obj->next) {
-    if (name_len != obj->name_len) {
-      continue;
-    }
-
-    if (memcmp(name, obj->name, name_len) == 0) {
+Obj *check_objs(Obj *head, char *name) {
+  int len = strlen(name);
+  for (Obj *obj = head; obj != NULL; obj = obj->next) {
+    if ((len == obj->name_len) && (memcmp(name, obj->name, len) == 0)) {
       return obj;
     }
   }
+
   return NULL;
 }
 
+Obj *find_obj(char *name) {
+  // Find in local object
+  for (Scope *cur = lscope; cur != NULL; cur = cur->up) {
+    Obj *obj = check_objs(cur->vars, name);
+    if (obj != NULL) {
+      return obj;
+    }
+
+    obj = check_objs(cur->others, name);
+    if (obj != NULL) {
+      return obj;
+    }
+  }
+
+  if (gscope == NULL) {
+    return NULL;
+  }
+
+  Obj *obj = check_objs(gscope->vars, name);
+  if (obj != NULL) {
+    return obj;
+  }
+
+  obj = check_objs(gscope->others, name);
+  return obj;
+}
+
+bool check_scope(char *name) {
+  bool ret = false;
+  if (lscope == NULL) {
+    ret |= (check_objs(gscope->vars, name) != NULL);
+    ret |= (check_objs(gscope->others, name) != NULL);
+  } else {
+    ret |= (check_objs(lscope->vars, name) != NULL);
+    ret |= (check_objs(lscope->others, name) != NULL);
+  }
+  return ret;
+}
 
 int init_offset() {
   int now_address = 0;
-  Obj *now = used_vars;
-  while (now) {
-    now_address += now->type->var_size;
-    now->offset = now_address;
-    now = now->next;
+
+  for (Obj *cur = used_objs; cur != NULL; cur = cur->next) {
+    now_address += cur->type->var_size;
+    cur->offset = now_address;
   }
-  used_vars = NULL;
+
+  used_objs = NULL;
   now_address += 16 - (now_address % 16);
   return now_address;
 }
 
-bool check_already_define(char *name, bool is_global) {
-  int name_len = strlen(name);
-  if (is_global) {
-     for (Obj *gvar = gvars; gvar != NULL; gvar = gvar->next) {
-      if (gvar->name_len != name_len) {
-        continue;
-      }
-      if (memcmp(name, gvar->name, name_len) == 0) {
-        return true;
-      }
-    }
-    return false;
-  }
-  if (lvars == NULL) {
-    return false;
-  }
-  for (Obj *now_var = lvars->objs; now_var != NULL; now_var = now_var->next) {
-    if (now_var->name_len != name_len) {
-      continue;
-    }
-
-    if (memcmp(name, now_var->name, name_len) == 0) {
-      return true;
-    }
-  }
-  return false;
+Obj *get_gvars() {
+  return gscope->vars;
 }
 
 // if type size left < right is true
