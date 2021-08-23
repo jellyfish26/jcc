@@ -473,25 +473,32 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_FUNCCALL) {
-    char *name = calloc(node->func->name_len + 1, sizeof(char));
-    memcpy(name, node->func->name, node->func->name_len);
-    int arg_count = 0;
-    for (Node *now_arg = node->func->args; now_arg != NULL; now_arg = now_arg->next_stmt) {
-      compile_node(now_arg);
+    Node **args = calloc(node->func->argc, sizeof(Node*));
+    int argc = 0;
 
-      if (now_arg->type != NULL && now_arg->type->kind == TY_DOUBLE) {
+    for (Node *arg = node->args; arg != NULL; arg = arg->args) {
+      *(args + argc) = arg;
+      argc++;
+    }
+
+    while (argc > 0) {
+      argc--;
+      Node *arg = *(args + argc);
+      compile_node(arg->lhs);
+      if (arg->lhs->type != NULL && arg->lhs->type->kind == TY_DOUBLE) {
         println("  movd rax, xmm0");
       }
+
       gen_push("rax");
-      arg_count++;
     }
 
-    for (int arg_idx = 0; arg_idx < arg_count && arg_idx < 6; arg_idx++) {
+    for (int arg_idx = 0; arg_idx < node->func->argc && arg_idx < 6; arg_idx++) {
       gen_pop(args_reg[arg_idx]);
     }
-    println("  call %s", name);
-    if (arg_count > 6) {
-      gen_emptypop(arg_count - 6);
+
+    println("  call %s", node->func->name);
+    if (node->func->argc > 6) {
+      gen_emptypop(node->func->argc - 6);
     }
     return;
   }
@@ -644,31 +651,31 @@ void codegen(Node *head, char *filename) {
     println("  sub rsp, %d", func->vars_size);
 
     // Push arguments into the stack.
-    Node **args = calloc(func->argc, sizeof(Node*));
-    int argc = func->argc - 1;
-    for (Node *arg = func->args; arg != NULL; arg = arg->lhs) {
+    Obj **params = calloc(func->argc, sizeof(Obj*));
+    int argc = 0;
+    for (Obj *param = func->params; param != NULL; param = param->params) {
       if (argc < 6) {
         gen_push(args_reg[argc]);
       } else {
         println("  mov rax, QWORD PTR [rbp + %d]", 8 + (argc - 5) * 8);
         gen_push("rax");
       }
-      *(args + argc) = arg;
-      argc--;
+      *(params + argc) = param;
+      argc++;
     }
 
     // Set arguments
-    argc = 0;
-    while (argc < func->argc) {
-      Node *arg = *(args + argc);
+    argc = func->argc - 1;
+    while (argc >= 0) {
+      Obj *param = *(params + argc);
 
       gen_pop("rcx");
-      gen_addr(arg);
+      gen_addr(new_var(NULL, param));
       gen_push("rax");
       println("  mov rax, rcx");
-      gen_store(arg->use_var->type);
+      gen_store(param->type);
 
-      argc++;
+      argc--;
     }
 
     compile_node(node->next_stmt);

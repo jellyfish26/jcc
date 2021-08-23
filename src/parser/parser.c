@@ -913,15 +913,19 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   }
 
   node->func = new_obj(ty, ty->name);
+  Obj head = {};
+  Obj *cur = &head;
+
   for (Type *var_ty = ty->params; var_ty != NULL; var_ty = var_ty->next) {
     Obj *var = new_obj(var_ty, var_ty->name);
     add_lvar(var);
 
-    Node *lvar = new_var(tkn, var);
-    lvar->lhs = node->func->args;
-    node->func->args = lvar;
+    cur->params = var;
+    cur = var;
     node->func->argc++;
   }
+
+  node->func->params = head.params;
   node->next_stmt = comp_stmt(tkn, &tkn, false);
 
   out_scope_definition();
@@ -1511,16 +1515,18 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     fcall->type = node->use_var->type;
     tkn = tkn->next;
 
+    Node head = {};
+    Node *cur = &head;
     while (!consume(tkn, &tkn, ")")) {
-      if (fcall->func->args != NULL) {
+      if (cur != &head) {
         tkn = skip(tkn, ",");
       }
 
-      Node *asn = assign(tkn, &tkn);
-      asn->next_stmt = fcall->func->args;
-      fcall->func->args = asn;
+      cur->args = new_node(ND_VOID, tkn, assign(tkn, &tkn), NULL);
+      cur = cur->args;
       fcall->func->argc++;
     }
+    fcall->args = head.args;
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return fcall;

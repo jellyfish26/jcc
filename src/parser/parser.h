@@ -75,6 +75,7 @@ struct Node {
   int label; // label (only "for" or "while" statement)
 
   Obj *func;  // Function or Function call
+  Node *args;
 
   int64_t val;        // Value if kind is ND_NUM
   long double fval;   // Floating-value if kind is ND_NUM
@@ -155,7 +156,7 @@ struct Obj {
 
   // Function
   int argc;
-  Node *args;
+  Obj *params;
   int vars_size;
 
   int64_t val;
