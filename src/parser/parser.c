@@ -387,10 +387,52 @@ static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
   return array_to(type_suffix(tkn, end_tkn, ty), val);
 }
 
-// type-suffix = "[" array-dimension | None
+// param-list = ("void" | param ("," param)*)? ")"
+//
+// param = declspec declarator
+static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
+  ty->kind = TY_FUNC;
+  if (consume(tkn, &tkn, ")")) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ty;
+  }
+
+  if (consume(tkn, &tkn, "void")) {
+    tkn = skip(tkn, ")");
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ty;
+  }
+
+  Type head;
+  Type *param = &head;
+
+  while (!consume(tkn, &tkn, ")")) {
+    if (param != &head) {
+      tkn = skip(tkn, ",");
+    }
+
+    Type *cur = declspec(tkn, &tkn);
+    cur = declarator(tkn, &tkn, cur);
+
+    param->next = cur;
+    param = cur;
+  }
+
+  ty->params = head.next;
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+// type-suffix = "[" array-dimension |
+//               "(" param-list |
+//               None
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty) {
   if (equal(tkn, "[")) {
     return array_dimension(tkn->next, end_tkn, ty);
+  }
+
+  if (equal(tkn, "(")) {
+    return param_list(tkn->next, end_tkn, ty);
   }
 
   if (*end_tkn != NULL) *end_tkn = tkn;
@@ -858,43 +900,30 @@ Node *program(Token *tkn) {
 //                    declaration-list declaration
 //
 // Implement:
-// funcdef = declspec declarator "(" "void" | ( declspec declarator ) ")" ( comp-stmt | ";" )
+// funcdef = declspec declarator comp-stmt
 //
 static Node *funcdef(Token *tkn, Token **end_tkn) {
+  new_scope_definition();
   Node *node = new_node(ND_FUNC, tkn, NULL, NULL);
   Type *ty = declspec(tkn, &tkn);
   ty = declarator(tkn, &tkn, ty);
-  node->func = new_obj(ty, ty->name);
 
-  new_scope_definition();
-  if (!consume(tkn, &tkn, "(")) {
+  if (ty->kind != TY_FUNC) {
     return NULL;
   }
 
-  if (consume(tkn, &tkn, "void")) {
-    if (!consume(tkn, &tkn, ")")) {
-      errorf_tkn(ER_COMPILE, tkn, "'void' must be the only parameter");
-    }
-  } else {
-    if (!consume(tkn, &tkn, ")")) while (true) {
-      Type *ty = declspec(tkn, &tkn);
-      ty = declarator(tkn, &tkn, ty);
-      Node *lvar = new_node(ND_VAR, tkn, NULL, NULL);
-      lvar->use_var = new_obj(ty, ty->name);
-      add_lvar(lvar->use_var);
+  node->func = new_obj(ty, ty->name);
+  for (Type *var_ty = ty->params; var_ty != NULL; var_ty = var_ty->next) {
+    Obj *var = new_obj(var_ty, var_ty->name);
+    add_lvar(var);
 
-      lvar->lhs = node->func->args;
-      node->func->args = lvar;
-      node->func->argc++;
-
-      if (consume(tkn, &tkn, ")")) {
-        break;
-      }
-      tkn = skip(tkn, ",");
-    }
+    Node *lvar = new_var(tkn, var);
+    lvar->lhs = node->func->args;
+    node->func->args = lvar;
+    node->func->argc++;
   }
-
   node->next_stmt = comp_stmt(tkn, &tkn, false);
+
   out_scope_definition();
   node->func->vars_size = init_offset();
 
