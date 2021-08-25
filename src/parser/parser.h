@@ -132,14 +132,17 @@ struct Type {
 
   // Function type
   Type *ret_ty;
+  int param_cnt;
   Type *params;
   Type *next;
+  bool is_prototype;
 };
 
 Type *new_type(TypeKind kind, bool is_real);
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
-void add_type(Node *node);
+bool declare_func(Type *ty);
+bool define_func(Type *ty);
 
 // Variable or Function
 struct Obj {
@@ -154,7 +157,6 @@ struct Obj {
   int offset;
 
   // Function
-  int argc;
   Obj *params;
   int vars_size;
 
@@ -162,11 +164,14 @@ struct Obj {
   long double fval;
 };
 
+void add_type(Node *node);
 Obj *new_obj(Type *type, char *name);
 void new_scope();
 void del_scope();
 void add_lvar(Obj *var);
+void add_lobj(Obj *obj);
 void add_gvar(Obj *var, bool is_substance);
+void add_gobj(Obj *obj);
 Obj *find_obj(char *name);
 Obj *get_gvars();
 bool check_scope(char *name);

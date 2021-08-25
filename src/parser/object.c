@@ -1,6 +1,7 @@
 #include "token/tokenize.h"
 #include "parser/parser.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +34,7 @@ Type *new_type(TypeKind kind, bool is_real) {
       ret->var_size = 16;
       break;
     default:
-      return NULL;
+      ret->var_size = 0;
   }
   return ret;
 }
@@ -53,6 +54,30 @@ Type *array_to(Type *type, int array_len) {
   ret->var_size = array_len * type->var_size;
   ret->array_len = array_len;
   return ret;
+}
+
+bool is_same_type(Type *lty, Type *rty) {
+  while (lty != NULL && rty != NULL) {
+    if (lty->kind != rty->kind) {
+      return false;
+    }
+
+    if (lty->kind == TY_ARRAY) {
+      // If the size of either array is undecided, return true.
+      if (lty->var_size != 0 && rty->var_size != 0 && lty->var_size != rty->var_size) {
+        return false;
+      }
+    }
+
+    lty = lty->base;
+    rty = rty->base;
+  }
+
+  if (lty != NULL || rty != NULL) {
+    return false;
+  }
+
+  return true;
 }
 
 Obj *new_obj(Type *type, char *name) {
@@ -109,6 +134,12 @@ void add_lvar(Obj *var) {
   lscope->vars = var;
 }
 
+void add_lobj(Obj *obj) {
+  obj->is_global = false;
+  obj->next = lscope->others;
+  lscope->others = obj;
+}
+
 void add_gvar(Obj *var, bool is_substance) {
   var->is_global = true;
   if (gscope == NULL) {
@@ -123,6 +154,16 @@ void add_gvar(Obj *var, bool is_substance) {
 
   var->next = gscope->vars;
   gscope->vars = var;
+}
+
+void add_gobj(Obj *obj) {
+  obj->is_global = true;
+  if (gscope == NULL) {
+    gscope = calloc(1, sizeof(Scope));
+  }
+
+  obj->next = gscope->others;
+  gscope->others = obj;
 }
 
 Obj *check_objs(Obj *head, char *name) {
@@ -165,6 +206,10 @@ Obj *find_obj(char *name) {
 
 bool check_scope(char *name) {
   bool ret = false;
+  if (gscope == NULL) {
+    return NULL;
+  }
+
   if (lscope == NULL) {
     ret |= (check_objs(gscope->vars, name) != NULL);
     ret |= (check_objs(gscope->others, name) != NULL);
@@ -173,6 +218,84 @@ bool check_scope(char *name) {
     ret |= (check_objs(lscope->others, name) != NULL);
   }
   return ret;
+}
+
+bool check_func_params(Type *lty, Type *rty) {
+  // If the parameters are same type, we can be redeclared.
+  bool chk = (lty->param_cnt == rty->param_cnt);
+
+  if (chk) {
+    Type **params = calloc(lty->param_cnt * 2, sizeof(Type*));
+    int cnt = 0;
+    for (Type *param = lty->params; param != NULL; param = param->next) {
+      *(params + cnt) = param;
+      cnt++;
+    }
+    for (Type *param = rty->params; param != NULL; param = param->next) {
+      *(params + cnt) = param;
+      cnt++;
+    }
+
+    for (int i = 0; i < lty->param_cnt; i++) {
+      if (!is_same_type(*(params + i), *(params + lty->param_cnt + i))) {
+        chk = false;
+      }
+    }
+    free(params);
+  }
+
+  return chk;
+}
+
+bool declare_func(Type *ty) {
+  ty->is_prototype = true;
+  Obj *already = find_obj(ty->name);
+
+  if (already == NULL) {
+    add_gobj(new_obj(ty, ty->name));
+    return true;
+  }
+
+  // If the return type is different from a function that already declared,
+  // we cannot be redeclared.
+  if (!is_same_type(ty->ret_ty, already->type->ret_ty)) {
+    return false;
+  }
+
+  // If the number of parameters in the function declaration is zero,
+  // we will not update the already declared function,
+  // but function can be declare as many times as we want, so we will return true.
+  if (ty->params == NULL) {
+    return true;
+  }
+
+  // If the number of parameters in the function declaration is zero,
+  // we can update the function declaration.
+  if (already->params == NULL) {
+    already->name_len = 0;
+    add_gobj(new_obj(ty, ty->name));
+    return true;
+  }
+
+  return check_func_params(ty, already->type);
+}
+
+bool define_func(Type *ty) {
+  ty->is_prototype = false;
+  Obj *alrady = find_obj(ty->name);
+
+  if (alrady == NULL) {
+    add_gobj(new_obj(ty, ty->name));
+    return true;
+  }
+
+  if (!alrady->type->is_prototype || !check_func_params(ty, alrady->type)) {
+    return false;
+  }
+
+  alrady->name_len = 0;
+  add_gobj(new_obj(ty, ty->name));
+  return true;
 }
 
 int init_offset() {

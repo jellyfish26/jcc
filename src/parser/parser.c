@@ -391,7 +391,10 @@ static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
 //
 // param = declspec declarator
 static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
-  ty->kind = TY_FUNC;
+  Type *ret_ty = ty;
+  ty = new_type(TY_FUNC, false);
+  ty->ret_ty = ret_ty;
+
   if (consume(tkn, &tkn, ")")) {
     if (end_tkn != NULL) *end_tkn = tkn;
     return ty;
@@ -416,6 +419,7 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
 
     param->next = cur;
     param = cur;
+    ty->param_cnt++;
   }
 
   ty->params = head.next;
@@ -454,8 +458,7 @@ static Type *typename(Token *tkn, Token **end_tkn) {
 
 // declarator = pointer? direct-declarator
 //
-// direct-declarator = identifier |
-//                     direct-declarator 
+// direct-declarator = type-suffix
 //
 // Implement:
 // declarator = pointer? ident type-suffix | None
@@ -481,40 +484,6 @@ static Type *declarator(Token *tkn, Token **end_tkn, Type *ty) {
 static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
   return type_suffix(tkn, end_tkn, ty);
-}
-
-
-// direct-declarator = identifier | 
-//                     direct-declarator "[" assignment-expression? "]"
-//
-// Implement:
-// direct-decl = ident |
-//               direct-decl "[" constant? "]"
-static Obj *direct_decl(Token *tkn, Token **end_tkn, Type **ty) {
-  char *ident = get_ident(tkn);
-  if (ident != NULL) {
-    tkn = tkn->next;
-  }
-
-  Obj *obj = NULL;
-  int64_t val = 0;
-  if (consume(tkn, &tkn, "[")) {
-    Node *node = constant(tkn, &tkn);
-    if (node != NULL) {
-      val = node->val;
-    }
-    tkn = skip(tkn, "]");
-
-    obj = direct_decl(tkn, &tkn, ty);
-    *ty = array_to(*ty, val);
-  }
-
-  if (ident != NULL) {
-    obj = new_obj(*ty, ident);
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return obj;
 }
 
 static Initializer *new_initializer(Type *ty, bool is_flexible) {
@@ -834,13 +803,31 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   ty = declarator(tkn, &tkn, ty);
   Obj *obj = new_obj(ty, ty->name);
 
-  if (is_global) {
-    add_gvar(obj, true);
+  if (ty->kind == TY_FUNC) {
+    if (!declare_func(ty)) {
+      errorf_tkn(ER_COMPILE, tkn, "Conflict declaration");
+    }
   } else {
-    add_lvar(obj);
+    if (check_scope(ty->name)) {
+      errorf_tkn(ER_COMPILE, tkn, "This variable already declare");
+    }
+
+    if (is_global) {
+      add_gvar(obj, true);
+    } else {
+      add_lvar(obj);
+    }
   }
 
   Node *node = new_var(tkn, obj);
+  if (ty->kind == TY_FUNC) {
+    node = new_node(ND_FUNC, tkn, NULL, NULL);
+    node->func = obj;
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
+  }
+
   if (equal(tkn, "=")) {
     Initializer *init = initializer(tkn->next, &tkn, obj->type);
     node = new_node(ND_INIT, tkn, node, create_init_node(init, NULL, is_global));
@@ -886,7 +873,7 @@ Node *program(Token *tkn) {
     if (node == NULL) {
       node = declaration(tkn, &tkn, true);
     }
-    
+
     cur->next_block = node;
     cur = node;
   }
@@ -902,16 +889,21 @@ Node *program(Token *tkn) {
 // funcdef = declspec declarator comp-stmt
 //
 static Node *funcdef(Token *tkn, Token **end_tkn) {
-  new_scope();
   Node *node = new_node(ND_FUNC, tkn, NULL, NULL);
   Type *ty = declspec(tkn, &tkn);
   ty = declarator(tkn, &tkn, ty);
 
-  if (ty->kind != TY_FUNC) {
+  if (!equal(tkn, "{")) {
     return NULL;
   }
 
-  node->func = new_obj(ty, ty->name);
+  if (!define_func(ty)) {
+    errorf_tkn(ER_COMPILE, tkn, "Conflict define");
+  }
+
+  new_scope();
+  ty->is_prototype = false;
+  node->func = find_obj(ty->name);
 
   Obj head = {};
   Obj *cur = &head;
@@ -922,7 +914,6 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
 
     cur->params = var;
     cur = var;
-    node->func->argc++;
   }
 
   node->func->params = head.params;
@@ -1086,6 +1077,7 @@ static Node *comp_stmt(Token *tkn, Token **end_tkn, bool has_scope) {
     tkn = tkn->next;
     while (!consume(tkn, &tkn, "}")) {
       now->next_stmt = declaration(tkn, &tkn, false);
+
       if (now->next_stmt == NULL) {
         now->next_stmt = statement(tkn, &tkn, true);
       }
@@ -1500,7 +1492,6 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
       cur->args = new_node(ND_VOID, tkn, assign(tkn, &tkn), NULL);
       cur = cur->args;
-      fcall->func->argc++;
     }
     fcall->args = head.args;
 
@@ -1558,14 +1549,9 @@ static Node *primary(Token *tkn, Token **end_tkn) {
   if (ident != NULL) {
     Obj *obj = find_obj(ident);
 
-    // TODO: Search function ident
-    // if (obj != NULL) {
-    //   errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
-    // }
-    //
     if (obj == NULL) {
-      obj = new_obj(new_type(TY_INT, false), ident);
-    } 
+      errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
+    }
 
     Node *node = new_var(tkn, obj);
     if (end_tkn != NULL) *end_tkn = tkn->next;

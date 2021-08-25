@@ -27,6 +27,10 @@ int vv(void) {
   return 2;
 }
 
+int foo(int a, int b);
+int foo();
+
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -43,5 +47,11 @@ int main() {
   CHECK(55, ({fib(10);}));
 
   CHECK(2, vv());
+  CHECK(3, foo(2, 1));
   return 0;
 }
+
+int foo(int a, int b) {
+  return a + b;
+}
+

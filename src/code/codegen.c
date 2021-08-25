@@ -333,6 +333,10 @@ static void gen_gvar_define(Obj *var) {
 }
 
 void compile_node(Node *node) {
+  if (node == NULL) {
+    return;
+  }
+
   if (node->kind == ND_NUM) {
     switch (node->type->kind) {
       case TY_INT:
@@ -473,7 +477,8 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_FUNCCALL) {
-    Node **args = calloc(node->func->argc, sizeof(Node*));
+    Type *ty = node->func->type;
+    Node **args = calloc(ty->param_cnt, sizeof(Node*));
     int argc = 0;
 
     for (Node *arg = node->args; arg != NULL; arg = arg->args) {
@@ -492,13 +497,13 @@ void compile_node(Node *node) {
       gen_push("rax");
     }
 
-    for (int arg_idx = 0; arg_idx < node->func->argc && arg_idx < 6; arg_idx++) {
+    for (int arg_idx = 0; arg_idx < ty->param_cnt && arg_idx < 6; arg_idx++) {
       gen_pop(args_reg[arg_idx]);
     }
 
     println("  call %s", node->func->name);
-    if (node->func->argc > 6) {
-      gen_emptypop(node->func->argc - 6);
+    if (ty->param_cnt > 6) {
+      gen_emptypop(ty->param_cnt - 6);
     }
     return;
   }
@@ -640,7 +645,12 @@ void codegen(Node *head, char *filename) {
       }
       continue;
     }
+
     Obj *func = node->func;
+    if (func->type->is_prototype) {
+      continue;
+    }
+
     println(".global %s", func->name);
     println(".text");
     println("%s:", func->name);
@@ -651,7 +661,7 @@ void codegen(Node *head, char *filename) {
     println("  sub rsp, %d", func->vars_size);
 
     // Push arguments into the stack.
-    Obj **params = calloc(func->argc, sizeof(Obj*));
+    Obj **params = calloc(func->type->param_cnt, sizeof(Obj*));
     int argc = 0;
     for (Obj *param = func->params; param != NULL; param = param->params) {
       if (argc < 6) {
@@ -665,7 +675,7 @@ void codegen(Node *head, char *filename) {
     }
 
     // Set arguments
-    argc = func->argc - 1;
+    argc = func->type->param_cnt - 1;
     while (argc >= 0) {
       Obj *param = *(params + argc);
 
