@@ -44,7 +44,7 @@ static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       // String literal
-      if (node->use_var->type->kind == TY_STR) {
+      if (node->use_var->ty->kind == TY_STR) {
         println("  mov rax, offset .LC%d", node->use_var->offset);
         return;
       }
@@ -201,8 +201,8 @@ static int get_type_idx(Type *type) {
 
 static void gen_cast(Node *node) {
   compile_node(node->lhs);
-  int from = get_type_idx(node->lhs->type);
-  int to = get_type_idx(node->type);
+  int from = get_type_idx(node->lhs->ty);
+  int to = get_type_idx(node->ty);
   if (cast_table[from][to] != NULL) {
     println("  %s", cast_table[from][to]);
   }
@@ -223,14 +223,14 @@ void expand_assign(Node *node) {
 
   compile_node(node->rhs);
 
-  switch (node->type->kind) {
+  switch (node->ty->kind) {
     case TY_FLOAT:
     case TY_DOUBLE:
     case TY_LDOUBLE:
-      gen_fstore(node->type);
+      gen_fstore(node->ty);
       break;
     default:
-      gen_store(node->type);
+      gen_store(node->ty);
   }
 }
 
@@ -280,16 +280,16 @@ static void gen_lvar_init(Node *node) {
       println("  mov rax, 0");
     }
 
-    switch (node->type->kind) {
+    switch (node->ty->kind) {
       case TY_DOUBLE:
-        gen_fstore(node->type);
+        gen_fstore(node->ty);
         break;
       default:
-        gen_store(node->type);
+        gen_store(node->ty);
     }
 
     println("  mov rax, rdi");
-    println("  add rax, %d", node->type->var_size);
+    println("  add rax, %d", node->ty->var_size);
   }
 }
 
@@ -298,7 +298,7 @@ static void gen_gvar_init(Node *node) {
   println("%s:", node->lhs->use_var->name);
 
   char *asm_ty;
-  switch (node->type->kind) {
+  switch (node->ty->kind) {
     case TY_CHAR:
       asm_ty = ".byte";
       break;
@@ -334,13 +334,13 @@ static void gen_gvar_init(Node *node) {
 static void gen_gvar_define(Obj *var) {
   println(".data");
 
-  if (var->type->kind == TY_STR) {
+  if (var->ty->kind == TY_STR) {
     println(".LC%d:", var->offset);
     println("  .string \"%s\"", var->name);
     return;
   }
 
-  if (var->type->kind == TY_DOUBLE) {
+  if (var->ty->kind == TY_DOUBLE) {
     double *ptr = calloc(1, sizeof(double));
     *ptr = (double)var->fval;
     println(".LC%d:", var->offset);
@@ -352,7 +352,7 @@ static void gen_gvar_define(Obj *var) {
 
 
   println("%s:", var->name);
-  switch (var->type->kind) {
+  switch (var->ty->kind) {
     case TY_CHAR:
       println("  .zero 1");
       break;
@@ -365,7 +365,7 @@ static void gen_gvar_define(Obj *var) {
     case TY_LONG:
     case TY_PTR:
     case TY_ARRAY:
-      println("  .zero %d", var->type->var_size);
+      println("  .zero %d", var->ty->var_size);
       break;
     default:
       return;
@@ -373,7 +373,7 @@ static void gen_gvar_define(Obj *var) {
 }
 
 static void cnt_func_params(Node *node, int *general, int *floating) {
-  Type *ty = node->func->type;
+  Type *ty = node->func->ty;
 
   for (int i = 0; i < ty->param_cnt; i++) {
     TypeKind kind = (*(ty->params + i))->kind;
@@ -393,7 +393,7 @@ static void cnt_func_params(Node *node, int *general, int *floating) {
 }
 
 static void push_func_params(Node *node, bool is_reg) {
-  Type *ty = node->func->type;
+  Type *ty = node->func->ty;
 
   int general = 0, floating = 0;
   cnt_func_params(node, &general, &floating);
@@ -436,7 +436,7 @@ static void push_func_params(Node *node, bool is_reg) {
 
 void compile_node(Node *node) {
   if (node->kind == ND_NUM) {
-    switch (node->type->kind) {
+    switch (node->ty->kind) {
       case TY_INT:
       case TY_LONG:
         println("  mov rax, %ld", node->val);
@@ -444,7 +444,7 @@ void compile_node(Node *node) {
       case TY_DOUBLE:
         println("  movsd xmm0, QWORD PTR .LC%d[rip]", node->use_var->offset);
     }
-    Type *ty = node->type;
+    Type *ty = node->ty;
     return;
   }
 
@@ -454,9 +454,8 @@ void compile_node(Node *node) {
   } 
 
   if (node->kind == ND_BLOCK) {
-    for (Node *now_stmt = node->next_block; now_stmt;
-         now_stmt = now_stmt->next_stmt) {
-      compile_node(now_stmt);
+    for (Node *expr = node->deep; expr != NULL; expr = expr->next) {
+      compile_node(expr);
     }
     return;
   }
@@ -470,7 +469,7 @@ void compile_node(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       gen_addr(node);
-      gen_load(node->type);
+      gen_load(node->ty);
       return;
     case ND_ADDR:
       gen_addr(node->lhs);
@@ -550,7 +549,7 @@ void compile_node(Node *node) {
     }
     case ND_CONTENT: {
       compile_node(node->lhs);
-      gen_load(node->type);
+      gen_load(node->ty);
       return;
     }
     case ND_LOGICALAND:
@@ -575,7 +574,7 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_FUNCCALL) {
-    Type *ty = node->func->type;
+    Type *ty = node->func->ty;
 
     push_func_params(node, false);
     push_func_params(node, true);
@@ -618,20 +617,20 @@ void compile_node(Node *node) {
 
   // lhs: rax, rhs: rdi
   compile_node(node->rhs);
-  if (node->rhs->type->kind == TY_DOUBLE) {
+  if (node->rhs->ty->kind == TY_DOUBLE) {
     println("  movaps xmm1, xmm0");
   } else {
     gen_push("rax");
   }
 
   compile_node(node->lhs);
-  if (node->rhs->type->kind == TY_DOUBLE) {
+  if (node->rhs->ty->kind == TY_DOUBLE) {
     // no
   } else {
     gen_pop("rdi");
   }
 
-  if (node->type->kind == TY_DOUBLE) {
+  if (node->ty->kind == TY_DOUBLE) {
     switch (node->kind) {
       case ND_ADD:
         println("  addsd xmm0, xmm1");
@@ -643,7 +642,7 @@ void compile_node(Node *node) {
   // Default register is 32bit
   char *rax = "eax", *rdi = "edi", *rdx = "edx";
 
-  if (node->lhs->type->kind == TY_LONG || node->lhs->type->base != NULL) {
+  if (node->lhs->ty->kind == TY_LONG || node->lhs->ty->base != NULL) {
     rax = "rax";
     rdi = "rdi";
     rdx = "rdx";
@@ -662,11 +661,11 @@ void compile_node(Node *node) {
       break;
     case ND_DIV:
     case ND_REMAINDER:
-      if (node->type->is_unsigned) {
+      if (node->ty->is_unsigned) {
         println("  mov rdx, 0");
         println("  div %s", rdi);
       } else {
-        if (node->lhs->type->var_size == 8) {
+        if (node->lhs->ty->var_size == 8) {
           println("  cqo");
         } else {
           println("  cdq");
@@ -684,7 +683,7 @@ void compile_node(Node *node) {
       break;
     case ND_RIGHTSHIFT:
       println("  mov rcx, rdi");
-      if (node->lhs->type->is_unsigned) {
+      if (node->lhs->ty->is_unsigned) {
         println("  shr %s, cl", rax);
       } else {
         println("  sar %s, cl", rax);
@@ -706,14 +705,14 @@ void compile_node(Node *node) {
       gen_comp("setne", rax, rdi);
       break;
     case ND_LC:
-      if (node->type->is_unsigned) {
+      if (node->ty->is_unsigned) {
         gen_comp("setb", rax, rdi);
       } else {
         gen_comp("setl", rax, rdi);
       }
       break;
     case ND_LEC:
-      if (node->type->is_unsigned) {
+      if (node->ty->is_unsigned) {
         gen_comp("setbe", rax, rdi);
       } else {
         gen_comp("setle", rax, rdi);
@@ -729,7 +728,7 @@ void codegen(Node *head, char *filename) {
   println(".intel_syntax noprefix");
   for (Obj *gvar = get_gvars(); gvar != NULL; gvar = gvar->next) {
     // Only string literal
-    switch (gvar->type->kind) {
+    switch (gvar->ty->kind) {
       case TY_STR:
       case TY_FLOAT:
       case TY_DOUBLE:
@@ -742,20 +741,18 @@ void codegen(Node *head, char *filename) {
   }
 
   // Expand functions
-  for (Node *node = head; node != NULL; node = node->next_block) {
+  for (Node *node = head; node != NULL; node = node->next) {
     if (node->kind != ND_FUNC) {
-      for (Node *var = node; var != NULL; var = var->next_stmt) {
-        if (var->kind == ND_INIT) {
-          gen_gvar_init(var);
-        } else {
-          gen_gvar_define(var->use_var);
-        }
+      if (node->kind == ND_INIT) {
+        gen_gvar_init(node);
+      } else {
+        gen_gvar_define(node->use_var);
       }
       continue;
     }
 
     Obj *func = node->func;
-    if (func->type->is_prototype) {
+    if (func->ty->is_prototype) {
       continue;
     }
 
@@ -769,7 +766,7 @@ void codegen(Node *head, char *filename) {
     println("  sub rsp, %d", func->vars_size);
 
     // Push arguments into the stack.
-    for (int i = 0; i < func->type->param_cnt; i++) {
+    for (int i = 0; i < func->ty->param_cnt; i++) {
       if (i < 6) {
         gen_push(args_reg[i]);
       } else {
@@ -779,17 +776,17 @@ void codegen(Node *head, char *filename) {
     }
 
     // Set arguments
-    for (int i = func->type->param_cnt - 1; i >= 0; i--) {
+    for (int i = func->ty->param_cnt - 1; i >= 0; i--) {
       Obj *arg = *(func->params + i);
 
       gen_pop("rcx");
       gen_addr(new_var(NULL, arg));
       gen_push("rax");
       println("  mov rax, rcx");
-      gen_store(arg->type);
+      gen_store(arg->ty);
     }
 
-    compile_node(node->next_stmt);
+    compile_node(node->deep);
 
     println("  mov rsp, rbp");
     gen_pop("rbp");

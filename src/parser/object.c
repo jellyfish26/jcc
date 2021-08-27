@@ -86,7 +86,7 @@ Obj *new_obj(Type *type, char *name) {
   }
   int name_len = strlen(name);
   Obj *ret = calloc(1, sizeof(Obj));
-  ret->type = type;
+  ret->ty = type;
   ret->name = calloc(name_len + 1, sizeof(char));
   memcpy(ret->name, name, name_len);
   ret->name_len = name_len;
@@ -247,7 +247,7 @@ bool declare_func(Type *ty) {
 
   // If the return type is different from a function that already declared,
   // we cannot be redeclared.
-  if (!is_same_type(ty->ret_ty, already->type->ret_ty)) {
+  if (!is_same_type(ty->ret_ty, already->ty->ret_ty)) {
     return false;
   }
 
@@ -266,7 +266,7 @@ bool declare_func(Type *ty) {
     return true;
   }
 
-  return check_func_params(ty, already->type);
+  return check_func_params(ty, already->ty);
 }
 
 bool define_func(Type *ty) {
@@ -278,7 +278,7 @@ bool define_func(Type *ty) {
     return true;
   }
 
-  if (!alrady->type->is_prototype || !check_func_params(ty, alrady->type)) {
+  if (!alrady->ty->is_prototype || !check_func_params(ty, alrady->ty)) {
     return false;
   }
 
@@ -291,7 +291,7 @@ int init_offset() {
   int now_address = 0;
 
   for (Obj *cur = used_objs; cur != NULL; cur = cur->next) {
-    now_address += cur->type->var_size;
+    now_address += cur->ty->var_size;
     cur->offset = now_address;
   }
 
@@ -319,13 +319,13 @@ static bool comp_type(Type *left, Type *right) {
 }
 
 static void implicit_cast(Node **lhs, Node **rhs) {
-  Type *type = comp_type((*lhs)->type, (*rhs)->type) ? (*rhs)->type : (*lhs)->type;
+  Type *type = comp_type((*lhs)->ty, (*rhs)->ty) ? (*rhs)->ty : (*lhs)->ty;
   *lhs = new_cast((*lhs)->tkn, *lhs, type);
   *rhs = new_cast((*rhs)->tkn, *rhs, type);
 }
 
 void add_type(Node *node) {
-  if (node == NULL || node->type != NULL) return;
+  if (node == NULL || node->ty != NULL) return;
 
   add_type(node->lhs);
   add_type(node->rhs);
@@ -334,12 +334,12 @@ void add_type(Node *node) {
   add_type(node->other);
   add_type(node->init);
   add_type(node->loop);
-  add_type(node->next_stmt);
-  add_type(node->next_block);
+  add_type(node->next);
+  add_type(node->deep);
 
   switch (node->kind) {
     case ND_VAR:
-      node->type = node->use_var->type;
+      node->ty = node->use_var->ty;
       return;
     case ND_ADD:
     case ND_SUB:
@@ -358,46 +358,46 @@ void add_type(Node *node) {
     case ND_LEC:
     case ND_LOGICALAND:
     case ND_LOGICALOR:
-      if (node->lhs->type->kind >= TY_PTR) {
-        node->type = node->lhs->type;
+      if (node->lhs->ty->kind >= TY_PTR) {
+        node->ty = node->lhs->ty;
         return;
       }
-      if (node->rhs->type->kind >= TY_PTR) {
-        node->type = node->rhs->type;
+      if (node->rhs->ty->kind >= TY_PTR) {
+        node->ty = node->rhs->ty;
         return;
       }
       implicit_cast(&node->lhs, &node->rhs);
-      node->type = node->lhs->type;
+      node->ty = node->lhs->ty;
       return;
     case ND_ASSIGN:
     case ND_BITWISENOT:
-      node->type = node->lhs->type;
+      node->ty = node->lhs->ty;
       break;
     case ND_LOGICALNOT:
-      node->type = new_type(TY_INT, false);
+      node->ty = new_type(TY_INT, false);
       return;
     case ND_ADDR: {
       Type *type = new_type(TY_PTR, false);
-      type->base = node->lhs->type;
-      node->type = type;
+      type->base = node->lhs->ty;
+      node->ty = type;
       return;
     }
     case ND_CONTENT: {
-      node->type = node->lhs->type;
-      if (node->type != NULL) {
-        node->type = node->type->base;
+      node->ty = node->lhs->ty;
+      if (node->ty != NULL) {
+        node->ty = node->ty->base;
       }
       return;
     }
     case ND_FUNCCALL:
-      node->type = node->func->type->ret_ty;
+      node->ty = node->func->ty->ret_ty;
       return;
     case ND_BLOCK:
-      node->type = last_stmt(node->next_block)->type;
+      node->ty = last_stmt(node->deep)->ty;
     case ND_INIT:
       return;
     default:
-      if (node->lhs != NULL) node->type = node->lhs->type;
-      if (node->rhs != NULL) node->type = node->rhs->type;
+      if (node->lhs != NULL) node->ty = node->lhs->ty;
+      if (node->rhs != NULL) node->ty = node->rhs->ty;
   }
 }

@@ -54,11 +54,15 @@ typedef enum {
 } NodeKind;
 
 struct Node {
-  NodeKind kind; // Type of Node
+  NodeKind kind; // Node kind
+  Token *tkn;    // Representative token
+  Type *ty;      // Node type
+  Node *next;    // Next node
+
   Node *lhs;     // Left side node
   Node *rhs;     // Right side node
-  Type *type;
-  Token *tkn;    // Representative token
+
+  Node *deep;    // Block or statement
 
   Obj *use_var; // Use target
 
@@ -67,9 +71,6 @@ struct Node {
   Node *then;  // cond true statement
   Node *other; // cond false statement
   Node *loop;  // Loop statement
-
-  Node *next_stmt;  // Next statement
-  Node *next_block; // Next Block
 
   int label; // label (only "for" or "while" statement)
 
@@ -147,7 +148,7 @@ bool define_func(Type *ty);
 
 // Variable or Function
 struct Obj {
-  Type *type;
+  Type *ty;  // Obj type
   Obj *next;
   
   char *name;
