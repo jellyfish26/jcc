@@ -281,7 +281,14 @@ static void gen_lvar_init(Node *node) {
       println("  mov rax, 0");
     }
 
-    gen_store(node->type);
+    switch (node->type->kind) {
+      case TY_DOUBLE:
+        gen_fstore(node->type);
+        break;
+      default:
+        gen_store(node->type);
+    }
+
     println("  mov rax, rdi");
     println("  add rax, %d", node->type->var_size);
   }

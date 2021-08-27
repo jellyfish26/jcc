@@ -274,7 +274,7 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       type_cnt += INT;
     } else if (equal(tkn, "long")) {
       type_cnt += LONG;
-    } else if (equal(tkn, "float")) {
+    } else if (equal(tkn, "double")) {
       type_cnt += DOUBLE;
     } else if (equal(tkn, "signed")) {
       type_cnt += SIGNED;
