@@ -479,8 +479,8 @@ void compile_node(Node *node) {
   if (node->kind == ND_FUNCCALL) {
     Type *ty = node->func->type;
     Node **args = calloc(ty->param_cnt, sizeof(Node*));
-    int argc = 0;
 
+    int argc = 0;
     for (Node *arg = node->args; arg != NULL; arg = arg->args) {
       *(args + argc) = arg;
       argc++;
@@ -661,31 +661,24 @@ void codegen(Node *head, char *filename) {
     println("  sub rsp, %d", func->vars_size);
 
     // Push arguments into the stack.
-    Obj **params = calloc(func->type->param_cnt, sizeof(Obj*));
-    int argc = 0;
-    for (Obj *param = func->params; param != NULL; param = param->params) {
-      if (argc < 6) {
-        gen_push(args_reg[argc]);
+    for (int i = 0; i < func->type->param_cnt; i++) {
+      if (i < 6) {
+        gen_push(args_reg[i]);
       } else {
-        println("  mov rax, QWORD PTR [rbp + %d]", 8 + (argc - 5) * 8);
+        println("  mov rax, QWORD PTR [rbp + %d]", 8 + (i - 5) * 8);
         gen_push("rax");
       }
-      *(params + argc) = param;
-      argc++;
     }
 
     // Set arguments
-    argc = func->type->param_cnt - 1;
-    while (argc >= 0) {
-      Obj *param = *(params + argc);
+    for (int i = func->type->param_cnt - 1; i >= 0; i--) {
+      Obj *arg = *(func->params + i);
 
       gen_pop("rcx");
-      gen_addr(new_var(NULL, param));
+      gen_addr(new_var(NULL, arg));
       gen_push("rax");
       println("  mov rax, rcx");
-      gen_store(param->type);
-
-      argc--;
+      gen_store(arg->type);
     }
 
     compile_node(node->next_stmt);

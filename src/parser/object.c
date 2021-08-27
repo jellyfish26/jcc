@@ -225,23 +225,12 @@ bool check_func_params(Type *lty, Type *rty) {
   bool chk = (lty->param_cnt == rty->param_cnt);
 
   if (chk) {
-    Type **params = calloc(lty->param_cnt * 2, sizeof(Type*));
-    int cnt = 0;
-    for (Type *param = lty->params; param != NULL; param = param->next) {
-      *(params + cnt) = param;
-      cnt++;
-    }
-    for (Type *param = rty->params; param != NULL; param = param->next) {
-      *(params + cnt) = param;
-      cnt++;
-    }
-
     for (int i = 0; i < lty->param_cnt; i++) {
-      if (!is_same_type(*(params + i), *(params + lty->param_cnt + i))) {
+      if (!is_same_type(*(lty->params + i), *(rty->params + i))) {
         chk = false;
+        break;
       }
     }
-    free(params);
   }
 
   return chk;

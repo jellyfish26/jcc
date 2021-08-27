@@ -422,7 +422,12 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
     ty->param_cnt++;
   }
 
-  ty->params = head.next;
+  ty->params = calloc(ty->param_cnt, sizeof(Node*));
+  for (int i = 0; i < ty->param_cnt; i++) {
+    *(ty->params + i) = head.next;
+    head.next = head.next->next;
+  }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return ty;
 }
@@ -903,20 +908,18 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
 
   new_scope();
   ty->is_prototype = false;
-  node->func = find_obj(ty->name);
 
-  Obj head = {};
-  Obj *cur = &head;
+  Obj *func = find_obj(ty->name);
+  node->func = func;
 
-  for (Type *var_ty = ty->params; var_ty != NULL; var_ty = var_ty->next) {
-    Obj *var = new_obj(var_ty, var_ty->name);
-    add_lvar(var);
-
-    cur->params = var;
-    cur = var;
+  func->params = calloc(ty->param_cnt, sizeof(Obj*));
+  for (int i = 0; i < ty->param_cnt; i++) {
+    Type *param_ty = *(ty->params + i);
+    Obj *param = new_obj(param_ty, param_ty->name);
+    add_lvar(param);
+    *(func->params + i) = param;
   }
 
-  node->func->params = head.params;
   node->next_stmt = comp_stmt(tkn, &tkn, false);
   del_scope();
   node->func->vars_size = init_offset();

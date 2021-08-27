@@ -133,7 +133,7 @@ struct Type {
   // Function type
   Type *ret_ty;
   int param_cnt;
-  Type *params;
+  Type **params;
   Type *next;
   bool is_prototype;
 };
@@ -157,7 +157,7 @@ struct Obj {
   int offset;
 
   // Function
-  Obj *params;
+  Obj **params;
   int vars_size;
 
   int64_t val;
