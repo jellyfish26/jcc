@@ -74,7 +74,7 @@ struct Node {
   int label; // label (only "for" or "while" statement)
 
   Obj *func;  // Function or Function call
-  Node *args;
+  Node **args;
 
   int64_t val;        // Value if kind is ND_NUM
   long double fval;   // Floating-value if kind is ND_NUM

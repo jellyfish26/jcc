@@ -478,17 +478,9 @@ void compile_node(Node *node) {
 
   if (node->kind == ND_FUNCCALL) {
     Type *ty = node->func->type;
-    Node **args = calloc(ty->param_cnt, sizeof(Node*));
 
-    int argc = 0;
-    for (Node *arg = node->args; arg != NULL; arg = arg->args) {
-      *(args + argc) = arg;
-      argc++;
-    }
-
-    while (argc > 0) {
-      argc--;
-      Node *arg = *(args + argc);
+    for (int i = ty->param_cnt - 1; i >= 0; i--) {
+      Node *arg = *(node->args + i);
       compile_node(arg->lhs);
       if (arg->lhs->type != NULL && arg->lhs->type->kind == TY_DOUBLE) {
         println("  movd rax, xmm0");
@@ -497,8 +489,8 @@ void compile_node(Node *node) {
       gen_push("rax");
     }
 
-    for (int arg_idx = 0; arg_idx < ty->param_cnt && arg_idx < 6; arg_idx++) {
-      gen_pop(args_reg[arg_idx]);
+    for (int i = 0; i < ty->param_cnt && i < 6; i++) {
+      gen_pop(args_reg[i]);
     }
 
     println("  call %s", node->func->name);

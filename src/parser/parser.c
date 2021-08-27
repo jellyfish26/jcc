@@ -1486,18 +1486,17 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     fcall->type = node->use_var->type;
     tkn = tkn->next;
 
-    Node head = {};
-    Node *cur = &head;
-    while (!consume(tkn, &tkn, ")")) {
-      if (cur != &head) {
+    fcall->args = calloc(fcall->type->param_cnt, sizeof(Node *));
+
+    for (int i = 0; i < fcall->type->param_cnt; i++) {
+      if (i != 0) {
         tkn = skip(tkn, ",");
       }
 
-      cur->args = new_node(ND_VOID, tkn, assign(tkn, &tkn), NULL);
-      cur = cur->args;
+      *(fcall->args + i) = new_node(ND_VOID, tkn, assign(tkn, &tkn), NULL);
     }
-    fcall->args = head.args;
 
+    tkn = skip(tkn, ")");
     if (end_tkn != NULL) *end_tkn = tkn;
     return fcall;
   }
