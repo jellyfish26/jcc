@@ -35,11 +35,11 @@ static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static int64_t eval_expr(Node *node);
 static bool is_const_expr(Node *node, char **ptr_label);
 static Node *funcdef(Token *tkn, Token **end_tkn);
-static Node *comp_stmt(Token *tkn, Token **end_tkn, bool new_scope);
+static Node *comp_stmt(Token *tkn, Token **end_tkn);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
 static Node *topmost(Token *tkn, Token **end_tkn);
-static Node *statement(Token *tkn, Token **end_tkn, bool new_scope);
+static Node *statement(Token *tkn, Token **end_tkn);
 static Node *expr(Token *tkn, Token **end_tkn);
 static Node *assign(Token *tkn, Token **end_tkn);
 static Node *conditional(Token *tkn, Token **end_tkn);
@@ -929,7 +929,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
     *(func->params + i) = param;
   }
 
-  node->deep = comp_stmt(tkn, &tkn, false);
+  node->deep = comp_stmt(tkn, &tkn);
   del_scope();
   node->func->vars_size = init_offset();
 
@@ -953,9 +953,9 @@ static Node *inside_roop; // inside for or while
 //                        "break" |
 //                        "return" expr? ";"
 // expression-statement = expression? ";"
-static Node *statement(Token *tkn, Token **end_tkn, bool has_scope) {
+static Node *statement(Token *tkn, Token **end_tkn) {
   // compound-statement
-  Node *node = comp_stmt(tkn, &tkn, has_scope);
+  Node *node = comp_stmt(tkn, &tkn);
   if (node != NULL) {
     if (end_tkn != NULL) *end_tkn = tkn;
     return node;
@@ -968,9 +968,14 @@ static Node *statement(Token *tkn, Token **end_tkn, bool has_scope) {
     ret->cond = assign(tkn, &tkn);
     tkn = skip(tkn, ")");
 
-    ret->then = statement(tkn, &tkn, false);
+    new_scope();
+    ret->then = statement(tkn, &tkn);
+    del_scope();
+
     if (equal(tkn, "else")) {
-      ret->other = statement(tkn->next, &tkn, false);
+      new_scope();
+      ret->other = statement(tkn->next, &tkn);
+      del_scope();
     }
 
     if (end_tkn != NULL) *end_tkn = tkn;
@@ -1002,7 +1007,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool has_scope) {
       tkn = skip(tkn, ")");
     }
 
-    ret->then = statement(tkn, &tkn, false);
+    ret->then = statement(tkn, &tkn);
     del_scope();
 
     inside_roop = roop_state;
@@ -1024,7 +1029,7 @@ static Node *statement(Token *tkn, Token **end_tkn, bool has_scope) {
 
     tkn = skip(tkn, ")");
 
-    ret->then = statement(tkn, &tkn, false);
+    ret->then = statement(tkn, &tkn);
     inside_roop = roop_state;
 
     del_scope();
@@ -1077,9 +1082,8 @@ static Node *statement(Token *tkn, Token **end_tkn, bool has_scope) {
 }
 
 // compound-statement   = { ( declaration | statement )* }
-static Node *comp_stmt(Token *tkn, Token **end_tkn, bool has_scope) {
+static Node *comp_stmt(Token *tkn, Token **end_tkn) {
   if (consume(tkn, &tkn, "{")) {
-    if (has_scope) new_scope();
 
     Node *ret = new_node(ND_BLOCK, tkn, NULL, NULL);
 
@@ -1090,14 +1094,15 @@ static Node *comp_stmt(Token *tkn, Token **end_tkn, bool has_scope) {
       cur->next = declaration(tkn, &tkn, false);
 
       if (cur->next == NULL) {
-        cur->next = statement(tkn, &tkn, true);
+        new_scope();
+        cur->next = statement(tkn, &tkn);
+        del_scope();
       }
 
       cur = last_stmt(cur);
     }
 
     ret->deep = head.next;
-    if (has_scope) del_scope();
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
@@ -1537,7 +1542,9 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 static Node *primary(Token *tkn, Token **end_tkn) {
   // GNU Statements
   if (equal(tkn, "(") && equal(tkn->next, "{")) {
-    Node *ret = statement(tkn->next, &tkn, true);
+    new_scope();
+    Node *ret = statement(tkn->next, &tkn);
+    del_scope();
  
     tkn = skip(tkn, ")");
  

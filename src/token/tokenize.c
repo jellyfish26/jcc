@@ -243,26 +243,26 @@ static Token *read_integer(char *str, char **end_ptr, Token *connect) {
   Type *ty = new_type(TY_INT, false);
 
   // Implicit type
-  if (prefix == 10 && (val>>31)>0) {
+  if (prefix == 10 && ((uint64_t)val>>31)>0) {
     ty->kind = TY_LONG;
     ty->var_size = 8;
   }
 
-  if ((prefix == 8 || prefix == 16) && (val>>30)>0) {
+  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>30)>0) {
     ty->is_unsigned = true;
   }
 
-  if ((prefix == 8 || prefix == 16) && (val>>31)>0) {
+  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>31)>0) {
     ty->kind = TY_LONG;
     ty->var_size = 8;
   }
 
-  if ((prefix == 8 || prefix == 16) && (val>>62)>0) {
+  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>62)>0) {
     ty->kind = TY_LONG;
     ty->var_size = 8;
   }
 
-  if ((prefix == 8 || prefix == 16) && (val>>63)>0) {
+  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>63)>0) {
     ty->kind = TY_LONG;
     ty->var_size = 8;
     ty->is_unsigned = true;

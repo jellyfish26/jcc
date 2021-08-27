@@ -149,13 +149,26 @@ static char u64f64[] =
   "  add rax, rdi";
 
 static char f64i8[]  = "movsx eax, al\n  cvtsi2sd xmm0, eax";
-static char f64u8[]  = "movzx eax, al\n  vcvtusi2sd xmm0, eax";
+static char f64u8[]  = "movzx eax, al\n  cvtsi2sd xmm0, eax";
 static char f64i16[] = "movsx eax, ax\n  cvtsi2sd xmm0, eax";
-static char f64u16[] = "movzx eax, ax\n  vcvtusi2sd xmm0, eax";
+static char f64u16[] = "movzx eax, ax\n  cvtsi2sd xmm0, eax";
 static char f64i32[] = "cvtsi2sd xmm0, eax";
-static char f64u32[] = "vcvtusi2sd xmm0, eax";
+static char f64u32[] = "mov eax, eax\n  cvtsi2sd xmm0, rax";
 static char f64i64[] = "cvtsi2sd xmm0, rax";
-static char f64u64[] = "vcvtusi2sd xmm0, rax";
+static char f64u64[] = 
+    "test rax, rax\n"
+  "  pxor xmm0, xmm0\n"
+  "  js 1f\n"
+  "  cvtsi2sd xmm0, rax\n"
+  "  jmp 2f\n"
+  "1:\n"
+  "  mov rdx, rax\n"
+  "  shr rdx\n"
+  "  and eax, 1\n"
+  "  or rdx, rax\n"
+  "  cvtsi2sd xmm0, rdx\n"
+  "  addsd xmm0, xmm0\n"
+  "2:";
 
 static char *cast_table[][9] = {
 // i8     i16     i32     i64     u8     u16     u32     u64     f64     to/from

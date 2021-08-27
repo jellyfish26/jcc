@@ -46,5 +46,9 @@ int main() {
   CHECK(-5, (unsigned int) -5.53);
   CHECK(-429187409242141056, (long)-429187409242141043.4214);
 
+  CHECKD(5.0, (double)5);
+  CHECKD(0.0, (double)(char)256);
+  CHECKD(9223372196854775808.0, (double)9223372196854775808u);
+
   return 0;
 }
