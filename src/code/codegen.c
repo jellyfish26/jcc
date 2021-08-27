@@ -143,7 +143,7 @@ static char u64f64[] =
   "  xor rdi, rdi\n"
   "  comisd xmm0, xmm1\n"
   "  jb 1f\n"
-  "  mov rdi, 9223372036854775807\n"
+  "  mov rdi, 9223372036854775808\n"
   "  subsd xmm0, xmm1\n"
   "1:\n"
   "  cvttsd2si rax, xmm0\n"

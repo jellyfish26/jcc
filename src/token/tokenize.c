@@ -360,6 +360,30 @@ Token *tokenize(char *file_name) {
       continue;
     }
 
+    if ((*now_str == '-' || *now_str == '+') && isdigit(*(now_str + 1))) {
+      char *p;
+      strtol(now_str + 1, &p, 10);
+      if (*p == '.') {
+        Token *tkn = read_float(now_str, &now_str, ret);
+        ret = tkn;
+        continue;
+      }
+    }
+
+    if (isdigit(*now_str)) {
+      Token *tkn = read_integer(now_str, &now_str, ret);
+      if (tkn != NULL) {
+        ret = tkn;
+        continue;
+      }
+
+      tkn = read_float(now_str, &now_str, ret);
+      if (tkn != NULL) {
+        ret = tkn;
+        continue;
+      }
+    }
+
     bool check = false;
 
     // Check punctuators
@@ -417,20 +441,6 @@ Token *tokenize(char *file_name) {
 
     if (check) {
       continue;
-    }
-
-    if (isdigit(*now_str)) {
-      Token *tkn = read_integer(now_str, &now_str, ret);
-      if (tkn != NULL) {
-        ret = tkn;
-        continue;
-      }
-
-      tkn = read_float(now_str, &now_str, ret);
-      if (tkn != NULL) {
-        ret = tkn;
-        continue;
-      }
     }
 
     if (is_useable_char(*now_str)) {
