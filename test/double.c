@@ -11,11 +11,10 @@ int main() {
     a;
   }));
 
-  // Bug
-  // CHECKD(7.65, ({
-  //   double a = 3.55;
-  //   a;
-  // }));
+  CHECKD(7.75, ({
+    double a = 3.55, b = 4.2;
+    a + b;
+  }));
 
   return 0;
 }

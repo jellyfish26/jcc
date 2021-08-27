@@ -105,7 +105,12 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
   Obj *obj = calloc(1, sizeof(Obj));
   obj->type = ty;
   obj->fval = fval;
-  Node *ret = new_var(tkn, obj);
+
+  Node *ret = calloc(1, sizeof(Node));
+  ret->kind = ND_NUM;
+  ret->use_var = obj;
+  ret->type = ty;
+
   add_gvar(obj, false);
   return ret;
 }
@@ -856,7 +861,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
   return node;
 }
 
-static Node *last_stmt(Node *now) {
+Node *last_stmt(Node *now) {
   while (now->next_stmt != NULL) {
     now = now->next_stmt;
   }

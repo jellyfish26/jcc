@@ -44,11 +44,10 @@ static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       // String literal
-      if (node->use_var->type->kind == TY_STR || node->use_var->type->kind == TY_DOUBLE) {
+      if (node->use_var->type->kind == TY_STR) {
         println("  mov rax, offset .LC%d", node->use_var->offset);
         return;
       }
-
 
       if (node->use_var->is_global) {
         println("  mov rax, offset %s", node->use_var->name);

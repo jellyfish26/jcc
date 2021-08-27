@@ -87,6 +87,7 @@ Node *new_var(Token *tkn, Obj *obj);
 Node *new_strlit(Token *tkn, char *strlit);
 Node *new_assign(Token *tkn, Node *lhs, Node *rhs);
 Node *to_assign(Token *tkn, Node *rhs);
+Node *last_stmt(Node *now);
 
 Node *program(Token *tkn);
 

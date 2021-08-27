@@ -390,8 +390,10 @@ void add_type(Node *node) {
       return;
     }
     case ND_FUNCCALL:
-      node->type = node->func->type;
+      node->type = node->func->type->ret_ty;
       return;
+    case ND_BLOCK:
+      node->type = last_stmt(node->next_block)->type;
     case ND_INIT:
       return;
     default:
