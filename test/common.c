@@ -10,3 +10,11 @@ void check(int expected, int actual, char *str) {
     exit(1);
   }
 }
+
+void checkd(float expected, float actual, char *str) {
+  if (expected == actual) {
+    printf("\e[32m[ OK ]\e[m %s => %f\n", str, actual);
+  } else {
+    printf("\e[31m[ NG ]\e[m %s => %f expected but got %f\n", str, expected, actual);
+  }
+}

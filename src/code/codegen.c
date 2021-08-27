@@ -332,6 +332,68 @@ static void gen_gvar_define(Obj *var) {
   }
 }
 
+static void cnt_func_params(Node *node, int *general, int *floating) {
+  Type *ty = node->func->type;
+
+  for (int i = 0; i < ty->param_cnt; i++) {
+    TypeKind kind = (*(ty->params + i))->kind;
+    if (kind == TY_FUNC) {
+      kind = (*(ty->params + i))->ret_ty->kind;
+    }
+
+    switch (kind) {
+      case TY_FLOAT:
+      case TY_DOUBLE:
+        (*floating)++;
+        break;
+      default:
+        (*general)++;
+    }
+  }
+}
+
+static void push_func_params(Node *node, bool is_reg) {
+  Type *ty = node->func->type;
+
+  int general = 0, floating = 0;
+  cnt_func_params(node, &general, &floating);
+
+  for (int i = ty->param_cnt - 1; i >= 0; i--) {
+    TypeKind kind = (*(ty->params + i))->kind;
+    if (kind == TY_FUNC) {
+      kind = (*(ty->params + i))->ret_ty->kind;
+    }
+
+    switch (kind) {
+      case TY_FLOAT:
+      case TY_DOUBLE: {
+        bool is_expand = false;
+        floating--;
+        is_expand |= (floating <= 7 && is_reg);
+        is_expand |= (floating > 7 && !is_reg);
+
+        if (is_expand) {
+          compile_node((*(node->args + i))->lhs);
+          println("  movd rax, xmm0");
+          gen_push("rax");
+        }
+        break;
+      }
+      default: {
+        bool is_expand = false;
+        general--;
+        is_expand |= (general <= 5 && is_reg);
+        is_expand |= (general > 5 && !is_reg);
+
+        if (is_expand) {
+          compile_node((*(node->args + i))->lhs);
+          gen_push("rax");
+        }
+      }
+    }
+  }
+}
+
 void compile_node(Node *node) {
   if (node == NULL) {
     return;
@@ -479,23 +541,41 @@ void compile_node(Node *node) {
   if (node->kind == ND_FUNCCALL) {
     Type *ty = node->func->type;
 
-    for (int i = ty->param_cnt - 1; i >= 0; i--) {
-      Node *arg = *(node->args + i);
-      compile_node(arg->lhs);
-      if (arg->lhs->type != NULL && arg->lhs->type->kind == TY_DOUBLE) {
-        println("  movd rax, xmm0");
+    push_func_params(node, false);
+    push_func_params(node, true);
+
+    int general = 0, floating = 0, stack = 0;
+    for (int i = 0; i < ty->param_cnt; i++) {
+      TypeKind kind = (*(ty->params + i))->kind;
+      if (kind == TY_FUNC) {
+        kind = (*(ty->params + i))->ret_ty->kind;
       }
 
-      gen_push("rax");
-    }
-
-    for (int i = 0; i < ty->param_cnt && i < 6; i++) {
-      gen_pop(args_reg[i]);
+      switch (kind) {
+        case TY_FLOAT:
+        case TY_DOUBLE:
+          if (floating <= 7) {
+            gen_pop("rax");
+            println("  movd xmm%d, rax", floating);
+          } else {
+            stack++;
+          }
+          floating++;
+          break;
+        default:
+          if (general <= 5) {
+            gen_pop("rax");
+            println("  mov %s, rax", args_reg[general]);
+          } else {
+            stack++;
+          }
+          general++;
+      }
     }
 
     println("  call %s", node->func->name);
-    if (ty->param_cnt > 6) {
-      gen_emptypop(ty->param_cnt - 6);
+    if (stack > 0) {
+      gen_emptypop(stack);
     }
     return;
   }
