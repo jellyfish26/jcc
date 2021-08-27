@@ -129,17 +129,48 @@ static char i32u16[] = "movzx eax, ax";
 static char i64i32[] = "movsxd rax, eax";
 static char i64u32[] = "mov eax, eax";
 
-static char *cast_table[][8] = {
-// i8     i16     i32   i64     u8     u16     u32   u64      to/from
-  {NULL,  NULL,   NULL, i64i32, i32u8, i32u16, NULL, i64i32}, // i8
-  {i32i8, NULL,   NULL, i64i32, i32u8, i32u16, NULL, i64i32}, // i16
-  {i32i8, i32i16, NULL, i64i32, i32u8, i32u16, NULL, i64i32}, // i32
-  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // i64
+static char i8f64[]  = "cvttsd2si eax, xmm0\n  movsx eax, al";
+static char u8f64[]  = "cvttsd2si eax, xmm0\n  movzx eax, al";
+static char i16f64[] = "cvttsd2si eax, xmm0\n  movsx eax, ax";
+static char u16f64[] = "cvttsd2si eax, xmm0\n  movzx eax, ax";
+static char i32f64[] = "cvttsd2si eax, xmm0";
+static char u32f64[] = "cvttsd2si rax, xmm0\n  mov eax, eax";
+static char i64f64[] = "cvttsd2si rax, xmm0";
+static char u64f64[] = 
+    "mov rax, 9223372036854775807\n"
+  "  cvtsi2sd xmm1, rax\n"
+  "  xor rax, rax\n"
+  "  xor rdi, rdi\n"
+  "  comisd xmm0, xmm1\n"
+  "  jb 1f\n"
+  "  mov rdi, 9223372036854775807\n"
+  "  subsd xmm0, xmm1\n"
+  "1:\n"
+  "  cvttsd2si rax, xmm0\n"
+  "  add rax, rdi";
 
-  {i32i8, NULL,   NULL, i64i32, i32u8, NULL,   NULL, i64i32}, // u8
-  {i32i8, i32i16, NULL, i64i32, i32u8, NULL,   NULL, i64i32}, // u16
-  {i32i8, i32i16, NULL, i64u32, i32u8, i32u16, NULL, i64u32}, // u32
-  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // u64
+static char f64i8[]  = "movsx eax, al\n  cvtsi2sd xmm0, eax";
+static char f64u8[]  = "movzx eax, al\n  vcvtusi2sd xmm0, eax";
+static char f64i16[] = "movsx eax, ax\n  cvtsi2sd xmm0, eax";
+static char f64u16[] = "movzx eax, ax\n  vcvtusi2sd xmm0, eax";
+static char f64i32[] = "cvtsi2sd xmm0, eax";
+static char f64u32[] = "vcvtusi2sd xmm0, eax";
+static char f64i64[] = "cvtsi2sd xmm0, rax";
+static char f64u64[] = "vcvtusi2sd xmm0, rax";
+
+static char *cast_table[][9] = {
+// i8     i16     i32     i64     u8     u16     u32     u64     f64     to/from
+  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64i8},  // i8
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64i16}, // i16
+  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64i32}, // i32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f64i64}, // i64
+
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64u8},  // u8
+  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, f64u16}, // u16
+  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, f64u32}, // u32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f64u64}, // u64
+
+  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, NULL},   // f64
 };
 
 static int get_type_idx(Type *type) {
@@ -156,6 +187,9 @@ static int get_type_idx(Type *type) {
       break;
     case TY_LONG:
       ret = 3;
+      break;
+    case TY_DOUBLE:
+      ret = 8;
       break;
     default:
       return 0;
@@ -395,10 +429,6 @@ static void push_func_params(Node *node, bool is_reg) {
 }
 
 void compile_node(Node *node) {
-  if (node == NULL) {
-    return;
-  }
-
   if (node->kind == ND_NUM) {
     switch (node->type->kind) {
       case TY_INT:

@@ -36,5 +36,11 @@ int main() {
   
   CHECK(0, (_Bool)256);
 
+  CHECK(2, (int)2.3);
+  CHECK(10, (char)10.2442);
+  CHECK(1, (unsigned)1.34);
+  CHECK(0, (_Bool)256.0);
+  CHECK(2000000000000000, (unsigned long)2000000000000000.0);
+
   return 0;
 }
