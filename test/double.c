@@ -83,5 +83,143 @@ int main() {
     a;
   }));
 
+  CHECK(0, ({
+    double a = 5.0, b = 5.0;
+    a < b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.0, b = 5.0;
+    a <= b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.0, b = 5.1;
+    a < b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.0, b = 5.1;
+    a <= b;
+  }));
+
+  CHECK(0, ({
+    double a = 5.0, b = 5.1;
+    b <= a;
+  }));
+
+  CHECK(0, ({
+    double a = 5.0, b = 5.1;
+    b < a;
+  }));
+
+  CHECK(1, ({
+    double a = 5.0, b = 5.0;
+    a == b;
+  }));
+
+  CHECK(0, ({
+    double a = 5.0, b = 5.1;
+    a == b;
+  }));
+
+  CHECK(0, ({
+    double a = 5.0, b = 5.0;
+    a != b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.0, b = 5.1;
+    a != b;
+  }));
+
+  CHECK(1, ({
+    double a = 0.01, b = 5.1;
+    a && b;
+  }));
+
+  CHECK(0, ({
+    double a = 0.0, b = 5.1;
+    a && b;
+  }));
+
+  CHECK(0, ({
+    double a = 0.0, b = 0.0;
+    a && b;
+  }));
+
+  CHECK(0, ({
+    double a = 5.1, b = 0.0;
+    a && b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.1, b = 0.01;
+    a && b;
+  }));
+
+  CHECK(1, ({
+    double a = 0.01, b = 5.1;
+    a || b;
+  }));
+
+  CHECK(1, ({
+    double a = 0.0, b = 5.1;
+    a || b;
+  }));
+
+  CHECK(0, ({
+    double a = 0.0, b = 0.0;
+    a || b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.1, b = 0.0;
+    a || b;
+  }));
+
+  CHECK(1, ({
+    double a = 5.1, b = 0.01;
+    a || b;
+  }));
+
+  CHECK(0, ({
+    double a = 5.1;
+    !a;
+  }));
+
+  CHECK(0, ({
+    double a = 0.00001;
+    !a;
+  }));
+
+  CHECK(1, ({
+    double a = 0.0;
+    !a;
+  }));
+
+  CHECKD(5.1, ({
+    double a = 5.1;
+    a++;
+  }));
+
+  CHECKD(6.1, ({
+    double a = 5.1;
+    a++;
+    a;
+  }));
+
+  CHECKD(6.1, ({
+    double a = 5.1;
+    ++a;
+  }));
+
+  CHECKD(6.1, ({
+    double a = 5.1;
+    ++a;
+    a;
+  }));
+
+
   return 0;
 }

@@ -102,6 +102,32 @@ int main() {
     ans;
   }));
 
+  CHECK(6, ({
+    int ans = 0;
+    int a = 2;
+    int b = 3;
+    int c = 6;
+    if (a == 2 && b == 3 && c == 7) {
+      ans = 5;
+    } else {
+      ans = c;
+      }
+    ans;
+  }));
+
+  CHECK(5, ({
+    int ans = 0;
+    int a = 2;
+    int b = 3;
+    int c = 6;
+    if (a == 2 && b == 3 && c == 6) {
+      ans = 5;
+    } else {
+      ans = c;
+      }
+    ans;
+  }));
+
   CHECK(3, ({
     int ans = 0;
     int a = 2;

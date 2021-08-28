@@ -249,28 +249,6 @@ void expand_assign(Node *node) {
   }
 }
 
-static void gen_logical(Node *node, int label) {
-  compile_node(node->lhs);
-  println("  cmp rax, 0");
-
-  if (node->kind == ND_LOGICALAND) {
-    println("  je .Lfalse%d", label);
-  } else {
-    println("  jne .Ltrue%d", label);
-  }
-
-  compile_node(node->rhs);
-  println("  cmp rax, 0");
-  println("  je .Lfalse%d", label);
-
-  println(".Ltrue%d:", label);
-  println("  mov rax, 1");
-  println("  jmp .Lthen%d", label);
-  println(".Lfalse%d:", label);
-  println("  mov rax, 0");
-  println(".Lthen%d:", label);
-}
-
 void expand_ternary(Node *node, int label) {
   compile_node(node->cond);
   println("  cmp rax, 0");
@@ -570,11 +548,6 @@ void compile_node(Node *node) {
       gen_load(node->ty);
       return;
     }
-    case ND_LOGICALAND:
-    case ND_LOGICALOR: {
-      gen_logical(node, branch_label++);
-      return;
-    }
     case ND_BITWISENOT: {
       compile_node(node->lhs);
       println("  not rax");
@@ -582,9 +555,19 @@ void compile_node(Node *node) {
     }
     case ND_LOGICALNOT: {
       compile_node(node->lhs);
-      println("  cmp rax, 0");
-      println("  sete al");
-      println("  movzx rax, al");
+      if (node->lhs->ty->kind == TY_DOUBLE) {
+        println("  pxor xmm2, xmm2");
+        println("  ucomisd xmm2, xmm0");
+        println("  setnp al");
+        println("  xor rdx, rdx");
+        println("  ucomisd xmm2, xmm0");
+        println("  cmovne eax, edx");
+        println("  movzx rax, al");
+      } else {
+        println("  cmp rax, 0");
+        println("  sete al");
+        println("  movzx rax, al");
+      }
       return;
     }
     default:
@@ -662,6 +645,66 @@ void compile_node(Node *node) {
       case ND_DIV:
         println("  divsd xmm0, xmm1");
         return;
+      case ND_EQ:
+        println("  xor rdx, rdx");
+        println("  ucomisd xmm0, xmm1");
+        println("  setnp al");
+        println("  ucomisd xmm0, xmm1");
+        println("  cmovne eax, edx");
+        println("  movzx rax, al");
+        return;
+      case ND_NEQ:
+        println("  mov rdx, 1");
+        println("  ucomisd xmm0, xmm1");
+        println("  setp al");
+        println("  ucomisd xmm0, xmm1");
+        println("  cmovne eax, edx");
+        println("  movzx rax, al");
+        return;
+      case ND_LC:
+        println("  comisd xmm1, xmm0");
+        println("  seta al");
+        println("  movzx rax, al");
+        return;
+      case ND_LEC:
+        println("  comisd xmm1, xmm0");
+        println("  setnb al");
+        println("  movzx rax, al");
+        return;
+      case ND_LOGICALAND:
+        println("  pxor xmm2, xmm2");
+        println("  ucomisd xmm2, xmm0");
+        println("  jp 1f");
+        println("  ucomisd xmm2, xmm0");
+        println("  je 3f");
+        println("1:");
+        println("  ucomisd xmm2, xmm1");
+        println("  jp 2f");
+        println("  ucomisd xmm2, xmm1");
+        println("  je 3f");
+        println("2:");
+        println("  mov rax, 1");
+        println("  jmp 4f");
+        println("3:");
+        println("  mov rax, 0");
+        println("4:");
+        return;
+      case ND_LOGICALOR:
+        println("  pxor xmm2, xmm2");
+        println("  ucomisd xmm2, xmm0");
+        println("  jp 1f");
+        println("  ucomisd xmm2, xmm0");
+        println("  jne 1f");
+        println("  ucomisd xmm2, xmm1");
+        println("  jp 1f");
+        println("  ucomisd xmm2, xmm1");
+        println("  jne 1f");
+        println("  mov rax, 0");
+        println("  jmp 2f");
+        println("1:");
+        println("  mov rax, 1");
+        println("2:");
+        return;
     }
   }
 
@@ -716,15 +759,6 @@ void compile_node(Node *node) {
         println("  sar %s, cl", rax);
       }
       break;
-    case ND_BITWISEAND:
-      println("  and %s, %s", rax, rdi);
-      break;
-    case ND_BITWISEXOR:
-      println("  xor %s, %s", rax, rdi);
-      break;
-    case ND_BITWISEOR:
-      println("  or %s, %s", rax, rdi);
-      break;
     case ND_EQ:
       gen_comp("sete", rax, rdi);
       break;
@@ -744,6 +778,38 @@ void compile_node(Node *node) {
       } else {
         gen_comp("setle", rax, rdi);
       }
+      break;
+    case ND_BITWISEAND:
+      println("  and %s, %s", rax, rdi);
+      break;
+    case ND_BITWISEXOR:
+      println("  xor %s, %s", rax, rdi);
+      break;
+    case ND_BITWISEOR:
+      println("  or %s, %s", rax, rdi);
+      break;
+    case ND_LOGICALAND:
+      println("  cmp %s, 0", rax);
+      println("  je 1f");
+      println("  cmp %s, 0", rdi);
+      println("  je 1f");
+      println("  mov rax, 1");
+      println("  jmp 2f");
+      println("1:");
+      println("  mov rax, 0");
+      println("2:");
+      break;
+    case ND_LOGICALOR:
+      println("  cmp %s, 0", rax);
+      println("  jne 1f");
+      println("  cmp %s, 0", rdi);
+      println("  je 2f");
+      println("1:");
+      println("  mov rax, 1");
+      println("  jmp 3f");
+      println("2:");
+      println("  mov rax, 0");
+      println("3:");
       break;
     default:
       break;
