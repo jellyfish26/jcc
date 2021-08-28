@@ -653,6 +653,15 @@ void compile_node(Node *node) {
       case ND_ADD:
         println("  addsd xmm0, xmm1");
         return;
+      case ND_SUB:
+        println("  subsd xmm0, xmm1");
+        return;
+      case ND_MUL:
+        println("  mulsd xmm0, xmm1");
+        return;
+      case ND_DIV:
+        println("  divsd xmm0, xmm1");
+        return;
     }
   }
 

@@ -409,7 +409,6 @@ Token *tokenize(char *file_name) {
       char *s_pos = now_str;
       ret = new_token(TK_NUM, ret, now_str, 3);
       ret->val = read_char(now_str + 1, &now_str);
-      fprintf(stderr, "%ld\n", ret->val);
       ret->ty = new_type(TY_CHAR, false);
 
       if (*now_str != '\'') {
