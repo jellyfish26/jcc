@@ -214,6 +214,7 @@ static char *get_ident(Token *tkn) {
   if (tkn->kind != TK_IDENT) {
     return NULL;
   }
+
   char *ret = calloc(tkn->len + 1, sizeof(char));
   memcpy(ret, tkn->loc, tkn->len);
   return ret;
@@ -222,14 +223,17 @@ static char *get_ident(Token *tkn) {
 // type-qualifier = "const"
 static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
   bool is_qual = false;
+
   if (equal(tkn, "const")) {
     if (attr->is_const) {
       errorf_tkn(ER_COMPILE, tkn, "Duplicate const");
     }
+
     attr->is_const = true;
     tkn = tkn->next;
     is_qual = true;
   }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return is_qual;
 };
@@ -383,11 +387,11 @@ static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
 // array-dimension = constant "]" type-suffix
 static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
   int64_t val = 0;
-  Node *node = constant(tkn, &tkn);
-  if (node != NULL) {
-    val = node->val;
+
+  if (!consume(tkn, &tkn, "]")) {
+    val = constant(tkn, &tkn)->val;
+    tkn = skip(tkn, "]");
   }
-  tkn = skip(tkn, "]");
 
   return array_to(type_suffix(tkn, end_tkn, ty), val);
 }
@@ -400,14 +404,8 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
   ty = new_type(TY_FUNC, false);
   ty->ret_ty = ret_ty;
 
-  if (consume(tkn, &tkn, ")")) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ty;
-  }
-
-  if (consume(tkn, &tkn, "void")) {
-    tkn = skip(tkn, ")");
-    if (end_tkn != NULL) *end_tkn = tkn;
+  if (equal(tkn, "void") && equal(tkn->next, ")")) {
+    if (end_tkn != NULL) *end_tkn = tkn->next->next;
     return ty;
   }
 
@@ -427,10 +425,12 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
     ty->param_cnt++;
   }
 
-  ty->params = calloc(ty->param_cnt, sizeof(Node*));
-  for (int i = 0; i < ty->param_cnt; i++) {
-    *(ty->params + i) = head.next;
-    head.next = head.next->next;
+  if (ty->param_cnt != 0) {
+    ty->params = calloc(ty->param_cnt, sizeof(Type*));
+    for (int i = 0; i < ty->param_cnt; i++) {
+      *(ty->params + i) = head.next;
+      head.next = head.next->next;
+    }
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -1574,47 +1574,35 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     return node;
   }
 
-  // constant
-  Node *node = constant(tkn, &tkn);
-  if (node != NULL) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return node;
+  if (tkn->kind == TK_STR) {
+    if (end_tkn != NULL) *end_tkn = tkn->next;
+    return new_strlit(tkn, tkn->str_lit);
   }
 
-  if (tkn->kind != TK_STR) {
-    errorf_tkn(ER_COMPILE, tkn, "Grammatical error.");
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn->next;
-  return new_strlit(tkn, tkn->str_lit);
+  return constant(tkn, end_tkn);
 }
 
 // constant = interger-constant |
 //            character-constant
 static Node *constant(Token *tkn, Token **end_tkn) {
-  Node *node = NULL;
-  if (tkn->kind == TK_NUM) {
-    Type *ty = tkn->ty;
-    node = new_node(ND_NUM, tkn, NULL, NULL);
-    node->ty = ty;
-
-    switch (ty->kind) {
-      case TY_FLOAT:
-      case TY_DOUBLE:
-      case TY_LDOUBLE:
-        node = new_floating(tkn, ty, tkn->fval);
-        break;
-      default:
-        node->val = tkn->val;
-    }
+  if (tkn->kind != TK_NUM) {
+    errorf_tkn(ER_COMPILE, tkn, "Grammatical Error");
   }
 
-  if (tkn->kind == TK_CHAR) {
-    node = new_num(tkn, tkn->c_lit);
+  Type *ty = tkn->ty;
+  Node *node = new_node(ND_NUM, tkn, NULL, NULL);
+  node->ty = ty;
+
+  switch (ty->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+    case TY_LDOUBLE:
+      node = new_floating(tkn, ty, tkn->fval);
+      break;
+    default:
+      node->val = tkn->val;
   }
 
-  if (end_tkn != NULL) {
-    *end_tkn = (node == NULL ? tkn : tkn->next);
-  }
+  if (end_tkn != NULL) *end_tkn = tkn->next;
   return node;
 }

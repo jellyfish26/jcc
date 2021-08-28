@@ -450,6 +450,8 @@ static void push_func_params(Node *node, bool is_reg) {
 void compile_node(Node *node) {
   if (node->kind == ND_NUM) {
     switch (node->ty->kind) {
+      case TY_CHAR:
+      case TY_SHORT:
       case TY_INT:
       case TY_LONG:
         println("  mov rax, %ld", node->val);

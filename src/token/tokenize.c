@@ -407,8 +407,11 @@ Token *tokenize(char *file_name) {
     // Check char
     if (*now_str == '\'') {
       char *s_pos = now_str;
-      ret = new_token(TK_CHAR, ret, now_str, 3);
-      ret->c_lit = read_char(now_str + 1, &now_str);
+      ret = new_token(TK_NUM, ret, now_str, 3);
+      ret->val = read_char(now_str + 1, &now_str);
+      fprintf(stderr, "%ld\n", ret->val);
+      ret->ty = new_type(TY_CHAR, false);
+
       if (*now_str != '\'') {
         errorf_loc(ER_COMPILE, now_str, 1, "The char must be a single character.");
       }
