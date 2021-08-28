@@ -16,5 +16,16 @@ int main() {
     a + b;
   }));
 
+  CHECKD(8.0, ({
+    double a = 3, b = 5;
+    a + b;
+  }));
+
+  CHECKD(5.5, ({
+    double a = 3.5;
+    a + 2;
+  }));
+
+
   return 0;
 }

@@ -605,12 +605,16 @@ static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {
   return ret;
 }
 
-static Node *create_init_node(Initializer *init, Node **end_node, bool only_const) {
-  Node *head = calloc(1, sizeof(Node));
-
+static void create_init_node(Initializer *init, Node **connect, bool only_const, Type *ty) {
   if (init->children == NULL) {
-    head->kind = ND_INIT;
-    head->init = init->node;
+    Node *node = calloc(1, sizeof(Node));
+    node->kind = ND_INIT;
+    node->init = init->node;
+    node->ty = ty;
+
+    if (!only_const && init->node != NULL && !is_same_type(ty, init->node->ty)) {
+      node->init = new_cast(init->node->tkn, init->node, ty);
+    }
 
     if (only_const && init->node != NULL) {
       char *ptr_label = NULL;
@@ -618,22 +622,21 @@ static Node *create_init_node(Initializer *init, Node **end_node, bool only_cons
         errorf_tkn(ER_COMPILE, init->node->tkn, "Require constant expression.");
       }
 
-      head->init = new_num(init->node->tkn, eval_expr(init->node));
-      head->init->use_var = calloc(1, sizeof(Obj));
-      head->init->use_var->name = ptr_label;
+      node->init = new_num(init->node->tkn, eval_expr(init->node));
+      node->init->use_var = calloc(1, sizeof(Obj));
+      node->init->use_var->name = ptr_label;
     }
 
-    if (end_node != NULL) *end_node = head;
-    return head;
+    (*connect)->lhs = node;
+    *connect = node;
+    return;
   }
 
-  Node *now = head;
   for (int i = 0; i < init->ty->array_len; i++) {
-    now->lhs = create_init_node(init->children[i], &now, only_const);
+    create_init_node(init->children[i], connect, only_const, ty->base);
   }
 
-  if (end_node != NULL) *end_node = now;
-  return head->lhs;
+  return;
 }
 
 
@@ -843,13 +846,14 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
   if (equal(tkn, "=")) {
     Initializer *init = initializer(tkn->next, &tkn, obj->ty);
-    node = new_node(ND_INIT, tkn, node, create_init_node(init, NULL, is_global));
+    obj->ty = init->ty;
 
-    Type *base_ty = obj->ty;
-    while (base_ty->kind == TY_ARRAY) {
-      base_ty = base_ty->base;
-    }
-    node->ty = base_ty;
+    Node head = {};
+    Node *cur = &head;
+
+    create_init_node(init, &cur, is_global, obj->ty);
+    node = new_node(ND_INIT, tkn, node, head.lhs);
+    node->ty = init->ty;
 
     if (is_global) {
       node->lhs->use_var->val = node->rhs->init->val;
@@ -857,7 +861,6 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
     // If the lengh of the array is empty, Type will be updated,
     // so it needs to be passed to var as well.
-    obj->ty = init->ty;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;

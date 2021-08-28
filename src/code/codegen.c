@@ -198,6 +198,8 @@ static int get_type_idx(Type *type) {
       ret = 2;
       break;
     case TY_LONG:
+    case TY_PTR:
+    case TY_ARRAY:
       ret = 3;
       break;
     case TY_DOUBLE:
@@ -293,16 +295,16 @@ static void gen_lvar_init(Node *node) {
       println("  mov rax, 0");
     }
 
-    switch (node->ty->kind) {
+    switch (init->ty->kind) {
       case TY_DOUBLE:
-        gen_fstore(node->ty);
+        gen_fstore(init->ty);
         break;
       default:
-        gen_store(node->ty);
+        gen_store(init->ty);
     }
 
     println("  mov rax, rdi");
-    println("  add rax, %d", node->ty->var_size);
+    println("  add rax, %d", init->ty->var_size);
   }
 }
 
@@ -310,26 +312,27 @@ static void gen_gvar_init(Node *node) {
   println(".data");
   println("%s:", node->lhs->use_var->name);
 
-  char *asm_ty;
-  switch (node->ty->kind) {
-    case TY_CHAR:
-      asm_ty = ".byte";
-      break;
-    case TY_SHORT:
-      asm_ty = ".short";
-      break;
-    case TY_INT:
-      asm_ty = ".long";
-      break;
-    case TY_LONG:
-    case TY_PTR:
-      asm_ty = ".quad";
-      break;
-    default:
-      return;
-  }
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
+    char *asm_ty;
+    switch (init->ty->kind) {
+      case TY_CHAR:
+        asm_ty = ".byte";
+        break;
+      case TY_SHORT:
+        asm_ty = ".short";
+        break;
+      case TY_INT:
+        asm_ty = ".long";
+        break;
+      case TY_LONG:
+      case TY_PTR:
+        asm_ty = ".quad";
+        break;
+      default:
+        return;
+    }
+
     if (init->init == NULL) {
       println("  %s 0", asm_ty);
       continue;

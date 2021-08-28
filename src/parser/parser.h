@@ -145,6 +145,7 @@ Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
 bool declare_func(Type *ty);
 bool define_func(Type *ty);
+bool is_same_type(Type *lty, Type *rty);
 
 // Variable or Function
 struct Obj {
