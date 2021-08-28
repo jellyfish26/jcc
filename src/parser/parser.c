@@ -196,7 +196,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 
 static bool is_typename(Token *tkn) {
   char *keywords[] = {
-    "void", "_Bool", "char", "short", "int", "long", "double", "signed", "unsigned",
+    "void", "_Bool", "char", "short", "int", "long", "float", "double", "signed", "unsigned",
     "const"
   };
 
@@ -256,9 +256,10 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     SHORT    = 1 << 6,
     INT      = 1 << 8,
     LONG     = 1 << 10,
-    DOUBLE   = 1 << 12,
-    SIGNED   = 1 << 14,
-    UNSIGNED = 1 << 16,
+    FLOAT    = 1 << 12,
+    DOUBLE   = 1 << 14,
+    SIGNED   = 1 << 16,
+    UNSIGNED = 1 << 18,
   };
 
   VarAttr *attr = calloc(1, sizeof(VarAttr));
@@ -283,6 +284,8 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       type_cnt += INT;
     } else if (equal(tkn, "long")) {
       type_cnt += LONG;
+    } else if (equal(tkn, "float")) {
+      type_cnt += FLOAT;
     } else if (equal(tkn, "double")) {
       type_cnt += DOUBLE;
     } else if (equal(tkn, "signed")) {
@@ -341,6 +344,9 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case UNSIGNED + LONG + LONG + INT:
         ret = new_type(TY_LONG, true);
         ret->is_unsigned = true;
+        break;
+      case FLOAT:
+        ret = new_type(TY_FLOAT, true);
         break;
       case DOUBLE:
         ret = new_type(TY_DOUBLE, true);

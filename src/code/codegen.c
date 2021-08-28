@@ -72,7 +72,10 @@ static void gen_load(Type *ty) {
     return;
   }
 
-  if (ty->kind == TY_DOUBLE) {
+  if (ty->kind == TY_FLOAT) {
+    println("  movss xmm0, QWORD PTR [rax]");
+    return;
+  } else if (ty->kind == TY_DOUBLE) {
     println("  movsd xmm0, QWORD PTR [rax]");
     return;
   }
@@ -112,7 +115,9 @@ static void gen_store(Type *ty) {
 static void gen_fstore(Type *ty) {
   gen_pop("rdi");
 
-  if (ty->var_size == 8) {
+  if (ty->var_size == 4) {
+    println("  movss DWORD PTR [rdi], xmm0");
+  } else if (ty->var_size == 8) {
     println("  movsd QWORD PTR [rdi], xmm0");
   }
 }
@@ -127,6 +132,26 @@ static char i32i16[] = "movsx eax, ax";
 static char i32u16[] = "movzx eax, ax";
 static char i64i32[] = "movsxd rax, eax";
 static char i64u32[] = "mov eax, eax";
+
+static char i8f32[]  = "cvttss2si eax, xmm0\n  movsx eax, al";
+static char u8f32[]  = "cvttss2si eax, xmm0\n  movzx eax, al";
+static char i16f32[] = "cvttss2si eax, xmm0\n  movsx eax, ax";
+static char u16f32[] = "cvttss2si eax, xmm0\n  movzx eax, ax";
+static char i32f32[] = "cvttss2si eax, xmm0";
+static char u32f32[] = "cvttss2si rax, xmm0\n  mov eax, eax";
+static char i64f32[] = "cvttss2si rax, xmm0";
+static char u64f32[] = 
+    "mov rax, 9223372036854775807\n"
+  "  cvtsi2ss xmm1, rax\n"
+  "  xor rax, rax\n"
+  "  xor rdi, rdi\n"
+  "  comiss xmm0, xmm1\n"
+  "  jb 1f\n"
+  "  mov rdi, 9223372036854775808\n"
+  "  subss xmm0, xmm1\n"
+  "1:\n"
+  "  cvttss2si rax, xmm0\n"
+  "  add rax, rdi";
 
 static char i8f64[]  = "cvttsd2si eax, xmm0\n  movsx eax, al";
 static char u8f64[]  = "cvttsd2si eax, xmm0\n  movzx eax, al";
@@ -169,20 +194,22 @@ static char f64u64[] =
   "  cvtsi2sd xmm0, rdx\n"
   "  addsd xmm0, xmm0\n"
   "2:";
+static char f64f32[] = "cvtss2sd xmm0, xmm0";
 
-static char *cast_table[][9] = {
-// i8     i16     i32     i64     u8     u16     u32     u64     f64     to/from
-  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64i8},  // i8
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64i16}, // i16
-  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64i32}, // i32
-  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f64i64}, // i64
+static char *cast_table[][10] = {
+// i8     i16     i32     i64     u8     u16     u32     u64     f32   f64     to/from
+  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64i8},  // i8
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64i16}, // i16
+  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64i32}, // i32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   NULL, f64i64}, // i64
 
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f64u8},  // u8
-  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, f64u16}, // u16
-  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, f64u32}, // u32
-  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f64u64}, // u64
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64u8},  // u8
+  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, NULL, f64u16}, // u16
+  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, NULL, f64u32}, // u32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   NULL, f64u64}, // u64
 
-  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, NULL},   // f64
+  {i8f32, i16f32, i32f32, i64f32, u8f32, u16f32, u32f32, u64f32, NULL, f64f32}, // f32
+  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, NULL, NULL},   // f64
 };
 
 static int get_type_idx(Type *type) {
@@ -202,8 +229,10 @@ static int get_type_idx(Type *type) {
     case TY_ARRAY:
       ret = 3;
       break;
-    case TY_DOUBLE:
+    case TY_FLOAT:
       ret = 8;
+    case TY_DOUBLE:
+      ret = 9;
       break;
     default:
       return 0;
