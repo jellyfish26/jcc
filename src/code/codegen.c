@@ -398,10 +398,10 @@ static void gen_gvar_define(Obj *var) {
 static void cnt_func_params(Node *node, int *general, int *floating) {
   Type *ty = node->func->ty;
 
-  for (int i = 0; i < ty->param_cnt; i++) {
-    TypeKind kind = (*(ty->params + i))->kind;
+  for (int i = 0; i < node->argc; i++) {
+    TypeKind kind = (*(node->args + i))->lhs->ty->kind;
     if (kind == TY_FUNC) {
-      kind = (*(ty->params + i))->ret_ty->kind;
+      kind = (*(node->args + i))->lhs->ty->ret_ty->kind;
     }
 
     switch (kind) {
@@ -421,10 +421,10 @@ static void push_func_params(Node *node, bool is_reg) {
   int general = 0, floating = 0;
   cnt_func_params(node, &general, &floating);
 
-  for (int i = ty->param_cnt - 1; i >= 0; i--) {
-    TypeKind kind = (*(ty->params + i))->kind;
+  for (int i = node->argc - 1; i >= 0; i--) {
+    TypeKind kind = (*(node->args + i))->lhs->ty->kind;
     if (kind == TY_FUNC) {
-      kind = (*(ty->params + i))->ret_ty->kind;
+      kind = (*(node->args + i))->lhs->ty->ret_ty->kind;
     }
 
     switch (kind) {
@@ -610,10 +610,10 @@ void compile_node(Node *node) {
     push_func_params(node, true);
 
     int general = 0, floating = 0, stack = 0;
-    for (int i = 0; i < ty->param_cnt; i++) {
-      TypeKind kind = (*(ty->params + i))->kind;
+    for (int i = 0; i < node->argc; i++) {
+      TypeKind kind = (*(node->args + i))->lhs->ty->kind;
       if (kind == TY_FUNC) {
-        kind = (*(ty->params + i))->ret_ty->kind;
+        kind = (*(node->args + i))->lhs->ty->ret_ty->kind;
       }
 
       switch (kind) {
@@ -660,7 +660,7 @@ void compile_node(Node *node) {
     gen_pop("rdi");
   }
 
-  if (node->ty->kind == TY_DOUBLE) {
+  if (node->lhs->ty->kind == TY_DOUBLE) {
     switch (node->kind) {
       case ND_ADD:
         println("  addsd xmm0, xmm1");
@@ -794,20 +794,30 @@ void compile_node(Node *node) {
     case ND_NEQ:
       gen_comp("setne", rax, rdi);
       break;
-    case ND_LC:
-      if (node->ty->is_unsigned) {
+    case ND_LC: {
+      bool is_unsigned = false;
+      is_unsigned |= node->lhs->ty->is_unsigned;
+      is_unsigned |= node->rhs->ty->is_unsigned;
+
+      if (is_unsigned) {
         gen_comp("setb", rax, rdi);
       } else {
         gen_comp("setl", rax, rdi);
       }
       break;
-    case ND_LEC:
-      if (node->ty->is_unsigned) {
+    }
+    case ND_LEC: {
+      bool is_unsigned = false;
+      is_unsigned |= node->lhs->ty->is_unsigned;
+      is_unsigned |= node->rhs->ty->is_unsigned;
+
+      if (is_unsigned) {
         gen_comp("setbe", rax, rdi);
       } else {
         gen_comp("setle", rax, rdi);
       }
       break;
+    }
     case ND_BITWISEAND:
       println("  and %s, %s", rax, rdi);
       break;

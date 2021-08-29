@@ -1507,17 +1507,37 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     fcall->ty = node->use_var->ty;
     tkn = tkn->next;
 
-    fcall->args = calloc(fcall->ty->param_cnt, sizeof(Node *));
+    int argc = 0;
+    Node head = {};
+    Node *cur = &head;
 
-    for (int i = 0; i < fcall->ty->param_cnt; i++) {
-      if (i != 0) {
+    while (!consume(tkn, &tkn, ")")) {
+      if (cur != &head) {
         tkn = skip(tkn, ",");
       }
 
-      *(fcall->args + i) = new_node(ND_VOID, tkn, assign(tkn, &tkn), NULL);
+      cur->next = new_node(ND_VOID, tkn, assign(tkn, &tkn), NULL);
+      cur = cur->next;
+      argc++;
     }
 
-    tkn = skip(tkn, ")");
+    if (fcall->ty->param_cnt != 0 & fcall->ty->param_cnt != argc) {
+      errorf_tkn(ER_COMPILE, tkn, "Do not match arguments to function call, expected %d, have %d", fcall->ty->param_cnt, argc);
+    }
+    
+    fcall->argc = argc;
+    fcall->args = calloc(argc, sizeof(Node*));
+    argc = 0;
+
+    for (Node *expr = head.next; expr != NULL; expr = expr->next) {
+      if (fcall->ty->param_cnt != 0) {
+        expr->lhs = new_cast(tkn, expr->lhs, *(fcall->ty->params + argc));
+        add_type(expr->lhs);
+      }
+      *(fcall->args + argc) = expr;
+      argc++;
+    }
+
     if (end_tkn != NULL) *end_tkn = tkn;
     return fcall;
   }

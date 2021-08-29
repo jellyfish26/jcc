@@ -367,7 +367,20 @@ void add_type(Node *node) {
         return;
       }
       implicit_cast(&node->lhs, &node->rhs);
-      node->ty = node->lhs->ty;
+
+      switch (node->kind) {
+        case ND_EQ:
+        case ND_NEQ:
+        case ND_LC:
+        case ND_LEC:
+        case ND_LOGICALAND:
+        case ND_LOGICALOR:
+        case ND_LOGICALNOT:
+          node->ty = new_type(TY_CHAR, false);
+          break;
+        default:
+          node->ty = node->lhs->ty;
+      }
       return;
     case ND_ASSIGN:
     case ND_BITWISENOT:
