@@ -73,7 +73,7 @@ static void gen_load(Type *ty) {
   }
 
   if (ty->kind == TY_FLOAT) {
-    println("  movss xmm0, QWORD PTR [rax]");
+    println("  movss xmm0, DWORD PTR [rax]");
     return;
   } else if (ty->kind == TY_DOUBLE) {
     println("  movsd xmm0, QWORD PTR [rax]");
@@ -249,6 +249,7 @@ static int get_type_idx(Type *type) {
       ret = 2;
       break;
     case TY_LONG:
+    case TY_STR:
     case TY_PTR:
     case TY_ARRAY:
       ret = 3;
@@ -328,6 +329,7 @@ static void gen_lvar_init(Node *node) {
     }
 
     switch (init->ty->kind) {
+      case TY_FLOAT:
       case TY_DOUBLE:
         gen_fstore(init->ty);
         break;
@@ -620,13 +622,18 @@ void compile_node(Node *node) {
       return;
     }
     case ND_LOGICALNOT: {
+      char *suffix = "d";
+      if (node->lhs->ty->kind == TY_FLOAT) {
+        suffix = "s";
+      }
+
       compile_node(node->lhs);
-      if (node->lhs->ty->kind == TY_DOUBLE) {
+      if (node->lhs->ty->kind == TY_FLOAT || node->lhs->ty->kind == TY_DOUBLE) {
         println("  pxor xmm2, xmm2");
-        println("  ucomisd xmm2, xmm0");
+        println("  ucomis%s xmm2, xmm0", suffix);
         println("  setnp al");
         println("  xor rdx, rdx");
-        println("  ucomisd xmm2, xmm0");
+        println("  ucomis%s xmm2, xmm0", suffix);
         println("  cmovne eax, edx");
         println("  movzx rax, al");
       } else {
@@ -684,69 +691,80 @@ void compile_node(Node *node) {
 
   // lhs: rax, rhs: rdi
   compile_node(node->rhs);
-  if (node->rhs->ty->kind == TY_DOUBLE) {
-    println("  movaps xmm1, xmm0");
-  } else {
-    gen_push("rax");
+  switch (node->rhs->ty->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+      println("  movaps xmm1, xmm0");
+      break;
+    default:
+      gen_push("rax");
   }
 
   compile_node(node->lhs);
-  if (node->rhs->ty->kind == TY_DOUBLE) {
-    // no
-  } else {
-    gen_pop("rdi");
+  switch (node->lhs->ty->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+      break;
+    default:
+      gen_pop("rdi");
   }
 
-  if (node->lhs->ty->kind == TY_DOUBLE) {
+  if (node->lhs->ty->kind == TY_FLOAT || node->lhs->ty->kind == TY_DOUBLE) {
+
+    char *suffix = "d";
+    if (node->lhs->ty->kind == TY_FLOAT) {
+      suffix = "s";
+    }
+
     switch (node->kind) {
       case ND_ADD:
-        println("  addsd xmm0, xmm1");
+        println("  adds%s xmm0, xmm1", suffix);
         return;
       case ND_SUB:
-        println("  subsd xmm0, xmm1");
+        println("  subs%s xmm0, xmm1", suffix);
         return;
       case ND_MUL:
-        println("  mulsd xmm0, xmm1");
+        println("  muls%s xmm0, xmm1", suffix);
         return;
       case ND_DIV:
-        println("  divsd xmm0, xmm1");
+        println("  divs%s xmm0, xmm1", suffix);
         return;
       case ND_EQ:
         println("  xor rdx, rdx");
-        println("  ucomisd xmm0, xmm1");
+        println("  ucomis%s xmm0, xmm1", suffix);
         println("  setnp al");
-        println("  ucomisd xmm0, xmm1");
+        println("  ucomis%s xmm0, xmm1", suffix);
         println("  cmovne eax, edx");
         println("  movzx rax, al");
         return;
       case ND_NEQ:
         println("  mov rdx, 1");
-        println("  ucomisd xmm0, xmm1");
+        println("  ucomis%s xmm0, xmm1", suffix);
         println("  setp al");
-        println("  ucomisd xmm0, xmm1");
+        println("  ucomis%s xmm0, xmm1", suffix);
         println("  cmovne eax, edx");
         println("  movzx rax, al");
         return;
       case ND_LC:
-        println("  comisd xmm1, xmm0");
+        println("  comis%s xmm1, xmm0", suffix);
         println("  seta al");
         println("  movzx rax, al");
         return;
       case ND_LEC:
-        println("  comisd xmm1, xmm0");
+        println("  comis%s xmm1, xmm0", suffix);
         println("  setnb al");
         println("  movzx rax, al");
         return;
       case ND_LOGICALAND:
         println("  pxor xmm2, xmm2");
-        println("  ucomisd xmm2, xmm0");
+        println("  ucomis%s xmm2, xmm0", suffix);
         println("  jp 1f");
-        println("  ucomisd xmm2, xmm0");
+        println("  ucomis%s xmm2, xmm0", suffix);
         println("  je 3f");
         println("1:");
-        println("  ucomisd xmm2, xmm1");
+        println("  ucomis%s xmm2, xmm1", suffix);
         println("  jp 2f");
-        println("  ucomisd xmm2, xmm1");
+        println("  ucomis%s xmm2, xmm1", suffix);
         println("  je 3f");
         println("2:");
         println("  mov rax, 1");
@@ -757,13 +775,13 @@ void compile_node(Node *node) {
         return;
       case ND_LOGICALOR:
         println("  pxor xmm2, xmm2");
-        println("  ucomisd xmm2, xmm0");
+        println("  ucomis%s xmm2, xmm0", suffix);
         println("  jp 1f");
-        println("  ucomisd xmm2, xmm0");
+        println("  ucomis%s xmm2, xmm0", suffix);
         println("  jne 1f");
-        println("  ucomisd xmm2, xmm1");
+        println("  ucomis%s xmm2, xmm1", suffix);
         println("  jp 1f");
-        println("  ucomisd xmm2, xmm1");
+        println("  ucomis%s xmm2, xmm1", suffix);
         println("  jne 1f");
         println("  mov rax, 0");
         println("  jmp 2f");

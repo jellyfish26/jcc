@@ -221,6 +221,231 @@ int main() {
   }));
 
   CHECKF(2.3f, 2.3f);
+  CHECKF(4.3f, 2.3f + 2.0f);
+  CHECKD(4.3, 2.3 + 2.0f);
+
+  CHECKF(2.3f, ({
+    float a = 2.3f;
+    a;
+  }));
+
+  CHECKF(2.3f, ({
+    float a = 2.3;
+    a;
+  }));
+
+  CHECKF(2.0f, ({
+    float a = 2;
+    a;
+  }));
+
+  CHECKF(8.0f, ({
+    float a = 3.0f, b = 5.0f;
+    a + b;
+  }));
+
+  CHECKF(5.5f, ({
+    float a = 3.5f;
+    a + 2;
+  }));
+
+  CHECK(5, ({
+    float a = 3.5;
+    int b = a + 2;
+    b;
+  }));
+
+  CHECKF(7.75f, ({
+    float a = 3.55f, b = 4.2f;
+    a + b;
+  }));
+
+  CHECKF(7.75f, ({
+    float a = 3.55f, b = 4.2f;
+    a += b;
+    a;
+  }));
+
+  CHECKF(3.2f, ({
+    float a = 5.5f, b = 2.3f;
+    a - b;
+  }));
+
+  CHECKF(3.2f, ({
+    float a = 5.5f, b = 2.3f;
+    a -= b;
+    a;
+  }));
+
+  CHECKF(-2.1f, ({
+    float a = 5.1f, b = 7.2f;
+    a - b;
+  }));
+
+  CHECKF(-2.1f, ({
+    float a = 5.1f, b = 7.2f;
+    a -= b;
+    a;
+  }));
+
+  CHECKF(36.5f, ({
+    float a = 5.0f, b = 7.3f;
+    a * b;
+  }));
+
+  CHECKF(36.5f, ({
+    float a = 5.0f, b = 7.3f;
+    a *= b;
+    a;
+  }));
+
+  CHECKF(2.5f, ({
+    float a = 5.0f, b = 2.0f;
+    a / b;
+  }));
+
+  CHECKF(2.5, ({
+    float a = 5.0f, b = 2.0f;
+    a /= b;
+    a;
+  }));
+
+  CHECK(0, ({
+    float a = 5.0f, b = 5.0f;
+    a < b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.0f, b = 5.0f;
+    a <= b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.0f, b = 5.1f;
+    a < b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.0f, b = 5.1f;
+    a <= b;
+  }));
+
+  CHECK(0, ({
+    float a = 5.0f, b = 5.1f;
+    b <= a;
+  }));
+
+  CHECK(0, ({
+    float a = 5.0f, b = 5.1f;
+    b < a;
+  }));
+
+  CHECK(1, ({
+    float a = 5.0f, b = 5.0f;
+    a == b;
+  }));
+
+  CHECK(0, ({
+    float a = 5.0f, b = 5.1f;
+    a == b;
+  }));
+
+  CHECK(0, ({
+    float a = 5.0f, b = 5.0f;
+    a != b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.0f, b = 5.1f;
+    a != b;
+  }));
+
+  CHECK(1, ({
+    float a = 0.01f, b = 5.1f;
+    a && b;
+  }));
+
+  CHECK(0, ({
+    float a = 0.0f, b = 5.1f;
+    a && b;
+  }));
+
+  CHECK(0, ({
+    float a = 0.0f, b = 0.0f;
+    a && b;
+  }));
+
+  CHECK(0, ({
+    float a = 5.1f, b = 0.0f;
+    a && b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.1f, b = 0.01f;
+    a && b;
+  }));
+
+  CHECK(1, ({
+    float a = 0.01f, b = 5.1f;
+    a || b;
+  }));
+
+  CHECK(1, ({
+    float a = 0.0f, b = 5.1f;
+    a || b;
+  }));
+
+  CHECK(0, ({
+    float a = 0.0f, b = 0.0f;
+    a || b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.1f, b = 0.0f;
+    a || b;
+  }));
+
+  CHECK(1, ({
+    float a = 5.1f, b = 0.01f;
+    a || b;
+  }));
+
+  CHECK(0, ({
+    float a = 5.1f;
+    !a;
+  }));
+
+  CHECK(0, ({
+    float a = 0.00001f;
+    !a;
+  }));
+
+  CHECK(1, ({
+    float a = 0.0f;
+    !a;
+  }));
+
+  CHECKF(5.1f, ({
+    float a = 5.1f;
+    a++;
+  }));
+
+  CHECKF(6.1f, ({
+    float a = 5.1f;
+    a++;
+    a;
+  }));
+
+  CHECKF(6.1f, ({
+    float a = 5.1f;
+    ++a;
+  }));
+
+  CHECKF(6.1f, ({
+    float a = 5.1f;
+    ++a;
+    a;
+  }));
 
   return 0;
 }
