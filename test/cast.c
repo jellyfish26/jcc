@@ -18,7 +18,7 @@ int main() {
   CHECK(-64, (-128) / 2);
   CHECK(-1, (-100) % 3);
   CHECK(0, ((long)-1) / (unsigned int)100);
-  CHECK(-1, (unsigned long)-1);
+  CHECKUL(-1, (unsigned long)-1);
 
   CHECK(65535, (int)(unsigned short)65535);
   CHECK(-1, (int)(short)65535);
@@ -40,15 +40,34 @@ int main() {
   CHECK(10, (char)10.2442);
   CHECK(1, (unsigned)1.34);
   CHECK(0, (_Bool)256.0);
-  CHECK(2000000000000000, (unsigned long)2000000000000000.0);
-  CHECK(9223372196854775808, (unsigned long)9223372196854775808.0);
+  CHECKL(2000000000000000, (unsigned long)2000000000000000.0);
+  CHECKUL(9223372196854775808u, (unsigned long)9223372196854775808.0);
   CHECK(-1, (int)-1.34);
   CHECK(-5, (unsigned int) -5.53);
-  CHECK(-429187409242141056, (long)-429187409242141043.4214);
+  CHECKL(-429187409242141056, (long)-429187409242141043.4214);
 
   CHECKD(5.0, (double)5);
   CHECKD(0.0, (double)(char)256);
+  CHECKD(255.0, (double)(unsigned char)255);
+  CHECKD(256.0, (double)(short)256);
   CHECKD(9223372196854775808.0, (double)9223372196854775808u);
+
+  CHECK(5, (int)5.0);
+  CHECK(0, (char)256.0);
+  CHECK(255, (unsigned char)255.0);
+  CHECK(256, (short)256.0);
+  CHECKUL(9223372196854775808u, (unsigned long)9223372196854775808.0);
+
+  CHECKF(2.0, (float)2);
+  CHECKF(0.0, (float)(char)256);
+  CHECKF(256.0, (float)(short)256);
+  CHECKF(9223372196854775808.0, (float)9223372196854775808u);
+
+  CHECK(5, (int)(float)5.0);
+  CHECK(0, (char)(float)256.0);
+  CHECK(255, (unsigned char)(float)255.0);
+  CHECK(256, (short)(float)256.0);
+  CHECKUL(9223372036854775808u, (unsigned long)(float)9223372196854775808.0);
 
   return 0;
 }

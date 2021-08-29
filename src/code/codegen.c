@@ -153,6 +153,28 @@ static char u64f32[] =
   "  cvttss2si rax, xmm0\n"
   "  add rax, rdi";
 
+static char f32i8[]  = "movsx eax, al\n  cvtsi2ss xmm0, eax";
+static char f32u8[]  = "movzx eax, al\n  cvtsi2ss xmm0, eax";
+static char f32i16[] = "movsx eax, ax\n  cvtsi2ss xmm0, eax";
+static char f32u16[] = "movzx eax, ax\n  cvtsi2ss xmm0, eax";
+static char f32i32[] = "cvtsi2ss xmm0, eax";
+static char f32u32[] = "mov eax, eax\n  cvtsi2ss xmm0, rax";
+static char f32i64[] = "cvtsi2ss xmm0, rax";
+static char f32u64[] = 
+    "test rax, rax\n"
+  "  pxor xmm0, xmm0\n"
+  "  js 1f\n"
+  "  cvtsi2ss xmm0, rax\n"
+  "  jmp 2f\n"
+  "1:\n"
+  "  mov rdx, rax\n"
+  "  shr rdx\n"
+  "  and eax, 1\n"
+  "  or rdx, rax\n"
+  "  cvtsi2ss xmm0, rdx\n"
+  "  addss xmm0, xmm0\n"
+  "2:";
+
 static char i8f64[]  = "cvttsd2si eax, xmm0\n  movsx eax, al";
 static char u8f64[]  = "cvttsd2si eax, xmm0\n  movzx eax, al";
 static char i16f64[] = "cvttsd2si eax, xmm0\n  movsx eax, ax";
@@ -172,6 +194,8 @@ static char u64f64[] =
   "1:\n"
   "  cvttsd2si rax, xmm0\n"
   "  add rax, rdi";
+
+static char f32f64[] = "cvtsd2ss xmm0, xmm0";
 
 static char f64i8[]  = "movsx eax, al\n  cvtsi2sd xmm0, eax";
 static char f64u8[]  = "movzx eax, al\n  cvtsi2sd xmm0, eax";
@@ -197,19 +221,19 @@ static char f64u64[] =
 static char f64f32[] = "cvtss2sd xmm0, xmm0";
 
 static char *cast_table[][10] = {
-// i8     i16     i32     i64     u8     u16     u32     u64     f32   f64     to/from
-  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64i8},  // i8
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64i16}, // i16
-  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64i32}, // i32
-  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   NULL, f64i64}, // i64
+// i8     i16     i32     i64     u8     u16     u32     u64     f32     f64     to/from
+  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i8,  f64i8},  // i8
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i16, f64i16}, // i16
+  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i32, f64i32}, // i32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32i64, f64i64}, // i64
 
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, NULL, f64u8},  // u8
-  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, NULL, f64u16}, // u16
-  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, NULL, f64u32}, // u32
-  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   NULL, f64u64}, // u64
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32u8,  f64u8},  // u8
+  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, f32u16, f64u16}, // u16
+  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, f32u32, f64u32}, // u32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32u64, f64u64}, // u64
 
-  {i8f32, i16f32, i32f32, i64f32, u8f32, u16f32, u32f32, u64f32, NULL, f64f32}, // f32
-  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, NULL, NULL},   // f64
+  {i8f32, i16f32, i32f32, i64f32, u8f32, u16f32, u32f32, u64f32, NULL,   f64f32}, // f32
+  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, f32f64, NULL},   // f64
 };
 
 static int get_type_idx(Type *type) {
@@ -231,6 +255,7 @@ static int get_type_idx(Type *type) {
       break;
     case TY_FLOAT:
       ret = 8;
+      break;
     case TY_DOUBLE:
       ret = 9;
       break;
