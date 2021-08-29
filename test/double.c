@@ -220,6 +220,7 @@ int main() {
     a;
   }));
 
+  CHECKF(2.3f, 2.3f);
 
   return 0;
 }

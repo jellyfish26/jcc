@@ -69,5 +69,12 @@ int main() {
   CHECK(256, (short)(float)256.0);
   CHECKUL(9223372036854775808u, (unsigned long)(float)9223372196854775808.0);
 
+  CHECK(5, (int)5.0f);
+  CHECK(0, (char)256.0f);
+  CHECK(255, (unsigned char)255.0f);
+  CHECK(256, (short)256.0f);
+  CHECKUL(9223372036854775808u, (unsigned long)9223372196854775808.0f);
+
+
   return 0;
 }

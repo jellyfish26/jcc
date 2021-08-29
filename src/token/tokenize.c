@@ -304,6 +304,11 @@ static Token *read_float(char *str, char **end_ptr, Token *connect) {
   long double val = strtold(str, &str);
 
   Type *ty = new_type(TY_DOUBLE, false);
+  if (*str == 'f' || *str == 'F') {
+    ty = new_type(TY_FLOAT, false);
+    str++;
+  }
+
   tkn->fval = val;
   tkn->len = str - tkn->loc;
   tkn->ty = ty;

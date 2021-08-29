@@ -388,6 +388,15 @@ static void gen_gvar_define(Obj *var) {
     return;
   }
 
+  if (var->ty->kind == TY_FLOAT) {
+    float *ptr = calloc(1, sizeof(float));
+    *ptr = (float)var->fval;
+    println(".LC%d:", var->offset);
+    println("  .long %d", *(int*)ptr);
+    free(ptr);
+    return;
+  }
+
   if (var->ty->kind == TY_DOUBLE) {
     double *ptr = calloc(1, sizeof(double));
     *ptr = (double)var->fval;
@@ -490,6 +499,9 @@ void compile_node(Node *node) {
       case TY_INT:
       case TY_LONG:
         println("  mov rax, %ld", node->val);
+        break;
+      case TY_FLOAT:
+        println("  movss xmm0, DWORD PTR .LC%d[rip]", node->use_var->offset);
         break;
       case TY_DOUBLE:
         println("  movsd xmm0, QWORD PTR .LC%d[rip]", node->use_var->offset);
