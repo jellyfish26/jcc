@@ -59,5 +59,12 @@ int main() {
     ans += b;
     ans;
   }));
+
+
+  CHECK(6, ({
+    int a[3][3];
+    *(a + 2) - *a;
+  }));
+
   return 0;
 }
