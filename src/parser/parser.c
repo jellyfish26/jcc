@@ -74,7 +74,7 @@ Node *new_num(Token *tkn, int64_t val) {
   ret->tkn = tkn;
   ret->val = val;
 
-  ret->ty = new_type(TY_INT, false);
+  ret->ty = new_type(TY_INT);
   ret->ty->is_const = true;
   return ret;
 }
@@ -95,7 +95,7 @@ Node *new_var(Token *tkn, Obj *obj) {
 }
 
 Node *new_strlit(Token *tkn, char *strlit) {
-  Obj *obj = new_obj(new_type(TY_STR, false), strlit);
+  Obj *obj = new_obj(new_type(TY_STR), strlit);
   Node *ret = new_var(tkn, obj);
   add_gvar(obj, false);
   return ret;
@@ -160,7 +160,7 @@ Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
   add_type(node);
 
   if (node->lhs->ty->kind == TY_PTR && node->rhs->ty->kind == TY_PTR) {
-    node->ty = new_type(TY_LONG, false);
+    node->ty = new_type(TY_LONG);
   }
 
   if (is_addr_type(node->lhs) && !is_addr_type(node->rhs)) {
@@ -296,36 +296,36 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
 
     switch (type_cnt) {
       case VOID:
-        ret = new_type(TY_VOID, false);
+        ret = new_type(TY_VOID);
         break;
       case BOOL:
       case CHAR:
       case SIGNED + CHAR:
-        ret = new_type(TY_CHAR, true);
+        ret = new_type(TY_CHAR);
         break;
       case UNSIGNED + CHAR:
-        ret =  new_type(TY_CHAR, true);
+        ret =  new_type(TY_CHAR);
         ret->is_unsigned = true;
         break;
       case SHORT:
       case SHORT + INT:
       case SIGNED + SHORT:
       case SIGNED + SHORT + INT:
-        ret = new_type(TY_SHORT, true);
+        ret = new_type(TY_SHORT);
         break;
       case UNSIGNED + SHORT:
       case UNSIGNED + SHORT + INT:
-        ret = new_type(TY_SHORT, true);
+        ret = new_type(TY_SHORT);
         ret->is_unsigned = true;
         break;
       case INT:
       case SIGNED:
       case SIGNED + INT:
-        ret = new_type(TY_INT, true);
+        ret = new_type(TY_INT);
         break;
       case UNSIGNED:
       case UNSIGNED + INT:
-        ret = new_type(TY_INT, true);
+        ret = new_type(TY_INT);
         ret->is_unsigned = true;
         break;
       case LONG:
@@ -336,20 +336,20 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case SIGNED + LONG + INT:
       case SIGNED + LONG + LONG:
       case SIGNED + LONG + LONG + INT:
-        ret = new_type(TY_LONG, true);
+        ret = new_type(TY_LONG);
         break;
       case UNSIGNED + LONG:
       case UNSIGNED + LONG + INT:
       case UNSIGNED + LONG + LONG:
       case UNSIGNED + LONG + LONG + INT:
-        ret = new_type(TY_LONG, true);
+        ret = new_type(TY_LONG);
         ret->is_unsigned = true;
         break;
       case FLOAT:
-        ret = new_type(TY_FLOAT, true);
+        ret = new_type(TY_FLOAT);
         break;
       case DOUBLE:
-        ret = new_type(TY_DOUBLE, true);
+        ret = new_type(TY_DOUBLE);
         break;
       default:
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
@@ -407,7 +407,7 @@ static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
 // param = declspec declarator
 static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
   Type *ret_ty = ty;
-  ty = new_type(TY_FUNC, false);
+  ty = new_type(TY_FUNC);
   ty->ret_ty = ret_ty;
 
   if (equal(tkn, "void") && equal(tkn->next, ")")) {

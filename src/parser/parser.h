@@ -118,7 +118,6 @@ struct Type {
   TypeKind kind;
   Token *tkn;  // Representative token
 
-  bool is_real;  // Whether or not value has a place to be stored. (etc. False is array, num)
   bool is_const;
   bool is_unsigned;
 
@@ -141,7 +140,7 @@ struct Type {
   bool is_prototype;
 };
 
-Type *new_type(TypeKind kind, bool is_real);
+Type *new_type(TypeKind kind);
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
 bool declare_func(Type *ty);

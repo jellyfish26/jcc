@@ -6,10 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-Type *new_type(TypeKind kind, bool is_real) {
+Type *new_type(TypeKind kind) {
   Type *ret = calloc(sizeof(Type), 1);
   ret->kind = kind;
-  ret->is_real = is_real;
   switch(kind) {
     case TY_VOID:
       ret->var_size = 0;
@@ -40,16 +39,14 @@ Type *new_type(TypeKind kind, bool is_real) {
 }
 
 Type *pointer_to(Type *type) {
-  Type *ret = new_type(TY_PTR, true);
+  Type *ret = new_type(TY_PTR);
   ret->base = type;
-  type->is_real = false;
   return ret;
 }
 
 Type *array_to(Type *type, int array_len) {
   Type *ret = calloc(1, sizeof(Type));
   ret->kind = TY_ARRAY;
-  ret->is_real = false;
   ret->base = type;
   ret->var_size = array_len * type->var_size;
   ret->array_len = array_len;
@@ -376,7 +373,7 @@ void add_type(Node *node) {
         case ND_LOGICALAND:
         case ND_LOGICALOR:
         case ND_LOGICALNOT:
-          node->ty = new_type(TY_CHAR, false);
+          node->ty = new_type(TY_CHAR);
           break;
         default:
           node->ty = node->lhs->ty;
@@ -387,10 +384,10 @@ void add_type(Node *node) {
       node->ty = node->lhs->ty;
       break;
     case ND_LOGICALNOT:
-      node->ty = new_type(TY_INT, false);
+      node->ty = new_type(TY_INT);
       return;
     case ND_ADDR: {
-      Type *type = new_type(TY_PTR, false);
+      Type *type = new_type(TY_PTR);
       type->base = node->lhs->ty;
       node->ty = type;
       return;

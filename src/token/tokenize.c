@@ -240,7 +240,7 @@ static Token *read_integer(char *str, char **end_ptr, Token *connect) {
     return NULL;
   }
 
-  Type *ty = new_type(TY_INT, false);
+  Type *ty = new_type(TY_INT);
 
   // Implicit type
   if (prefix == 10 && ((uint64_t)val>>31)>0) {
@@ -303,9 +303,9 @@ static Token *read_float(char *str, char **end_ptr, Token *connect) {
   Token *tkn = new_token(TK_NUM, connect, str, 0);
   long double val = strtold(str, &str);
 
-  Type *ty = new_type(TY_DOUBLE, false);
+  Type *ty = new_type(TY_DOUBLE);
   if (*str == 'f' || *str == 'F') {
-    ty = new_type(TY_FLOAT, false);
+    ty = new_type(TY_FLOAT);
     str++;
   }
 
@@ -414,7 +414,7 @@ Token *tokenize(char *file_name) {
       char *s_pos = now_str;
       ret = new_token(TK_NUM, ret, now_str, 3);
       ret->val = read_char(now_str + 1, &now_str);
-      ret->ty = new_type(TY_CHAR, false);
+      ret->ty = new_type(TY_CHAR);
 
       if (*now_str != '\'') {
         errorf_loc(ER_COMPILE, now_str, 1, "The char must be a single character.");
