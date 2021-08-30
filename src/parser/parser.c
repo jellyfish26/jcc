@@ -74,8 +74,7 @@ Node *new_num(Token *tkn, int64_t val) {
   ret->tkn = tkn;
   ret->val = val;
 
-  ret->ty = new_type(TY_INT);
-  ret->ty->is_const = true;
+  ret->ty = ty_i32;
   return ret;
 }
 
@@ -95,10 +94,13 @@ Node *new_var(Token *tkn, Obj *obj) {
 }
 
 Node *new_strlit(Token *tkn, char *strlit) {
-  Obj *obj = new_obj(new_type(TY_STR), strlit);
-  Node *ret = new_var(tkn, obj);
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = TY_STR;
+  ty->var_size = 8;
+
+  Obj *obj = new_obj(ty, strlit);
   add_gvar(obj, false);
-  return ret;
+  return new_var(tkn, obj);
 }
 
 Node *new_floating(Token *tkn, Type *ty, long double fval) {
@@ -160,7 +162,7 @@ Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
   add_type(node);
 
   if (node->lhs->ty->kind == TY_PTR && node->rhs->ty->kind == TY_PTR) {
-    node->ty = new_type(TY_LONG);
+    node->ty = ty_i64;
   }
 
   if (is_addr_type(node->lhs) && !is_addr_type(node->rhs)) {
@@ -264,8 +266,8 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
 
   VarAttr *attr = calloc(1, sizeof(VarAttr));
 
-  int type_cnt = 0;
-  Type *ret = NULL;
+  int ty_cnt = 0;
+  Type *ty = NULL;
   while (is_typename(tkn)) {
     if (typequal(tkn, &tkn, attr)) {
       continue;
@@ -273,60 +275,57 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
 
     // Counting Types
     if (equal(tkn,"void")) {
-      type_cnt += VOID;
+      ty_cnt += VOID;
     } else if (equal(tkn, "_Bool")) {
-      type_cnt += BOOL;
+      ty_cnt += BOOL;
     } else if (equal(tkn, "char")) {
-      type_cnt += CHAR;
+      ty_cnt += CHAR;
     } else if (equal(tkn, "short")) {
-      type_cnt += SHORT;
+      ty_cnt += SHORT;
     } else if (equal(tkn, "int")) {
-      type_cnt += INT;
+      ty_cnt += INT;
     } else if (equal(tkn, "long")) {
-      type_cnt += LONG;
+      ty_cnt += LONG;
     } else if (equal(tkn, "float")) {
-      type_cnt += FLOAT;
+      ty_cnt += FLOAT;
     } else if (equal(tkn, "double")) {
-      type_cnt += DOUBLE;
+      ty_cnt += DOUBLE;
     } else if (equal(tkn, "signed")) {
-      type_cnt += SIGNED;
+      ty_cnt += SIGNED;
     } else if (equal(tkn, "unsigned")) {
-      type_cnt += UNSIGNED;
+      ty_cnt += UNSIGNED;
     }
 
-    switch (type_cnt) {
+    switch (ty_cnt) {
       case VOID:
-        ret = new_type(TY_VOID);
+        ty = ty_void;
         break;
       case BOOL:
       case CHAR:
       case SIGNED + CHAR:
-        ret = new_type(TY_CHAR);
+        ty = ty_i8;
         break;
       case UNSIGNED + CHAR:
-        ret =  new_type(TY_CHAR);
-        ret->is_unsigned = true;
+        ty = ty_u8;
         break;
       case SHORT:
       case SHORT + INT:
       case SIGNED + SHORT:
       case SIGNED + SHORT + INT:
-        ret = new_type(TY_SHORT);
+        ty = ty_i16;
         break;
       case UNSIGNED + SHORT:
       case UNSIGNED + SHORT + INT:
-        ret = new_type(TY_SHORT);
-        ret->is_unsigned = true;
+        ty = ty_u16;
         break;
       case INT:
       case SIGNED:
       case SIGNED + INT:
-        ret = new_type(TY_INT);
+        ty = ty_i32;
         break;
       case UNSIGNED:
       case UNSIGNED + INT:
-        ret = new_type(TY_INT);
-        ret->is_unsigned = true;
+        ty = ty_u32;
         break;
       case LONG:
       case LONG + INT:
@@ -336,20 +335,19 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case SIGNED + LONG + INT:
       case SIGNED + LONG + LONG:
       case SIGNED + LONG + LONG + INT:
-        ret = new_type(TY_LONG);
+        ty = ty_i64;
         break;
       case UNSIGNED + LONG:
       case UNSIGNED + LONG + INT:
       case UNSIGNED + LONG + LONG:
       case UNSIGNED + LONG + LONG + INT:
-        ret = new_type(TY_LONG);
-        ret->is_unsigned = true;
+        ty = ty_u64;
         break;
       case FLOAT:
-        ret = new_type(TY_FLOAT);
+        ty = ty_f32;
         break;
       case DOUBLE:
-        ret = new_type(TY_DOUBLE);
+        ty = ty_f64;
         break;
       default:
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
@@ -357,11 +355,18 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     tkn = tkn->next;
   }
 
+  if (end_tkn != NULL) *end_tkn = tkn;
+  if (ty == NULL) {
+    return NULL;
+  }
+
+  Type *ret = calloc(1, sizeof(Type));
+  memcpy(ret, ty, sizeof(Type));
+
   if (attr->is_const) {
     ret->is_const = true;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
   return ret;
 }
 
@@ -407,7 +412,8 @@ static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
 // param = declspec declarator
 static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
   Type *ret_ty = ty;
-  ty = new_type(TY_FUNC);
+  ty = calloc(1, sizeof(Type));
+  ty->kind = TY_FUNC;
   ty->ret_ty = ret_ty;
 
   if (equal(tkn, "void") && equal(tkn->next, ")")) {
@@ -415,7 +421,7 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
     return ty;
   }
 
-  Type head;
+  Type head = {};
   Type *param = &head;
 
   while (!consume(tkn, &tkn, ")")) {

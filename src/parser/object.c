@@ -6,42 +6,52 @@
 #include <stdlib.h>
 #include <string.h>
 
-Type *new_type(TypeKind kind) {
-  Type *ret = calloc(sizeof(Type), 1);
-  ret->kind = kind;
-  switch(kind) {
-    case TY_VOID:
-      ret->var_size = 0;
-      break;
-    case TY_CHAR:
-      ret->var_size = 1;
-      break;
-    case TY_SHORT:
-      ret->var_size = 2;
-      break;
-    case TY_INT:
-    case TY_FLOAT:
-      ret->var_size = 4;
-      break;
-    case TY_LONG:
-    case TY_DOUBLE:
-    case TY_STR:
-    case TY_PTR:
-      ret->var_size = 8;
-      break;
-    case TY_LDOUBLE:
-      ret->var_size = 16;
-      break;
-    default:
-      ret->var_size = 0;
-  }
-  return ret;
+Type *ty_void;
+Type *ty_bool;
+
+Type *ty_i8;
+Type *ty_i16;
+Type *ty_i32;
+Type *ty_i64;
+
+Type *ty_u8;
+Type *ty_u16;
+Type *ty_u32;
+Type *ty_u64;
+
+Type *ty_f32;
+Type *ty_f64;
+
+static Type *new_type(TypeKind kind, bool is_unsigned, int size) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = kind;
+  ty->is_unsigned = is_unsigned;
+  ty->var_size = size;
+  return ty;
 }
 
-Type *pointer_to(Type *type) {
-  Type *ret = new_type(TY_PTR);
-  ret->base = type;
-  return ret;
+void init_type() {
+  ty_void = new_type(TY_VOID, false, 0);
+  ty_bool = new_type(TY_CHAR, false, 1);
+
+  ty_i8  = new_type(TY_CHAR, false, 1);
+  ty_i16 = new_type(TY_SHORT, false, 2);
+  ty_i32 = new_type(TY_INT, false, 4);
+  ty_i64 = new_type(TY_LONG, false, 8);
+
+  ty_u8  = new_type(TY_CHAR, true, 1);
+  ty_u16 = new_type(TY_SHORT, true, 2);
+  ty_u32 = new_type(TY_INT, true, 4);
+  ty_u64 = new_type(TY_LONG, true, 8);
+
+  ty_f32 = new_type(TY_FLOAT, false, 4);
+  ty_f64 = new_type(TY_DOUBLE, false, 8);
+}
+
+Type *pointer_to(Type *base) {
+  Type *ty = new_type(TY_PTR, false, 8);
+  ty->base = base;
+  return ty;
 }
 
 Type *array_to(Type *type, int array_len) {
@@ -373,7 +383,7 @@ void add_type(Node *node) {
         case ND_LOGICALAND:
         case ND_LOGICALOR:
         case ND_LOGICALNOT:
-          node->ty = new_type(TY_CHAR);
+          node->ty = ty_bool;
           break;
         default:
           node->ty = node->lhs->ty;
@@ -384,12 +394,11 @@ void add_type(Node *node) {
       node->ty = node->lhs->ty;
       break;
     case ND_LOGICALNOT:
-      node->ty = new_type(TY_INT);
+      node->ty = ty_bool;
       return;
     case ND_ADDR: {
-      Type *type = new_type(TY_PTR);
-      type->base = node->lhs->ty;
-      node->ty = type;
+      Type *ty = pointer_to(node->lhs->ty);
+      node->ty = ty;
       return;
     }
     case ND_CONTENT: {

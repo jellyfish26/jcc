@@ -140,7 +140,24 @@ struct Type {
   bool is_prototype;
 };
 
-Type *new_type(TypeKind kind);
+// Must call init_type function before use.
+extern Type *ty_void;
+extern Type *ty_bool;
+
+extern Type *ty_i8;
+extern Type *ty_i16;
+extern Type *ty_i32;
+extern Type *ty_i64;
+
+extern Type *ty_u8;
+extern Type *ty_u16;
+extern Type *ty_u32;
+extern Type *ty_u64;
+
+extern Type *ty_f32;
+extern Type *ty_f64;
+
+void init_type();
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
 bool declare_func(Type *ty);

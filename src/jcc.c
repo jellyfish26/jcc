@@ -11,6 +11,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Usage: jcc <input_file> <output_file>\n");
     exit(1);
   }
+  init_type();
+
   Token *tkn = tokenize(argv[1]);
   Node *head = program(tkn);
   codegen(head, argv[2]);
