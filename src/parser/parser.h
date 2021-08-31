@@ -167,6 +167,7 @@ extern Type *ty_u64;
 
 extern Type *ty_f32;
 extern Type *ty_f64;
+extern Type *ty_f80;
 
 void init_type();
 Type *pointer_to(Type *type);

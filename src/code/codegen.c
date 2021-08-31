@@ -78,6 +78,9 @@ static void gen_load(Type *ty) {
   } else if (ty->kind == TY_DOUBLE) {
     println("  movsd xmm0, QWORD PTR [rax]");
     return;
+  } else if (ty->kind == TY_LDOUBLE) {
+    println("  fld TBYTE PTR [rax]");
+    return;
   }
 
   char *unsi = ty->is_unsigned ? "movz" : "movs";
@@ -119,6 +122,8 @@ static void gen_fstore(Type *ty) {
     println("  movss DWORD PTR [rdi], xmm0");
   } else if (ty->var_size == 8) {
     println("  movsd QWORD PTR [rdi], xmm0");
+  } else {
+    println("  fstp  TBYTE PTR [rdi]");
   }
 }
 
@@ -220,20 +225,87 @@ static char f64u64[] =
   "2:";
 static char f64f32[] = "cvtss2sd xmm0, xmm0";
 
-static char *cast_table[][10] = {
-// i8     i16     i32     i64     u8     u16     u32     u64     f32     f64     to/from
-  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i8,  f64i8},  // i8
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i16, f64i16}, // i16
-  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i32, f64i32}, // i32
-  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32i64, f64i64}, // i64
+#define F80_TO_INT_1 \
+    "sub rsp, 16\n" \
+  "  fnstcw WORD PTR [rsp+12]\n" \
+  "  movzx eax, WORD PTR [rsp+12]\n" \
+  "  or ah, 12\n" \
+  "  mov WORD PTR [rsp+8], ax\n" \
+  "  fldcw WORD PTR [rsp+8]\n"
 
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32u8,  f64u8},  // u8
-  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, f32u16, f64u16}, // u16
-  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, f32u32, f64u32}, // u32
-  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32u64, f64u64}, // u64
+#define F80_TO_INT_2 \
+  "  fldcw WORD PTR [rsp+12]\n"
 
-  {i8f32, i16f32, i32f32, i64f32, u8f32, u16f32, u32f32, u64f32, NULL,   f64f32}, // f32
-  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, f32f64, NULL},   // f64
+#define F80_TO_INT_3 \
+  "  add rsp, 16"
+
+static char i8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  mov al, BYTE PTR [rsp]\n  movsx eax, al\n" F80_TO_INT_3;
+static char u8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  movzx eax, BYTE PTR [rsp]\n  mov al, al\n" F80_TO_INT_3;
+static char i16f80[] = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  xor rax, rax\n  mov ax, WORD PTR [rsp]\n" F80_TO_INT_3;
+static char u16f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  mov eax, DWORD PTR [rsp]\n  mov ax, ax\n" F80_TO_INT_3;
+static char i32f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  mov eax, DWORD PTR [rsp]\n" F80_TO_INT_3;
+static char u32f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  mov rax, DWORD PTR [rsp]\n  mov eax, eax\n" F80_TO_INT_3;
+static char i64f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  mov rax, QWORD PTR [rsp]\n" F80_TO_INT_3;
+
+static char u64f80[] =
+    "sub rsp, 32\n"
+  "  fstp TBYTE PTR [rsp+16]\n"
+  "  mov DWORD PTR [rsp], 0\n"
+  "  mov DWORD PTR [rsp+4], -2147483648\n"
+  "  mov DWORD PTR [rsp+8], 16446\n"
+  "  mov DWORD PTR [rsp+12], 0\n"
+  "  fld TBYTE PTR [rsp]\n"
+  "  fld TBYTE PTR [rsp+16]\n"
+  "  fcomip st, st(1)\n"
+  "  fstp st(0)\n"
+  "  jnb 1f\n"
+  "  fld TBYTE PTR [rsp+16]\n"
+  "  " F80_TO_INT_1
+  "  fistp QWORD PTR [rsp]\n"
+  F80_TO_INT_2
+  "  mov rax, QWORD PTR [rsp]\n"
+  F80_TO_INT_3 "\n"
+  "  jmp 2f\n"
+  "1:"
+  "  fld TBYTE PTR [rsp]\n"
+  "  fld TBYTE PTR [rsp+16]\n"
+  "  fsubp st(1), st\n"
+  "  " F80_TO_INT_1
+  "  fistp QWORD PTR [rsp]\n"
+  F80_TO_INT_2
+  "  mov rax, QWORD PTR [rsp]\n"
+  F80_TO_INT_3 "\n"
+  "  movabs rdi, -9223372036854775808\n"
+  "  xor rax, rdi\n"
+  "2:\n  add rsp, 32";
+
+static char f32f80[] = 
+    "sub rsp, 4\n"
+  "  fstp DWORD PTR [rsp+4]\n"
+  "  movss xmm0, DWORD PTR [rsp+4]\n"
+  "  add rsp, 8\n";
+
+static char f64f80[] = 
+    "sub rsp, 8\n"
+  "  fstp QWORD PTR [rsp+8]\n"
+  "  movsd xmm0, QWORD PTR [rsp+8]\n"
+  "  add rsp, 8\n";
+
+static char *cast_table[][11] = {
+// i8     i16     i32     i64     u8     u16     u32     u64     f32     f64     f80   to/from
+  {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i8,  f64i8,  NULL}, // i8
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i16, f64i16, NULL}, // i16
+  {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i32, f64i32, NULL}, // i32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32i64, f64i64, NULL}, // i64
+
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32u8,  f64u8,  NULL}, // u8
+  {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, f32u16, f64u16, NULL}, // u16
+  {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, f32u32, f64u32, NULL}, // u32
+  {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32u64, f64u64, NULL}, // u64
+
+  {i8f32, i16f32, i32f32, i64f32, u8f32, u16f32, u32f32, u64f32, NULL,   f64f32, NULL}, // f32
+  {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, f32f64, NULL,   NULL}, // f64
+  {i8f80, i16f80, i32f80, i64f80, u8f80, u16f80, u32f80, u64f80, f32f80, f64f80, NULL}, // f80
 };
 
 static int get_type_idx(Type *type) {
@@ -259,6 +331,9 @@ static int get_type_idx(Type *type) {
       break;
     case TY_DOUBLE:
       ret = 9;
+      break;
+    case TY_LDOUBLE:
+      ret = 10;
       break;
     default:
       return 0;
@@ -424,6 +499,16 @@ static void gen_gvar_define(Obj *var) {
     return;
   }
 
+  if (var->name == NULL && var->ty->kind == TY_LDOUBLE) {
+    long double *ptr = calloc(1, sizeof(long double));
+    *ptr = (long double)var->fval;
+    println(".LC%d:", var->offset);
+    for (int i = 0; i < 4; i++) {
+      println("  .long %d", *((int*)ptr + i));
+    }
+    free(ptr);
+    return;
+  }
 
   println("%s:", var->name);
   println("  .zero %d", var->ty->var_size);
@@ -505,6 +590,9 @@ void compile_node(Node *node) {
         break;
       case TY_DOUBLE:
         println("  movsd xmm0, QWORD PTR .LC%d[rip]", node->use_var->offset);
+        break;
+      case TY_LDOUBLE:
+        println("  fld TBYTE PTR .LC%d[rip]", node->use_var->offset);
     }
     Type *ty = node->ty;
     return;

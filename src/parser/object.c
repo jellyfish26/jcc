@@ -21,6 +21,7 @@ Type *ty_u64;
 
 Type *ty_f32;
 Type *ty_f64;
+Type *ty_f80;
 
 static Type *new_type(TypeKind kind, bool is_unsigned, int size) {
   Type *ty = calloc(1, sizeof(Type));
@@ -46,6 +47,7 @@ void init_type() {
 
   ty_f32 = new_type(TY_FLOAT, false, 4);
   ty_f64 = new_type(TY_DOUBLE, false, 8);
+  ty_f80 = new_type(TY_LDOUBLE, false, 16);
 }
 
 Type *pointer_to(Type *base) {

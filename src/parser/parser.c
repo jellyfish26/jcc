@@ -412,6 +412,9 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case DOUBLE:
         ty = ty_f64;
         break;
+      case LONG + DOUBLE:
+        ty = ty_f80;
+        break;
       default:
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
     }

@@ -310,6 +310,9 @@ static Token *read_float(char *str, char **end_ptr, Token *connect) {
   if (*str == 'f' || *str == 'F') {
     ty = ty_f32;
     str++;
+  } else if (*str == 'l' || *str == 'L') {
+    ty = ty_f80;
+    str++;
   }
 
   tkn->fval = val;
