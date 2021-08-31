@@ -60,6 +60,10 @@ int main() {
     ans;
   }));
 
+  CHECK(2, ({
+    int a[3];
+    (a + 2) - a;
+  }));
 
   CHECK(6, ({
     int a[3][3];
