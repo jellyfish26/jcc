@@ -164,7 +164,7 @@ static char *permit_panct[] = {
     "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~"};
 
 static char *permit_keywords[] = {
-  "return", "if", "else", "for", "while", "break", "continue",
+  "return", "if", "else", "for", "do", "while", "break", "continue",
   "sizeof", "signed", "unsigned", "void", "_Bool", "char", "short",
   "int", "long", "float", "double", "const"};
 

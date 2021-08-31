@@ -596,6 +596,17 @@ void compile_node(Node *node) {
       println("%s:", node->break_label);
       return;
     }
+    case ND_DO: {
+      println("%s:", node->conti_label);
+      compile_node(node->then);
+
+      compile_node(node->cond);
+      println("  cmp rax, 0");
+      println("  jne %s", node->conti_label);
+
+      println("%s:", node->break_label);
+      return;
+    }
     case ND_BREAK: {
       println("  jmp %s", node->break_label);
       return;

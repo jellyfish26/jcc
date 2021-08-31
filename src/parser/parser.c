@@ -1042,9 +1042,10 @@ static char *conti_label;
 //             expression-statement
 //
 // selection-statement  = "if" "(" expression ")" statement ("else" statement)?
-// iteration-statement  = "for" "(" declaration expression? ";" expression? ")" statement |
-//                        "for" "(" expression? ";" expression? ";" expression? ")" statement |
-//                        "while" "(" expression ")" statement
+// iteration-statement  = "while" "(" expression ")" statement |
+//                        "do" statement "while" "(" expression ")" ";" |
+//                        "for" "(" declaration expression? ";" expression? ")" statement |
+//                        "for" "(" expression? ";" expression? ";" expression? ")" statement
 // jump-statement       = "continue;" |
 //                        "break" |
 //                        "return" expr? ";"
@@ -1079,6 +1080,54 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   }
 
   // iteration-statement
+  if (equal(tkn, "while")) {
+    tkn = skip(tkn->next, "(");
+    new_scope();
+
+    char *break_store = break_label;
+    char *conti_store = conti_label;
+    
+    Node *ret = new_node(ND_FOR, tkn);
+    break_label = ret->break_label = new_unique_label();
+    conti_label = ret->conti_label = new_unique_label();
+
+    ret->cond = expr(tkn, &tkn);
+
+    tkn = skip(tkn, ")");
+
+    ret->then = statement(tkn, &tkn);
+    del_scope();
+
+    break_label = break_store;
+    conti_label = conti_store;
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return ret;
+  }
+
+  // iteration-statement
+  if (equal(tkn, "do")) {
+    char *break_store = break_label;
+    char *conti_store = conti_label;
+
+    Node *node = new_node(ND_DO, tkn);
+    break_label = node->break_label = new_unique_label();
+    conti_label = node->conti_label = new_unique_label();
+
+    new_scope();
+    node->then = statement(tkn->next, &tkn);
+    del_scope();
+
+    tkn = skip(skip(tkn, "while"), "(");
+    node->cond = expr(tkn, &tkn);
+    tkn = skip(skip(tkn, ")"), ";");
+
+    break_label = break_store;
+    conti_label = conti_store;
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
+  }
+
+  // iteration-statement
   if (equal(tkn, "for")) {
     tkn = skip(tkn->next, "(");
     new_scope();
@@ -1105,31 +1154,6 @@ static Node *statement(Token *tkn, Token **end_tkn) {
       ret->loop = assign(tkn, &tkn);
       tkn = skip(tkn, ")");
     }
-
-    ret->then = statement(tkn, &tkn);
-    del_scope();
-
-    break_label = break_store;
-    conti_label = conti_store;
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
-  }
-
-  // iteration-statement
-  if (equal(tkn, "while")) {
-    tkn = skip(tkn->next, "(");
-    new_scope();
-
-    char *break_store = break_label;
-    char *conti_store = conti_label;
-    
-    Node *ret = new_node(ND_FOR, tkn);
-    break_label = ret->break_label = new_unique_label();
-    conti_label = ret->conti_label = new_unique_label();
-
-    ret->cond = expr(tkn, &tkn);
-
-    tkn = skip(tkn, ")");
 
     ret->then = statement(tkn, &tkn);
     del_scope();

@@ -41,6 +41,7 @@ typedef enum {
   ND_IF,          // "if" statement
   ND_ELSE,        // "else" statement
   ND_FOR,         // "for" or "while" statement
+  ND_DO,          // "do-while"
   ND_BLOCK,       // Block statement
   ND_BREAK,       // "break" statement
   ND_CONTINUE,    // "continue" statement
