@@ -637,28 +637,29 @@ void compile_node(Node *node) {
       return;
     }
     case ND_CASE:
-    case ND_DEFAULT: {
+    case ND_DEFAULT:
       compile_node(node->deep);
       return;
-    }
-    case ND_BREAK: {
+    case ND_BREAK:
       println("  jmp %s", node->break_label);
       return;
-    }
-    case ND_CONTINUE: {
+    case ND_CONTINUE:
       println("  jmp %s", node->conti_label);
       return;
-    }
-    case ND_CONTENT: {
+    case ND_CONTENT:
       compile_node(node->lhs);
       gen_load(node->ty);
       return;
-    }
-    case ND_BITWISENOT: {
+    case ND_GOTO:
+      println("  jmp %s", node->label);
+      return;
+    case ND_LABEL:
+      println("%s:", node->label);
+      return;
+    case ND_BITWISENOT:
       compile_node(node->lhs);
       println("  not rax");
       return;
-    }
     case ND_LOGICALNOT: {
       char *suffix = "d";
       if (node->lhs->ty->kind == TY_FLOAT) {

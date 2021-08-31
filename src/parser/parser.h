@@ -50,6 +50,8 @@ typedef enum {
   ND_DEFAULT,     // "default" statement
   ND_BREAK,       // "break" statement
   ND_CONTINUE,    // "continue" statement
+  ND_GOTO,        // "goto" statement
+  ND_LABEL,       // label statement
   ND_FUNCCALL,    // Function call
   ND_NUM,         // Number (int)
   ND_CAST,        // Cast
@@ -79,6 +81,7 @@ struct Node {
   int argc;     // Arguments count
   Node **args;  // Arguemnts
 
+  char *label;
   char *break_label;
   char *conti_label;
 

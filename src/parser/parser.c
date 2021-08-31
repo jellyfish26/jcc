@@ -27,6 +27,21 @@ struct VarAttr {
   bool is_const;
 };
 
+typedef struct Relocate Relocate;
+struct Relocate {
+  char *label;
+  char *rel_label;
+
+  Relocate *next;
+};
+
+static char *break_label;
+static char *conti_label;
+
+static Relocate *relocate_label;
+static Node *label_node;
+static Node *goto_node;
+
 // Prototype
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty);
@@ -213,6 +228,31 @@ Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   }
 
   return node;
+}
+
+bool new_relocate(char *label) {
+  for (Relocate *relocate = relocate_label; relocate != NULL; relocate = relocate->next) {
+    if (strcmp(label, relocate->label) == 0) {
+      return false;
+    }
+  }
+
+  Relocate *relocate = calloc(1, sizeof(Relocate));
+  relocate->label = label;
+  relocate->rel_label = new_unique_label();
+  relocate->next = relocate_label;
+  relocate_label = relocate;
+  return true;
+}
+
+char *get_relocate(char *label) {
+  for (Relocate *relocate = relocate_label; relocate != NULL; relocate = relocate->next) {
+    if (strcmp(label, relocate->label) == 0) {
+      return relocate->rel_label;
+    }
+  }
+
+  return NULL;
 }
 
 Node *to_assign(Token *tkn, Node *rhs) {
@@ -998,6 +1038,10 @@ Node *program(Token *tkn) {
 // funcdef = declspec declarator comp-stmt
 //
 static Node *funcdef(Token *tkn, Token **end_tkn) {
+  label_node = NULL;
+  goto_node = NULL;
+  relocate_label = NULL;
+
   Node *node = new_node(ND_FUNC, tkn);
   Type *ty = declspec(tkn, &tkn);
   ty = declarator(tkn, &tkn, ty);
@@ -1028,12 +1072,22 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   del_scope();
   node->func->vars_size = init_offset();
 
+  // Relocate label
+  for (Node *stmt = label_node; stmt != NULL; stmt = stmt->deep) {
+    stmt->label = get_relocate(stmt->label);
+  }
+
+  for (Node *stmt = goto_node; stmt != NULL; stmt = stmt->deep) {
+    char *label = get_relocate(stmt->label);
+    if (label == NULL) {
+      errorf_tkn(ER_COMPILE, stmt->tkn, "Label '%s' is not defined", stmt->label);
+    }
+    stmt->label = label;
+  }
+
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
 }
-
-static char *break_label;
-static char *conti_label;
 
 // statement = labeled-statement |
 //             compound-statement |
@@ -1041,18 +1095,37 @@ static char *conti_label;
 //             iteratoin-statement |
 //             jump-statement |
 //             expression-statement
-// labeled-statement    = case constant-expression ":" statement
+// labeled-statement    = identifier ":" statement
+//                        "case" constant-expression ":" statement
+//                        "default" ":" statement
 // selection-statement  = "if" "(" expression ")" statement ("else" statement)?
 //                        "switch" "(" expression ")" statement
 // iteration-statement  = "while" "(" expression ")" statement |
 //                        "do" statement "while" "(" expression ")" ";" |
 //                        "for" "(" declaration expression? ";" expression? ")" statement |
 //                        "for" "(" expression? ";" expression? ";" expression? ")" statement
-// jump-statement       = "continue;" |
+// jump-statement       = "goto" identifier ";" |
+//                        "continue;" |
 //                        "break" |
 //                        "return" expr? ";"
 // expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn) {
+  if (get_ident(tkn) && equal(tkn->next, ":")) {
+    if (!new_relocate(get_ident(tkn))) {
+      errorf_tkn(ER_COMPILE, tkn, "Duplicate label");
+    }
+
+    Node *node = new_node(ND_LABEL, tkn);
+    node->label = get_ident(tkn);
+    tkn = skip(tkn->next, ":");
+
+    node->deep = label_node;
+    label_node = node;
+
+    node->next = statement(tkn, end_tkn);
+    return node;
+  }
+
   // labeled-statement
   if (equal(tkn, "case")) {
     Node *node = new_node(ND_CASE, tkn);
@@ -1240,6 +1313,25 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     conti_label = conti_store;
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
+  }
+
+  // jump-statement
+  if (equal(tkn, "goto")) {
+    Node *node = new_node(ND_GOTO, tkn);
+    char *ident = get_ident(tkn->next);
+
+    if (ident == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Cannot jump");
+    }
+
+    node->label = ident;
+
+    node->deep = goto_node;
+    goto_node = node;
+
+    tkn = skip(tkn->next->next, ";");
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
   }
 
   // jump-statement
