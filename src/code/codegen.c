@@ -326,6 +326,7 @@ static void gen_lvar_init(Node *node) {
       compile_node(init->init);
     } else {
       println("  mov rax, 0");
+      println("  pxor xmm0, xmm0");
     }
 
     switch (init->ty->kind) {

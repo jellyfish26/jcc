@@ -640,14 +640,14 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
     node->init = init->node;
     node->ty = ty;
 
-    if (!only_const && init->node != NULL && !is_same_type(ty, init->node->ty)) {
+    if (init->node != NULL && !is_same_type(ty, init->node->ty)) {
       node->init = new_cast(init->node->tkn, init->node, ty);
     }
 
     if (only_const && init->node != NULL) {
       char *label = NULL;
 
-      if (is_float_ty(init->node->ty)) {
+      if (is_float_ty(node->init->ty)) {
         node->init = new_floating(node->init->tkn, node->init->ty, eval_double(node->init));
       } else {
         node->init = new_num(init->node->tkn, eval_expr2(node->init, &label));
@@ -789,7 +789,6 @@ static int64_t eval_expr2(Node *node, char **label) {
       return node->use_var->val;
     case ND_CAST: {
       if (is_float_ty(node->lhs->ty)) {
-        fprintf(stderr, "111\n");
         return (int64_t)eval_double(node->lhs);
       }
 
@@ -801,10 +800,8 @@ static int64_t eval_expr2(Node *node, char **label) {
           return node->ty->is_unsigned ? (uint16_t)val : (int16_t)val;
         case TY_INT:
           return node->ty->is_unsigned ? (uint32_t)val : (int32_t)val;
-        case TY_LONG:
-          return node->ty->is_unsigned ? (uint64_t)val : val;
       }
-      break;
+      return val;
     }
     case ND_ADDR:
       return eval_addr(node->lhs, label);
@@ -944,6 +941,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
 
     if (is_global) {
       node->lhs->use_var->val = node->rhs->init->val;
+      node->lhs->use_var->fval = node->rhs->init->fval;
     }
 
     if (end_tkn != NULL) *end_tkn = tkn;

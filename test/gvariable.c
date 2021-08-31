@@ -45,8 +45,13 @@ double db = 2.0 + 4.5 - 3.0;
 _Bool dc = 0.0 && 2.0;
 _Bool dd = 0.0 || 2.0;
 int de = (0.01 || 2.0) + 10;
-double df = 2.0 + 3;
+const double df = 2.0 + 3;
 double dg;
+double dhh = df + 2.0;
+
+int const_expr14 = 2.0 + 3;
+double init_arr7[4][4] = {{1.2, 2.3f, 3.2, 4.3f}, {5.2}, {6.2, 7.5}, {}};
+float init_arr8[4][4] = {{1.5, 2.3f, 0.0, 4.3f}, {5.2}, {6.2f, 7.5f}, {}};
 
 int main() {
   CHECK(2, ({a = 2; a;}));
@@ -142,7 +147,30 @@ int main() {
   CHECK(11, de);
   CHECKD(5.0, df);
   CHECKD(0.0, dg);
+  CHECKD(7.0, dhh);
+
+  CHECK(5, const_expr14);
+
+  CHECKD(5.2, init_arr7[1][0]);
+  CHECKD(29.9, ({
+    double ans = 0;
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 4; j++) {
+        ans += init_arr7[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECKF(27.0f, ({
+    float ans = 0;
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 4; j++) {
+        ans += init_arr8[i][j];
+      }
+    }
+    ans;
+  }));
 
   return 0;
 }
-

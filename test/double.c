@@ -447,5 +447,21 @@ int main() {
     a;
   }));
 
+  CHECKD(4.6, ({
+    double a[2] = {2.2, 2.4};
+    a[0] + a[1];
+  }));
+
+  CHECKD(4.8, ({
+    double a[2][2] = {{2.2, 2.4}, {0.2}};
+    double ans = 0;
+    for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < 2; j++) {
+        ans += a[i][j];
+      }
+    }
+    ans;
+  }));
+
   return 0;
 }
