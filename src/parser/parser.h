@@ -40,8 +40,7 @@ typedef enum {
   ND_RETURN,      // "return" statement
   ND_IF,          // "if" statement
   ND_ELSE,        // "else" statement
-  ND_FOR,         // "for" statement
-  ND_WHILE,       // "while" statement
+  ND_FOR,         // "for" or "while" statement
   ND_BLOCK,       // Block statement
   ND_LOOPBREAK,   // "break" statement (only for and while)
   ND_CONTINUE,    // "continue" statement

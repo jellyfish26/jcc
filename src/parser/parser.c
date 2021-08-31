@@ -115,6 +115,7 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
   return ret;
 }
 
+
 static bool is_addr_node(Node *node) {
   switch (node->ty->kind) {
     case TY_PTR:
@@ -968,7 +969,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   return node;
 }
 
-static Node *inside_roop; // inside for or while
+static Node *loop_label;
 
 // statement = compound-statement |
 //             selection-statement |
@@ -1017,10 +1018,10 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "for")) {
     tkn = skip(tkn->next, "(");
     new_scope();
-
-    Node *roop_state = inside_roop;
+    
+    Node *loop_state = loop_label;
     Node *ret = new_node(ND_FOR, tkn);
-    inside_roop = ret;
+    loop_label = ret;
 
     ret->init = declaration(tkn, &tkn, false);
     if (ret->init == NULL && !consume(tkn, &tkn, ";")) {
@@ -1041,7 +1042,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     ret->then = statement(tkn, &tkn);
     del_scope();
 
-    inside_roop = roop_state;
+    loop_label = loop_state;
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
@@ -1052,16 +1053,16 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     tkn = skip(tkn->next, "(");
     new_scope();
 
-    Node *roop_state = inside_roop;
-    Node *ret = new_node(ND_WHILE, tkn);
-    inside_roop = ret;
+    Node *loop_state = loop_label;
+    Node *ret = new_node(ND_FOR, tkn);
+    loop_label = ret;
 
     ret->cond = expr(tkn, &tkn);
 
     tkn = skip(tkn, ")");
 
     ret->then = statement(tkn, &tkn);
-    inside_roop = roop_state;
+    loop_label = loop_state;
 
     del_scope();
     if (end_tkn != NULL) *end_tkn = tkn;
@@ -1070,12 +1071,12 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
   // jump-statement
   if (equal(tkn, "continue")) {
-    if (inside_roop == NULL) {
+    if (loop_label == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
     }
 
     Node *ret = new_node(ND_CONTINUE, tkn);
-    ret->lhs = inside_roop;
+    ret->lhs = loop_label;
     tkn = skip(tkn->next, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;
@@ -1084,12 +1085,12 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
   // jump-statement
   if (equal(tkn, "break")) {
-    if (inside_roop == NULL) {
+    if (loop_label == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
     }
 
     Node *ret = new_node(ND_LOOPBREAK, tkn);
-    ret->lhs = inside_roop;
+    ret->lhs = loop_label;
     tkn = skip(tkn->next, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;

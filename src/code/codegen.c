@@ -572,7 +572,6 @@ void compile_node(Node *node) {
       expand_ternary(node, branch_label);
       return;
     }
-    case ND_WHILE:
     case ND_FOR: {
       int now_label = branch_label++;
       node->label = now_label;
