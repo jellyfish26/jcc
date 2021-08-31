@@ -616,19 +616,28 @@ void compile_node(Node *node) {
         println("  cmp rax, %ld", expr->val);
         println("  je .Lcase%d_%d", now_label, cnt++);
       }
-      println("  jmp %s", node->break_label);
+
+      if (node->default_stmt == NULL) {
+        println("  jmp %s", node->break_label);
+      } else {
+        println("  jmp .Ldefault%d", now_label);
+      }
 
       cnt = 0;
       for (Node *expr = node->lhs; expr != NULL; expr = expr->next) {
         if (expr->kind == ND_CASE) {
           println(".Lcase%d_%d:", now_label, cnt++);
+        } else if (expr->kind == ND_DEFAULT) {
+          println(".Ldefault%d:", now_label);
         }
         compile_node(expr);
       }
+
       println("%s:", node->break_label);
       return;
     }
-    case ND_CASE: {
+    case ND_CASE:
+    case ND_DEFAULT: {
       compile_node(node->deep);
       return;
     }

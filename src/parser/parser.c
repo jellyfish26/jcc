@@ -1066,6 +1066,17 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     return node;
   }
 
+  if (equal(tkn, "default")) {
+    Node *node = new_node(ND_DEFAULT, tkn);
+    tkn = skip(tkn->next, ":");
+
+    new_scope();
+    node->deep = statement(tkn, end_tkn);
+    del_scope();
+
+    return node;
+  }
+
 
   // compound-statement
   Node *node = comp_stmt(tkn, &tkn);
@@ -1129,6 +1140,13 @@ static Node *statement(Token *tkn, Token **end_tkn) {
               errorf_tkn(ER_COMPILE, expr->tkn, "Duplicate case value");
             }
           }
+        }
+
+        if (expr->kind == ND_DEFAULT) {
+          if (node->default_stmt != NULL) {
+            errorf_tkn(ER_COMPILE, expr->tkn, "Duplicate default label");
+          }
+          node->default_stmt = expr;
         }
       }
       node->case_stmt = head.case_stmt;

@@ -47,6 +47,7 @@ typedef enum {
   ND_BLOCK,       // Block statement
   ND_SWITCH,      // "switch" statement
   ND_CASE,        // "case" statement
+  ND_DEFAULT,     // "default" statement
   ND_BREAK,       // "break" statement
   ND_CONTINUE,    // "continue" statement
   ND_FUNCCALL,    // Function call
@@ -83,6 +84,7 @@ struct Node {
 
   // swtich
   Node *case_stmt;
+  Node *default_stmt;
 
   int64_t val;        // Value if kind is ND_NUM
   long double fval;   // Floating-value if kind is ND_NUM
