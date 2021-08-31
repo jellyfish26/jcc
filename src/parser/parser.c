@@ -1035,13 +1035,15 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
 static char *break_label;
 static char *conti_label;
 
-// statement = compound-statement |
+// statement = labeled-statement |
+//             compound-statement |
 //             selection-statement |
 //             iteratoin-statement |
 //             jump-statement |
 //             expression-statement
-//
+// labeled-statement    = case constant-expression ":" statement
 // selection-statement  = "if" "(" expression ")" statement ("else" statement)?
+//                        "switch" "(" expression ")" statement
 // iteration-statement  = "while" "(" expression ")" statement |
 //                        "do" statement "while" "(" expression ")" ";" |
 //                        "for" "(" declaration expression? ";" expression? ")" statement |
@@ -1051,6 +1053,20 @@ static char *conti_label;
 //                        "return" expr? ";"
 // expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn) {
+  // labeled-statement
+  if (equal(tkn, "case")) {
+    Node *node = new_node(ND_CASE, tkn);
+    node->val = eval_expr(expr(tkn->next, &tkn));
+    tkn = skip(tkn, ":");
+
+    new_scope();
+    node->deep = statement(tkn, end_tkn);
+    del_scope();
+
+    return node;
+  }
+
+
   // compound-statement
   Node *node = comp_stmt(tkn, &tkn);
   if (node != NULL) {
@@ -1077,6 +1093,50 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
+  }
+
+  // selection-statement
+  if (equal(tkn, "switch")) {
+    char *break_store = break_label;
+
+    Node *node = new_node(ND_SWITCH, tkn);
+    break_label = node->break_label = new_unique_label();
+
+    tkn = skip(tkn->next, "(");
+    node->cond = expr(tkn, &tkn);
+    add_type(node->cond);
+    if (!is_integer_ty(node->cond->ty)) {
+      errorf_tkn(ER_COMPILE, tkn, "Statemnet require expression of integer type");
+    }
+    tkn = skip(tkn, ")");
+    
+    new_scope();
+    Node *stmt = statement(tkn, end_tkn);
+    del_scope();
+
+    if (stmt->kind == ND_BLOCK) {
+      Node head = {};
+      Node *cur = &head;
+
+      for (Node *expr = stmt->deep; expr != NULL; expr = expr->next) {
+        if (expr->kind == ND_CASE) {
+          cur->case_stmt = expr;
+          cur = expr;
+
+          // Duplicate check
+          for (Node *before = head.case_stmt; before != expr; before = before->case_stmt) {
+            if (expr->val == before->val) {
+              errorf_tkn(ER_COMPILE, expr->tkn, "Duplicate case value");
+            }
+          }
+        }
+      }
+      node->case_stmt = head.case_stmt;
+      node->lhs = stmt->deep;
+    }
+
+    break_label = break_store;
+    return node;
   }
 
   // iteration-statement

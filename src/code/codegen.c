@@ -607,6 +607,31 @@ void compile_node(Node *node) {
       println("%s:", node->break_label);
       return;
     }
+    case ND_SWITCH: {
+      int now_label = branch_label++;
+      compile_node(node->cond);
+
+      int cnt = 0;
+      for (Node *expr = node->case_stmt; expr != NULL; expr = expr->case_stmt) {
+        println("  cmp rax, %ld", expr->val);
+        println("  je .Lcase%d_%d", now_label, cnt++);
+      }
+      println("  jmp %s", node->break_label);
+
+      cnt = 0;
+      for (Node *expr = node->lhs; expr != NULL; expr = expr->next) {
+        if (expr->kind == ND_CASE) {
+          println(".Lcase%d_%d:", now_label, cnt++);
+        }
+        compile_node(expr);
+      }
+      println("%s:", node->break_label);
+      return;
+    }
+    case ND_CASE: {
+      compile_node(node->deep);
+      return;
+    }
     case ND_BREAK: {
       println("  jmp %s", node->break_label);
       return;

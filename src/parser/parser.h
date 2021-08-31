@@ -35,6 +35,8 @@ typedef enum {
   ND_LOGICALOR,   // "||" (Logical OR)
   ND_LOGICALNOT,  // "!" (Logical NOT)
   ND_COND,        // "?:" conditional
+  ND_ADDR,        // "&" (Address-of)
+  ND_CONTENT,     // "*" (Indirection, dereference)
   ND_ASSIGN,      // Assign
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
@@ -43,11 +45,11 @@ typedef enum {
   ND_FOR,         // "for" or "while" statement
   ND_DO,          // "do-while"
   ND_BLOCK,       // Block statement
+  ND_SWITCH,      // "switch" statement
+  ND_CASE,        // "case" statement
   ND_BREAK,       // "break" statement
   ND_CONTINUE,    // "continue" statement
   ND_FUNCCALL,    // Function call
-  ND_ADDR,        // "&" (Address-of)
-  ND_CONTENT,     // "*" (Indirection, dereference)
   ND_NUM,         // Number (int)
   ND_CAST,        // Cast
   ND_INIT,        // Initializer
@@ -72,12 +74,15 @@ struct Node {
   Node *other; // cond false statement
   Node *loop;  // Loop statement
 
-  char *break_label;
-  char *conti_label;
-
   Obj *func;    // Function or Function call
   int argc;     // Arguments count
   Node **args;  // Arguemnts
+
+  char *break_label;
+  char *conti_label;
+
+  // swtich
+  Node *case_stmt;
 
   int64_t val;        // Value if kind is ND_NUM
   long double fval;   // Floating-value if kind is ND_NUM
@@ -161,6 +166,7 @@ extern Type *ty_f64;
 void init_type();
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
+bool is_integer_ty(Type *ty);
 bool is_float_ty(Type *ty);
 bool is_same_type(Type *lty, Type *rty);
 bool declare_func(Type *ty);

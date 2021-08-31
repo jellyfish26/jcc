@@ -161,11 +161,12 @@ static char *permit_panct[] = {
     "(",   ")",  ";",  "{",  "}",  "[",  "]",  "<<=", "<<", "<=", "<",
     ">>=", ">>", ">=", ">",  "==", "!=", "=",  "++",  "+=", "+",  "--",
     "-=",  "-",  "*=", "*",  "/=", "/",  "%=", "%",   "&=", "&&", "&",
-    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~"};
+    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~", ":"};
 
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "do", "while", "break", "continue",
-  "sizeof", "signed", "unsigned", "void", "_Bool", "char", "short",
+  "switch", "case", "sizeof", 
+  "signed", "unsigned", "void", "_Bool", "char", "short", 
   "int", "long", "float", "double", "const"};
 
 char read_char(char *str, char **end_ptr) {

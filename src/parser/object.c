@@ -63,6 +63,17 @@ Type *array_to(Type *type, int array_len) {
   return ret;
 }
 
+bool is_integer_ty(Type *ty) {
+  switch (ty->kind) {
+    case TY_CHAR:
+    case TY_SHORT:
+    case TY_INT:
+    case TY_LONG:
+      return true;
+  }
+  return false;
+}
+
 bool is_float_ty(Type *ty) {
   switch (ty->kind) {
     case TY_FLOAT:
