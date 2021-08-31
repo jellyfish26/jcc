@@ -42,7 +42,7 @@ typedef enum {
   ND_ELSE,        // "else" statement
   ND_FOR,         // "for" or "while" statement
   ND_BLOCK,       // Block statement
-  ND_LOOPBREAK,   // "break" statement (only for and while)
+  ND_BREAK,       // "break" statement
   ND_CONTINUE,    // "continue" statement
   ND_FUNCCALL,    // Function call
   ND_ADDR,        // "&" (Address-of)
@@ -71,7 +71,8 @@ struct Node {
   Node *other; // cond false statement
   Node *loop;  // Loop statement
 
-  int label; // label (only "for" or "while" statement)
+  char *break_label;
+  char *conti_label;
 
   Obj *func;    // Function or Function call
   int argc;     // Arguments count

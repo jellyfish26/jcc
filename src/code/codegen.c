@@ -571,19 +571,17 @@ void compile_node(Node *node) {
       return;
     }
     case ND_FOR: {
-      int now_label = branch_label++;
-      node->label = now_label;
-      if (node->init) {
+      if (node->init != NULL) {
         compile_node(node->init);
       }
 
-      println(".Lbegin%d:", now_label);
+      println("%s:", node->conti_label);
 
       // judege expr
       if (node->cond != NULL) {
         compile_node(node->cond);
         println("  cmp rax, 0");
-        println("  je .Lend%d", now_label);
+        println("  je %s", node->break_label);
       }
 
       compile_node(node->then);
@@ -594,18 +592,16 @@ void compile_node(Node *node) {
       }
 
       // finally
-      println("  jmp .Lbegin%d", now_label);
-      println(".Lend%d:", now_label);
+      println("  jmp %s", node->conti_label);
+      println("%s:", node->break_label);
       return;
     }
-    case ND_LOOPBREAK: {
-      int now_label = node->lhs->label;
-      println("  jmp .Lend%d", now_label);
+    case ND_BREAK: {
+      println("  jmp %s", node->break_label);
       return;
     }
     case ND_CONTINUE: {
-      int now_label = node->lhs->label;
-      println("  jmp .Lbegin%d", now_label);
+      println("  jmp %s", node->conti_label);
       return;
     }
     case ND_CONTENT: {

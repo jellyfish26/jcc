@@ -118,6 +118,13 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
   return ret;
 }
 
+static int label_cnt = 0;
+
+static char *new_unique_label() {
+  char *ptr = calloc(10, sizeof(char));
+  sprintf(ptr, ".Luni%d", label_cnt++);
+  return ptr;
+}
 
 static bool is_addr_node(Node *node) {
   switch (node->ty->kind) {
@@ -1025,7 +1032,8 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   return node;
 }
 
-static Node *loop_label;
+static char *break_label;
+static char *conti_label;
 
 // statement = compound-statement |
 //             selection-statement |
@@ -1074,10 +1082,13 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "for")) {
     tkn = skip(tkn->next, "(");
     new_scope();
+
+    char *break_store = break_label;
+    char *conti_store = conti_label;
     
-    Node *loop_state = loop_label;
     Node *ret = new_node(ND_FOR, tkn);
-    loop_label = ret;
+    break_label = ret->break_label = new_unique_label();
+    conti_label = ret->conti_label = new_unique_label();
 
     ret->init = declaration(tkn, &tkn, false);
     if (ret->init == NULL && !consume(tkn, &tkn, ";")) {
@@ -1098,8 +1109,8 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     ret->then = statement(tkn, &tkn);
     del_scope();
 
-    loop_label = loop_state;
-
+    break_label = break_store;
+    conti_label = conti_store;
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
@@ -1109,30 +1120,34 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     tkn = skip(tkn->next, "(");
     new_scope();
 
-    Node *loop_state = loop_label;
+    char *break_store = break_label;
+    char *conti_store = conti_label;
+    
     Node *ret = new_node(ND_FOR, tkn);
-    loop_label = ret;
+    break_label = ret->break_label = new_unique_label();
+    conti_label = ret->conti_label = new_unique_label();
 
     ret->cond = expr(tkn, &tkn);
 
     tkn = skip(tkn, ")");
 
     ret->then = statement(tkn, &tkn);
-    loop_label = loop_state;
-
     del_scope();
+
+    break_label = break_store;
+    conti_label = conti_store;
     if (end_tkn != NULL) *end_tkn = tkn;
     return ret;
   }
 
   // jump-statement
   if (equal(tkn, "continue")) {
-    if (loop_label == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
+    if (conti_label == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "There is no jump destination");
     }
 
     Node *ret = new_node(ND_CONTINUE, tkn);
-    ret->lhs = loop_label;
+    ret->conti_label = conti_label;
     tkn = skip(tkn->next, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;
@@ -1141,12 +1156,12 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
   // jump-statement
   if (equal(tkn, "break")) {
-    if (loop_label == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Not within loop.");
+    if (break_label == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "There is no jump destination");
     }
 
-    Node *ret = new_node(ND_LOOPBREAK, tkn);
-    ret->lhs = loop_label;
+    Node *ret = new_node(ND_BREAK, tkn);
+    ret->break_label = break_label;
     tkn = skip(tkn->next, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;
