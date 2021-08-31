@@ -159,9 +159,10 @@ extern Type *ty_f64;
 void init_type();
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
+bool is_float_ty(Type *ty);
+bool is_same_type(Type *lty, Type *rty);
 bool declare_func(Type *ty);
 bool define_func(Type *ty);
-bool is_same_type(Type *lty, Type *rty);
 
 // Variable or Function
 struct Obj {

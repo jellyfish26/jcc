@@ -63,6 +63,16 @@ Type *array_to(Type *type, int array_len) {
   return ret;
 }
 
+bool is_float_ty(Type *ty) {
+  switch (ty->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+    case TY_LDOUBLE:
+      return true;
+  }
+  return false;
+}
+
 bool is_same_type(Type *lty, Type *rty) {
   while (lty != NULL && rty != NULL) {
     if (lty->kind != rty->kind) {

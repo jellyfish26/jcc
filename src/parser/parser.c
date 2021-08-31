@@ -35,6 +35,7 @@ static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
 static int64_t eval_expr(Node *node);
 static int64_t eval_expr2(Node *node, char **label);
 static int64_t eval_addr(Node *node, char **label);
+static long double eval_double(Node *node);
 static Node *funcdef(Token *tkn, Token **end_tkn);
 static Node *comp_stmt(Token *tkn, Token **end_tkn);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
@@ -111,6 +112,7 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
   ret->kind = ND_NUM;
   ret->use_var = obj;
   ret->ty = ty;
+  ret->fval = fval;
 
   add_gvar(obj, false);
   return ret;
@@ -645,7 +647,12 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
     if (only_const && init->node != NULL) {
       char *label = NULL;
 
-      node->init = new_num(init->node->tkn, eval_expr2(init->node, &label));
+      if (is_float_ty(init->node->ty)) {
+        node->init = new_floating(node->init->tkn, node->init->ty, eval_double(node->init));
+      } else {
+        node->init = new_num(init->node->tkn, eval_expr2(node->init, &label));
+      }
+
       node->init->use_var = calloc(1, sizeof(Obj));
       node->init->use_var->name = label;
     }
@@ -662,7 +669,6 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
   return;
 }
 
-
 static int64_t eval_expr(Node *node) {
   return eval_expr2(node, NULL);
 }
@@ -676,7 +682,7 @@ static int64_t eval_expr2(Node *node, char **label) {
       return eval_expr2(node->lhs, label) + eval_expr2(node->rhs, label);
     case ND_SUB: {
       char *dummyl = NULL, *dummyr = NULL;
-      int64_t val = eval_expr2(node->lhs, &dummyl) + eval_expr2(node->rhs, &dummyr);
+      int64_t val = eval_expr2(node->lhs, &dummyl) - eval_expr2(node->rhs, &dummyr);
 
       if (dummyl != NULL && dummyr != NULL) {
         if (strcmp(dummyl, dummyr) != 0) {
@@ -694,7 +700,9 @@ static int64_t eval_expr2(Node *node, char **label) {
         errorf_tkn(ER_COMPILE, node->tkn, "Pointer is not allowed");
       }
 
-      *label = dummyl;
+      if (label != NULL) {
+        *label = dummyl;
+      }
       return val;
     }
     case ND_MUL:
@@ -710,15 +718,29 @@ static int64_t eval_expr2(Node *node, char **label) {
       }
       return eval_expr(node->lhs) % eval_expr(node->rhs);
     case ND_EQ:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs) == eval_double(node->rhs);
+      }
       return eval_expr(node->lhs) == eval_expr(node->rhs);
     case ND_NEQ:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs) != eval_double(node->rhs);
+      }
       return eval_expr(node->lhs) != eval_expr(node->rhs);
     case ND_LC:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs) < eval_double(node->rhs);
+      }
+
       if (node->lhs->ty->is_unsigned) {
         return (uint64_t)eval_expr(node->lhs) < eval_expr(node->rhs);
       }
       return eval_expr(node->lhs) < eval_expr(node->rhs);
     case ND_LEC:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs) <= eval_double(node->rhs);
+      }
+
       if (node->lhs->ty->is_unsigned) {
         return (uint64_t)eval_expr(node->lhs) <= eval_expr(node->rhs);
       }
@@ -739,14 +761,38 @@ static int64_t eval_expr2(Node *node, char **label) {
     case ND_BITWISENOT:
       return ~eval_expr(node->lhs);
     case ND_LOGICALAND:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs) && eval_double(node->rhs);
+      }
+
       return eval_expr(node->lhs) && eval_expr(node->rhs);
     case ND_LOGICALOR:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs) || eval_double(node->rhs);
+      }
+
       return eval_expr(node->lhs) || eval_expr(node->rhs);
     case ND_LOGICALNOT:
       return !eval_expr(node->lhs);
     case ND_COND:
       return eval_expr(node->cond) ? eval_expr2(node->lhs, label) : eval_expr2(node->rhs, label);
+    case ND_VAR:
+      if (label != NULL && node->ty->kind == TY_ARRAY) {
+        *label = node->use_var->name;
+        return 0;
+      }
+
+      if (is_addr_node(node)) {
+        break;
+      }
+
+      return node->use_var->val;
     case ND_CAST: {
+      if (is_float_ty(node->lhs->ty)) {
+        fprintf(stderr, "111\n");
+        return (int64_t)eval_double(node->lhs);
+      }
+
       int64_t val = eval_expr2(node->lhs, label);
       switch (node->ty->kind) {
         case TY_CHAR:
@@ -758,18 +804,8 @@ static int64_t eval_expr2(Node *node, char **label) {
         case TY_LONG:
           return node->ty->is_unsigned ? (uint64_t)val : val;
       }
-      errorf_tkn(ER_COMPILE, node->tkn, "Not a compiler-time constant");
+      break;
     }
-    case ND_VAR:
-      if (label != NULL && node->ty->kind == TY_ARRAY) {
-        *label = node->use_var->name;
-        return 0;
-      }
-
-      if (is_addr_node(node)) {
-        errorf_tkn(ER_COMPILE, node->tkn, "Not a compiler-time constant");
-      }
-      return node->use_var->val;
     case ND_ADDR:
       return eval_addr(node->lhs, label);
     case ND_CONTENT:
@@ -777,7 +813,7 @@ static int64_t eval_expr2(Node *node, char **label) {
     case ND_NUM:
       return node->val;
   }
-  errorf_tkn(ER_COMPILE, node->tkn, "Not a compiler-time constanta");
+  errorf_tkn(ER_COMPILE, node->tkn, "Not a compiler-time constant");
 }
 
 static int64_t eval_addr(Node *node, char **label) {
@@ -794,6 +830,36 @@ static int64_t eval_addr(Node *node, char **label) {
       return 0;
     case ND_CONTENT:
       return eval_expr2(node->lhs, label);
+  }
+
+  errorf_tkn(ER_COMPILE, node->tkn, "Not a compiler-time constant");
+}
+
+static long double eval_double(Node *node) {
+  add_type(node);
+
+  switch (node->kind) {
+    case ND_ADD:
+      return eval_double(node->lhs) + eval_double(node->rhs);
+    case ND_SUB:
+      return eval_double(node->lhs) - eval_double(node->rhs);
+    case ND_MUL:
+      return eval_double(node->lhs) * eval_double(node->rhs);
+    case ND_DIV:
+      return eval_double(node->lhs) / eval_double(node->rhs);
+    case ND_VAR:
+      if (!node->use_var->is_global) {
+        break;
+      }
+
+      return node->use_var->fval;
+    case ND_CAST:
+      if (is_float_ty(node->lhs->ty)) {
+        return eval_double(node->lhs);
+      }
+      return (long double)eval_expr(node->lhs);
+    case ND_NUM:
+      return node->fval;
   }
 
   errorf_tkn(ER_COMPILE, node->tkn, "Not a compiler-time constant");

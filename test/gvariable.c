@@ -34,6 +34,19 @@ int *const_expr10 = &const_expr9;
 
 int const_expr11[2][3] = {{1, 3, 2}, {6, 9, 2}};
 int *const_expr12 = *(const_expr11 + 1) + 1;
+int const_expr13 = (2 - 4) * (2) * -1;
+
+
+double da = 2.3;
+float fa = 2.3f;
+float fb = 2.3;
+
+double db = 2.0 + 4.5 - 3.0;
+_Bool dc = 0.0 && 2.0;
+_Bool dd = 0.0 || 2.0;
+int de = (0.01 || 2.0) + 10;
+double df = 2.0 + 3;
+double dg;
 
 int main() {
   CHECK(2, ({a = 2; a;}));
@@ -107,49 +120,28 @@ int main() {
     ans;
   }));
 
-  CHECK(7, ({
-    ca;
-  }));
+  CHECK(7, ca);
+  CHECK(5, const_expr1);
+  CHECK(9, const_expr2);
+  CHECK(99, const_expr3);
+  CHECK(32, const_expr4);
+  CHECK(64, const_expr5);
+  CHECK(456169, const_expr6);
+  CHECK(4, const_expr7);
+  CHECK(12, const_expr8);
+  CHECK(3, *const_expr10);
+  CHECK(9, *const_expr12);
+  CHECK(4, const_expr13);
 
-  CHECK(5, ({
-    const_expr1;
-  }));
-
-  CHECK(9, ({
-    const_expr2;
-  }));
-
-  CHECK(99, ({
-    const_expr3;
-  }));
-
-  CHECK(32, ({
-    const_expr4;
-  }));
-
-  CHECK(64, ({
-    const_expr5;
-  }));
-
-  CHECK(456169, ({
-    const_expr6;
-  }));
-
-  CHECK(4, ({
-    const_expr7;
-  }));
-
-  CHECK(12, ({
-    const_expr8;
-  }));
-
-  CHECK(3, ({
-    *const_expr10;
-  }));
-
-  CHECK(9, ({
-    *const_expr12;
-  }));
+  CHECKD(2.3, da);
+  CHECKF(2.3f, fa);
+  CHECKF(2.3f, fb);
+  CHECKD(3.5, db);
+  CHECK(0, dc);
+  CHECK(1, dd);
+  CHECK(11, de);
+  CHECKD(5.0, df);
+  CHECKD(0.0, dg);
 
   return 0;
 }

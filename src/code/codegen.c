@@ -349,18 +349,17 @@ static void gen_gvar_init(Node *node) {
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
     char *asm_ty;
-    switch (init->ty->kind) {
-      case TY_CHAR:
+    switch (init->ty->var_size) {
+      case 1:
         asm_ty = ".byte";
         break;
-      case TY_SHORT:
+      case 2:
         asm_ty = ".short";
         break;
-      case TY_INT:
+      case 4:
         asm_ty = ".long";
         break;
-      case TY_LONG:
-      case TY_PTR:
+      case 8:
         asm_ty = ".quad";
         break;
       default:
@@ -369,6 +368,21 @@ static void gen_gvar_init(Node *node) {
 
     if (init->init == NULL) {
       println("  %s 0", asm_ty);
+      continue;
+    }
+
+    if (init->ty->kind == TY_FLOAT) {
+      float *ptr = calloc(1, sizeof(float));
+      *ptr = (float)init->init->fval;
+      println("  .long %d", *(int*)ptr);
+      continue;
+    }
+
+    if (init->ty->kind == TY_DOUBLE) {
+      double *ptr = calloc(1, sizeof(double));
+      *ptr = (double)init->init->fval;
+      println("  .long %d", *(int*)ptr);
+      println("  .long %d", *((int*)ptr + 1));
       continue;
     }
 
@@ -390,7 +404,7 @@ static void gen_gvar_define(Obj *var) {
     return;
   }
 
-  if (var->ty->kind == TY_FLOAT) {
+  if (var->name == NULL && var->ty->kind == TY_FLOAT) {
     float *ptr = calloc(1, sizeof(float));
     *ptr = (float)var->fval;
     println(".LC%d:", var->offset);
@@ -399,7 +413,7 @@ static void gen_gvar_define(Obj *var) {
     return;
   }
 
-  if (var->ty->kind == TY_DOUBLE) {
+  if (var->name == NULL && var->ty->kind == TY_DOUBLE) {
     double *ptr = calloc(1, sizeof(double));
     *ptr = (double)var->fval;
     println(".LC%d:", var->offset);
@@ -411,24 +425,7 @@ static void gen_gvar_define(Obj *var) {
 
 
   println("%s:", var->name);
-  switch (var->ty->kind) {
-    case TY_CHAR:
-      println("  .zero 1");
-      break;
-    case TY_SHORT:
-      println("  .zero 2");
-      break;
-    case TY_INT:
-      println("  .zero 4");
-      break;
-    case TY_LONG:
-    case TY_PTR:
-    case TY_ARRAY:
-      println("  .zero %d", var->ty->var_size);
-      break;
-    default:
-      return;
-  }
+  println("  .zero %d", var->ty->var_size);
 }
 
 static void cnt_func_params(Node *node, int *general, int *floating) {
@@ -913,13 +910,16 @@ void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
   println(".intel_syntax noprefix");
   for (Obj *gvar = get_gvars(); gvar != NULL; gvar = gvar->next) {
-    // Only string literal
+    // String literal or floating constant
     switch (gvar->ty->kind) {
       case TY_STR:
+        gen_gvar_define(gvar);
       case TY_FLOAT:
       case TY_DOUBLE:
       case TY_LDOUBLE:
-        gen_gvar_define(gvar);
+        if (gvar->name == NULL) {
+          gen_gvar_define(gvar);
+        }
         break;
       default:
         break;
