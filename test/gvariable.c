@@ -53,6 +53,13 @@ int const_expr14 = 2.0 + 3;
 double init_arr7[4][4] = {{1.2, 2.3f, 3.2, 4.3f}, {5.2}, {6.2, 7.5}, {}};
 float init_arr8[4][4] = {{1.5, 2.3f, 0.0, 4.3f}, {5.2}, {6.2f, 7.5f}, {}};
 
+long double lda = 2.1;
+long double ldb = 2.0l + 4.5l - 3.0;
+const double ldc = 2.0l + 3;
+long double ldd = ldc + 2.0l;
+
+long double init_arr9[4][4] = {{1.5l, 2.3f, 0.0, 4.3}, {5.2}, {6.2f, 7.5f}, {}};
+
 int main() {
   CHECK(2, ({a = 2; a;}));
   CHECK(5, ({b = 1; int *c = &a; *c = 4; a + b;}));
@@ -167,6 +174,21 @@ int main() {
     for (int i = 0; i < 4; i++) {
       for (int j = 0; j < 4; j++) {
         ans += init_arr8[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECKLD(2.1l, lda);
+  CHECKLD(3.5l, ldb);
+  CHECKLD(5.0l, ldc);
+  CHECKLD(7.0l, ldd);
+
+  CHECKLD(27.0l, ({
+    long double ans = 0;
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 4; j++) {
+        ans += init_arr9[i][j];
       }
     }
     ans;

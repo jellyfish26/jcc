@@ -440,8 +440,16 @@ static void gen_lvar_init(Node *node) {
     if (init->init != NULL) {
       compile_node(init->init);
     } else {
-      println("  mov rax, 0");
-      println("  pxor xmm0, xmm0");
+      switch (init->ty->kind) {
+        case TY_FLOAT:
+        case TY_DOUBLE:
+          println("  pxor xmm0, xmm0");
+          break;
+        case TY_LDOUBLE:
+          println("  fldz");
+        default:
+          println("  mov rax, 0");
+      }
     }
 
     switch (init->ty->kind) {
@@ -465,6 +473,38 @@ static void gen_gvar_init(Node *node) {
 
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
+    if (init->init == NULL) {
+      println("  .zero %d", init->ty->var_size);
+      continue;
+    }
+
+    if (init->ty->kind == TY_FLOAT) {
+      float *ptr = calloc(1, sizeof(float));
+      *ptr = (float)init->init->fval;
+      println("  .long %d", *(int*)ptr);
+      free(ptr);
+      continue;
+    }
+
+    if (init->ty->kind == TY_DOUBLE) {
+      double *ptr = calloc(1, sizeof(double));
+      *ptr = (double)init->init->fval;
+      println("  .long %d", *(int*)ptr);
+      println("  .long %d", *((int*)ptr + 1));
+      free(ptr);
+      continue;
+    }
+
+    if (init->ty->kind == TY_LDOUBLE) {
+      long double *ptr = calloc(1, sizeof(double));
+      *ptr = init->init->fval;
+      for (int i = 0; i < 4; i++) {
+        println("  .long %d", *((int*)ptr + i));
+      }
+      free(ptr);
+      continue;
+    }
+
     char *asm_ty;
     switch (init->ty->var_size) {
       case 1:
@@ -481,26 +521,6 @@ static void gen_gvar_init(Node *node) {
         break;
       default:
         return;
-    }
-
-    if (init->init == NULL) {
-      println("  %s 0", asm_ty);
-      continue;
-    }
-
-    if (init->ty->kind == TY_FLOAT) {
-      float *ptr = calloc(1, sizeof(float));
-      *ptr = (float)init->init->fval;
-      println("  .long %d", *(int*)ptr);
-      continue;
-    }
-
-    if (init->ty->kind == TY_DOUBLE) {
-      double *ptr = calloc(1, sizeof(double));
-      *ptr = (double)init->init->fval;
-      println("  .long %d", *(int*)ptr);
-      println("  .long %d", *((int*)ptr + 1));
-      continue;
     }
 
     char *ptr_label = init->init->use_var->name;
