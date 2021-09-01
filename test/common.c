@@ -46,3 +46,12 @@ void checkd(double expected, double actual, char *str) {
     exit(1);
   }
 }
+
+void checkld(long double expected, long double actual, char *str) {
+  if (expected == actual) {
+    printf("\e[32m[ OK ]\e[m %s => %Lf\n", str, actual);
+  } else {
+    printf("\e[31m[ NG ]\e[m %s => %Lf expected but got %Lf\n", str, expected, actual);
+    exit(1);
+  }
+}
