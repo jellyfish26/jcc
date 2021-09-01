@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,7 +130,6 @@ bool is_eof(Token *tkn) {
 
 static Token *new_token(TokenKind kind, Token *connect, char *loc, int tkn_len) {
   Token *ret = calloc(1, sizeof(Token));
-  // printf("%d\n", kind);
   ret->kind = kind;
   ret->loc = loc;
   ret->len = tkn_len;
@@ -210,17 +210,6 @@ static char *read_strlit(char *str, char **end_ptr) {
   memcpy(ret, str, str_len);
   *end_ptr = str + str_len;
   return ret;
-}
-
-static int hex_to_decimal(char c) {
-  if ('0' <= c && c <= '9') {
-    return c - '0';
-  } else if ('a' <= c && c <= 'f') {
-    return c - 'a' + 10;
-  } else if ('A' <= c && c <= 'F') {
-    return c - 'A' + 10;
-  }
-  return -1;
 }
 
 // Return null, if float constant
@@ -322,75 +311,92 @@ static Token *read_float(char *str, char **end_ptr, Token *connect) {
   return tkn;
 }
 
-// Update source token
-Token *tokenize(char *file_name) {
+static char *read_file(char *path) {
   FILE *fp;
-  if ((fp = fopen(file_name, "r")) == NULL) {
-    fprintf(stderr, "Failed to open the file: %s\n", file_name);
+  fp = fopen(path, "r");
+
+  if (fp == NULL) {
+    fprintf(stderr, "Failed to open the file: %s\n", path);
     exit(1);
   }
-  // Get file length and string
-  fseek(fp, 0, SEEK_END);
-  int file_len = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-  source_str = calloc(sizeof(char), file_len + 1);
-  for (int i = 0; i < file_len; ++i) {
-    *(source_str + i) = fgetc(fp);
-  }
-  // Insert a new line at the end
-  if (*(source_str + file_len - 1) != '\n') {
-    *(source_str + file_len - 1) = '\n';
+
+  char *buf;
+  size_t buflen;
+  FILE *buffp = open_memstream(&buf, &buflen);
+
+  // Read file
+  while (true) {
+    char tmp[1024];
+    int len = fread(tmp, sizeof(char), sizeof(tmp), fp);
+    if (len == 0) {
+      break;
+    }
+    fwrite(tmp, sizeof(char), len, buffp);
   }
   fclose(fp);
+  fflush(buffp);
+
+  // To make processing easier, insert '\n' if there is not '\n' at the end.
+  if (buflen == 0 || buf[buflen - 1] != '\n') {
+    fputc('\n', buffp);
+  }
+  fputc('\0', buffp);
+  fclose(buffp);
+  return buf;
+}
+
+// Update source token
+Token *tokenize(char *path) {
+  char *ptr = read_file(path);
+  source_str = ptr;
 
   Token head;
-  Token *ret = &head;
+  Token *cur = &head;
 
-  char *now_str = source_str;
-  while (*now_str) {
+  while (*ptr) {
     // Comment out of line
-    if (memcmp(now_str, "//", 2) == 0) {
-      while (*now_str != '\n') {
-        now_str++;
+    if (memcmp(ptr, "//", 2) == 0) {
+      while (*ptr != '\n') {
+        ptr++;
       }
-      now_str++;
+      ptr++;
       continue;
     }
     
     // Comment out of block
-    if (memcmp(now_str, "/*", 2) == 0) {
-      while (memcmp(now_str, "*/", 2) != 0) {
-        now_str++;
+    if (memcmp(ptr, "/*", 2) == 0) {
+      while (memcmp(ptr, "*/", 2) != 0) {
+        ptr++;
       }
-      now_str += 2;
+      ptr += 2;
       continue;
     }
 
-    if (isspace(*now_str)) {
-      now_str++;
+    if (isspace(*ptr)) {
+      ptr++;
       continue;
     }
 
-    if ((*now_str == '-' || *now_str == '+') && isdigit(*(now_str + 1))) {
+    if ((*ptr == '-' || *ptr == '+') && isdigit(*(ptr + 1))) {
       char *p;
-      strtol(now_str + 1, &p, 10);
+      strtol(ptr + 1, &p, 10);
       if (*p == '.') {
-        Token *tkn = read_float(now_str, &now_str, ret);
-        ret = tkn;
+        Token *tkn = read_float(ptr, &ptr, cur);
+        cur = tkn;
         continue;
       }
     }
 
-    if (isdigit(*now_str)) {
-      Token *tkn = read_integer(now_str, &now_str, ret);
+    if (isdigit(*ptr)) {
+      Token *tkn = read_integer(ptr, &ptr, cur);
       if (tkn != NULL) {
-        ret = tkn;
+        cur = tkn;
         continue;
       }
 
-      tkn = read_float(now_str, &now_str, ret);
+      tkn = read_float(ptr, &ptr, cur);
       if (tkn != NULL) {
-        ret = tkn;
+        cur = tkn;
         continue;
       }
     }
@@ -400,12 +406,9 @@ Token *tokenize(char *file_name) {
     // Check punctuators
     for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
       int panct_len = strlen(permit_panct[i]);
-      if (now_str + panct_len >= now_str + file_len) {
-        continue;
-      }
-      if (memcmp(now_str, permit_panct[i], panct_len) == 0) {
-        ret = new_token(TK_PUNCT, ret, now_str, panct_len);
-        now_str += panct_len;
+      if (strncmp(ptr, permit_panct[i], panct_len) == 0) {
+        cur = new_token(TK_PUNCT, cur, ptr, panct_len);
+        ptr += panct_len;
         check = true;
         break;
       }
@@ -416,37 +419,37 @@ Token *tokenize(char *file_name) {
     }
 
     // Check char
-    if (*now_str == '\'') {
-      char *s_pos = now_str;
-      ret = new_token(TK_NUM, ret, now_str, 3);
-      ret->val = read_char(now_str + 1, &now_str);
-      ret->ty = ty_i8;
+    if (*ptr == '\'') {
+      char *s_pos = ptr;
+      cur = new_token(TK_NUM, cur, ptr, 3);
+      cur->val = read_char(ptr + 1, &ptr);
+      cur->ty = ty_i8;
 
-      if (*now_str != '\'') {
-        errorf_loc(ER_COMPILE, now_str, 1, "The char must be a single character.");
+      if (*ptr != '\'') {
+        errorf_loc(ER_COMPILE, ptr, 1, "The char must be a single character.");
       }
-      now_str++;
+      ptr++;
       continue;
     }
 
-    if (*now_str == '"') {
-      char *s_pos = now_str;
-      ret = new_token(TK_STR, ret, now_str, 0);
-      ret->str_lit = read_strlit(now_str + 1, &now_str);
-      ret->len = (now_str - s_pos) - 2;
-      if (*now_str != '"') {
-        errorf_loc(ER_COMPILE, now_str, 1, "The string must end with \".");
+    if (*ptr == '"') {
+      char *s_pos = ptr;
+      cur = new_token(TK_STR, cur, ptr, 0);
+      cur->str_lit = read_strlit(ptr + 1, &ptr);
+      cur->len = (ptr - s_pos) - 2;
+      if (*ptr != '"') {
+        errorf_loc(ER_COMPILE, ptr, 1, "The string must end with \".");
       }
-      now_str++;
+      ptr++;
       continue;
     }
 
     // Check keywords
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
-      if (memcmp(now_str, permit_keywords[i], keyword_len) == 0 && *(now_str + keyword_len + 1) == ' ') {
-        ret = new_token(TK_KEYWORD, ret, now_str, keyword_len);
-        now_str += keyword_len;
+      if (memcmp(ptr, permit_keywords[i], keyword_len) == 0 && *(ptr + keyword_len + 1) == ' ') {
+        cur = new_token(TK_KEYWORD, cur, ptr, keyword_len);
+        ptr += keyword_len;
         check = true;
         break;
       }
@@ -456,18 +459,18 @@ Token *tokenize(char *file_name) {
       continue;
     }
 
-    if (is_useable_char(*now_str)) {
-      char *start = now_str;
-      while (is_ident_char(*now_str)) {
-        now_str++;
+    if (is_useable_char(*ptr)) {
+      char *start = ptr;
+      while (is_ident_char(*ptr)) {
+        ptr++;
       }
-      int ident_len = now_str - start;
-      ret = new_token(TK_IDENT, ret, start, ident_len);
+      int ident_len = ptr - start;
+      cur = new_token(TK_IDENT, cur, start, ident_len);
       continue;
     }
-    printf("%s", now_str);
-    errorf_loc(ER_TOKENIZE, now_str, 1, "Unexpected tokenize");
+    printf("%s", ptr);
+    errorf_loc(ER_TOKENIZE, ptr, 1, "Unexpected tokenize");
   }
-  new_token(TK_EOF, ret, NULL, 1);
+  new_token(TK_EOF, cur, NULL, 1);
   return head.next;
 }
