@@ -463,5 +463,223 @@ int main() {
     ans;
   }));
 
+  CHECKLD(2.3l, 2.3l);
+  CHECKLD(4.3l, 2.3l + 2.0l);
+
+  CHECKLD(4.3l, 2.3l + 2);
+
+  CHECKLD(2.3l, ({
+    long double a = 2.3l;
+    a;
+  }));
+
+  CHECKLD(8.0l, ({
+    long double a = 3l, b = 5l;
+    a + b;
+  }));
+
+  CHECKLD(5.5l, ({
+    long double a = 3.5l;
+    a + 2;
+  }));
+
+  CHECK(5, ({
+    long double a = 3.5l;
+    int b = a + 2;
+    b;
+  }));
+
+  CHECKLD(7.75l, ({
+    long double a = 3.55l, b = 4.2l;
+    a + b;
+  }));
+
+  CHECKLD(7.75l, ({
+    long double a = 3.55l, b = 4.2l;
+    a += b;
+    a;
+  }));
+
+  CHECKLD(3.2l, ({
+    long double a = 5.5l, b = 2.3l;
+    a - b;
+  }));
+
+  CHECKLD(3.2l, ({
+    long double a = 5.5l, b = 2.3l;
+    a -= b;
+    a;
+  }));
+
+  CHECKLD(-2.4l, ({
+    long double a = 5.0l, b = 7.4l;
+    a - b;
+  }));
+
+  CHECKLD(-2.4l, ({
+    long double a = 5.0l, b = 7.4l;
+    a -= b;
+    a;
+  }));
+
+  CHECKLD(36.5l, ({
+    long double a = 5.0l, b = 7.3l;
+    a * b;
+  }));
+
+  CHECKLD(36.5l, ({
+    long double a = 5.0l, b = 7.3l;
+    a *= b;
+    a;
+  }));
+
+  CHECKLD(2.5l, ({
+    long double a = 5.0l, b = 2.0l;
+    a / b;
+  }));
+
+  CHECKLD(2.5l, ({
+    long double a = 5.0l, b = 2.0l;
+    a /= b;
+    a;
+  }));
+
+  // CHECK(0, ({
+  //   long double a = 5.0, b = 5.0;
+  //   a < b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.0, b = 5.0;
+  //   a <= b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.0, b = 5.1;
+  //   a < b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.0, b = 5.1;
+  //   a <= b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 5.0, b = 5.1;
+  //   b <= a;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 5.0, b = 5.1;
+  //   b < a;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.0, b = 5.0;
+  //   a == b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 5.0, b = 5.1;
+  //   a == b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 5.0, b = 5.0;
+  //   a != b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.0, b = 5.1;
+  //   a != b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 0.01, b = 5.1;
+  //   a && b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 0.0, b = 5.1;
+  //   a && b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 0.0, b = 0.0;
+  //   a && b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 5.1, b = 0.0;
+  //   a && b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.1, b = 0.01;
+  //   a && b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 0.01, b = 5.1;
+  //   a || b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 0.0, b = 5.1;
+  //   a || b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 0.0, b = 0.0;
+  //   a || b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.1, b = 0.0;
+  //   a || b;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 5.1, b = 0.01;
+  //   a || b;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 5.1;
+  //   !a;
+  // }));
+
+  // CHECK(0, ({
+  //   long double a = 0.00001;
+  //   !a;
+  // }));
+
+  // CHECK(1, ({
+  //   long double a = 0.0;
+  //   !a;
+  // }));
+
+  // CHECKLD(5.1, ({
+  //   long double a = 5.1;
+  //   a++;
+  // }));
+
+  // CHECKLD(6.1, ({
+  //   long double a = 5.1;
+  //   a++;
+  //   a;
+  // }));
+
+  // CHECKLD(6.1, ({
+  //   long double a = 5.1;
+  //   ++a;
+  // }));
+
+  // CHECKLD(6.1, ({
+  //   long double a = 5.1;
+  //   ++a;
+  //   a;
+  // }));
+
   return 0;
 }

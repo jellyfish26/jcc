@@ -447,6 +447,7 @@ static void gen_lvar_init(Node *node) {
     switch (init->ty->kind) {
       case TY_FLOAT:
       case TY_DOUBLE:
+      case TY_LDOUBLE:
         gen_fstore(init->ty);
         break;
       default:
@@ -866,6 +867,25 @@ void compile_node(Node *node) {
       gen_emptypop(stack);
     }
     return;
+  }
+
+  if (node->lhs->ty->kind == TY_LDOUBLE) {
+    compile_node(node->lhs);
+    compile_node(node->rhs);
+    switch (node->kind) {
+      case ND_ADD:
+        println("  faddp st(1), st");
+        return;
+      case ND_SUB:
+        println("  fsubp st(1), st");
+        return;
+      case ND_MUL:
+        println("  fmulp st(1), st");
+        return;
+      case ND_DIV:
+        println("  fdivp st(1), st");
+        return;
+    }
   }
 
   // lhs: rax, rhs: rdi
