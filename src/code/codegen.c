@@ -146,17 +146,23 @@ static char i32f32[] = "cvttss2si eax, xmm0";
 static char u32f32[] = "cvttss2si rax, xmm0\n  mov eax, eax";
 static char i64f32[] = "cvttss2si rax, xmm0";
 static char u64f32[] = 
-    "mov rax, 9223372036854775807\n"
-  "  cvtsi2ss xmm1, rax\n"
-  "  xor rax, rax\n"
-  "  xor rdi, rdi\n"
-  "  comiss xmm0, xmm1\n"
-  "  jb 1f\n"
-  "  mov rdi, 9223372036854775808\n"
-  "  subss xmm0, xmm1\n"
-  "1:\n"
+    "sub rsp, 8\n"
+  "  movss DWORD PTR [rsp+4], xmm0\n"
+  "  mov DWORD PTR [rsp], 1593835520\n"
+  "  comiss xmm0, DWORD PTR [rsp]\n"
+  "  jnb 1f\n"
+  "  movss xmm0, DWORD PTR [rsp+4]\n"
   "  cvttss2si rax, xmm0\n"
-  "  add rax, rdi";
+  "  jmp 2f\n"
+  "1:\n"
+  "  movss xmm0, DWORD PTR [rsp+4]\n"
+  "  movss xmm1, DWORD PTR [rsp]\n"
+  "  subss xmm0, xmm1\n"
+  "  cvttss2si rax, xmm0\n"
+  "  movabs rdx, -9223372036854775808\n"
+  "  xor rax, rdx\n"
+  "2:\n"
+  "  add rsp, 8";
 
 static char f32i8[]  = "movsx eax, al\n  cvtsi2ss xmm0, eax";
 static char f32u8[]  = "movzx eax, al\n  cvtsi2ss xmm0, eax";
@@ -188,17 +194,24 @@ static char i32f64[] = "cvttsd2si eax, xmm0";
 static char u32f64[] = "cvttsd2si rax, xmm0\n  mov eax, eax";
 static char i64f64[] = "cvttsd2si rax, xmm0";
 static char u64f64[] = 
-    "mov rax, 9223372036854775807\n"
-  "  cvtsi2sd xmm1, rax\n"
-  "  xor rax, rax\n"
-  "  xor rdi, rdi\n"
-  "  comisd xmm0, xmm1\n"
-  "  jb 1f\n"
-  "  mov rdi, 9223372036854775808\n"
-  "  subsd xmm0, xmm1\n"
-  "1:\n"
+    "sub rsp, 16\n"
+  "  movsd QWORD PTR [rsp+8], xmm0\n"
+  "  mov DWORD PTR [rsp], 0\n"
+  "  mov DWORD PTR [rsp+4], 1138753536\n"
+  "  comisd xmm0, QWORD PTR [rsp]\n"
+  "  jnb 1f\n"
+  "  movsd xmm0, QWORD PTR [rsp+8]\n"
   "  cvttsd2si rax, xmm0\n"
-  "  add rax, rdi";
+  "  jmp 2f\n"
+  "1:\n"
+  "  movsd xmm0, QWORD PTR [rsp+8]\n"
+  "  movsd xmm1, QWORD PTR [rsp]\n"
+  "  subsd xmm0, xmm1\n"
+  "  cvttsd2si rax, xmm0\n"
+  "  movabs rdx, -9223372036854775808\n"
+  "  xor rax, rdx\n"
+  "2:\n"
+  "  add rsp, 16";
 
 static char f32f64[] = "cvtsd2ss xmm0, xmm0";
 
@@ -240,11 +253,11 @@ static char f64f32[] = "cvtss2sd xmm0, xmm0";
   "  add rsp, 16"
 
 static char i8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  mov al, BYTE PTR [rsp]\n  movsx eax, al\n" F80_TO_INT_3;
-static char u8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  movzx eax, BYTE PTR [rsp]\n  mov al, al\n" F80_TO_INT_3;
+static char u8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  movzx eax, BYTE PTR [rsp]\n" F80_TO_INT_3;
 static char i16f80[] = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  xor rax, rax\n  mov ax, WORD PTR [rsp]\n" F80_TO_INT_3;
-static char u16f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  mov eax, DWORD PTR [rsp]\n  mov ax, ax\n" F80_TO_INT_3;
+static char u16f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  movzx eax, WORD PTR [rsp]\n" F80_TO_INT_3;
 static char i32f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  mov eax, DWORD PTR [rsp]\n" F80_TO_INT_3;
-static char u32f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  mov rax, DWORD PTR [rsp]\n  mov eax, eax\n" F80_TO_INT_3;
+static char u32f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  movzx rax, DWORD PTR [rsp]\n" F80_TO_INT_3;
 static char i64f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  mov rax, QWORD PTR [rsp]\n" F80_TO_INT_3;
 
 static char u64f80[] =
@@ -267,8 +280,8 @@ static char u64f80[] =
   F80_TO_INT_3 "\n"
   "  jmp 2f\n"
   "1:"
-  "  fld TBYTE PTR [rsp]\n"
   "  fld TBYTE PTR [rsp+16]\n"
+  "  fld TBYTE PTR [rsp]\n"
   "  fsubp st(1), st\n"
   "  " F80_TO_INT_1
   "  fistp QWORD PTR [rsp]\n"
@@ -277,7 +290,8 @@ static char u64f80[] =
   F80_TO_INT_3 "\n"
   "  movabs rdi, -9223372036854775808\n"
   "  xor rax, rdi\n"
-  "2:\n  add rsp, 32";
+  "2:\n"
+  "  add rsp, 32";
 
 static char f32f80[] = 
     "sub rsp, 4\n"
@@ -501,7 +515,7 @@ static void gen_gvar_define(Obj *var) {
 
   if (var->name == NULL && var->ty->kind == TY_LDOUBLE) {
     long double *ptr = calloc(1, sizeof(long double));
-    *ptr = (long double)var->fval;
+    *ptr = var->fval;
     println(".LC%d:", var->offset);
     for (int i = 0; i < 4; i++) {
       println("  .long %d", *((int*)ptr + i));
