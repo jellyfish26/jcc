@@ -127,9 +127,10 @@ static void gen_fstore(Type *ty) {
   }
 }
 
-static const char *args_reg[] = {
-  "rdi", "rsi", "rdx", "rcx", "r8", "r9",
-};
+static char *argregs8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
+static char *argregs16[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
+static char *argregs32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static char *argregs64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 static char i32i8[]  = "movsx eax, al";
 static char i32u8[]  = "movzx eax, al";
@@ -893,7 +894,7 @@ void compile_node(Node *node) {
         default:
           if (general <= 5) {
             gen_pop("rax");
-            println("  mov %s, rax", args_reg[general]);
+            println("  mov %s, rax", argregs64[general]);
           } else {
             stack++;
           }
@@ -1308,25 +1309,85 @@ void codegen(Node *head, char *filename) {
     println("  mov rbp, rsp");
     println("  sub rsp, %d", func->vars_size);
 
-    // Push arguments into the stack.
-    for (int i = 0; i < func->ty->param_cnt; i++) {
-      if (i < 6) {
-        gen_push(args_reg[i]);
-      } else {
-        println("  mov rax, QWORD PTR [rbp + %d]", 8 + (i - 5) * 8);
-        gen_push("rax");
-      }
-    }
-
     // Set arguments
-    for (int i = func->ty->param_cnt - 1; i >= 0; i--) {
+    int general = 0, floating = 0, stack_frame = 16;
+
+    for (int i = 0; i < func->ty->param_cnt; i++) {
       Obj *arg = *(func->params + i);
 
-      gen_pop("rcx");
-      gen_addr(new_var(NULL, arg));
-      gen_push("rax");
-      println("  mov rax, rcx");
-      gen_store(arg->ty);
+      if (general < 6) {
+        switch (arg->ty->kind) {
+          case TY_CHAR:
+            println("  mov BYTE PTR [rbp-%d], %s", arg->offset, argregs8[general]);
+            general++;
+            continue;
+          case TY_SHORT:
+            println("  mov WORD PTR [rbp-%d], %s", arg->offset, argregs16[general]);
+            general++;
+            continue;
+          case TY_INT:
+            println("  mov DWORD PTR [rbp-%d], %s", arg->offset, argregs32[general]);
+            general++;
+            continue;
+          case TY_LONG:
+          case TY_PTR:
+            println("  mov DWORD PTR [rbp-%d], %s", arg->offset, argregs32[general]);
+            general++;
+            continue;
+        }
+      }
+
+      if (floating < 8) {
+        switch (arg->ty->kind) {
+          case TY_FLOAT:
+            println("  movss DWORD PTR [rbp-%d], xmm%d", arg->offset, floating);
+            floating++;
+            continue;
+          case TY_DOUBLE:
+            println("  movsd QWORD PTR [rbp-%d], xmm%d", arg->offset, floating);
+            floating++;
+            continue;
+        }
+      }
+
+      switch (arg->ty->kind) {
+        case TY_CHAR:
+          println("  mov al, BYTE PTR [rbp+%d]", stack_frame);
+          println("  mov BYTE PTR [rbp-%d], al", arg->offset);
+          stack_frame += 8;
+          break;
+        case TY_SHORT:
+          println("  mov ax, WORD PTR [rbp+%d]", stack_frame);
+          println("  mov WORD PTR [rbp-%d], ax", arg->offset);
+          stack_frame += 8;
+          break;
+        case TY_INT:
+          println("  mov eax, DWORD PTR [rbp+%d]", stack_frame);
+          println("  mov DWORD PTR [rbp-%d], eax", arg->offset);
+          stack_frame += 8;
+          break;
+        case TY_LONG:
+        case TY_PTR:
+          println("  mov eax, DWORD PTR [rbp+%d]", stack_frame);
+          println("  mov DWORD PTR [rbp-%d], eax", arg->offset);
+          stack_frame += 8;
+          break;
+        case TY_FLOAT:
+          println("  movss xmm0, DWORD PTR [rbp+%d]", stack_frame);
+          println("  movss DWORD PTR [rbp-%d], xmm0", arg->offset);
+          stack_frame += 8;
+          break;
+        case TY_DOUBLE:
+          println("  movsd xmm0, QWORD PTR [rbp+%d]", stack_frame);
+          println("  movsd QWORD PTR [rbp-%d], xmm0", arg->offset);
+          stack_frame += 8;
+          break;
+        case TY_LDOUBLE:
+          println("  fld TBYTE PTR [rbp+%d]", stack_frame);
+          println("  fstp TBYTE PTR [rbp-%d]", arg->offset);
+          stack_frame += 16;
+          break;
+      }
     }
 
     compile_node(node->deep);

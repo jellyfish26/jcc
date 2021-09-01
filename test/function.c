@@ -30,6 +30,14 @@ int vv(void) {
 int foo(int a, int b);
 int foo();
 
+int da(double a, int b) {
+  return (int)a + b;
+}
+
+int dla(long double a, int b) {
+  return (int)a + b;
+}
+
 
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
@@ -48,6 +56,8 @@ int main() {
 
   CHECK(2, vv());
   CHECK(3, foo(2, 1));
+  CHECK(3, da(2.0, 1));
+  CHECK(6, dla(5.0l, 1));
   return 0;
 }
 
