@@ -544,142 +544,142 @@ int main() {
     a;
   }));
 
-  // CHECK(0, ({
-  //   long double a = 5.0, b = 5.0;
-  //   a < b;
-  // }));
+  CHECK(0, ({
+    long double a = 5.0l, b = 5.0l;
+    a < b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.0, b = 5.0;
-  //   a <= b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.0l, b = 5.0l;
+    a <= b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.0, b = 5.1;
-  //   a < b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.0l, b = 5.1l;
+    a < b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.0, b = 5.1;
-  //   a <= b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.0l, b = 5.1l;
+    a <= b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 5.0, b = 5.1;
-  //   b <= a;
-  // }));
+  CHECK(0, ({
+    long double a = 5.0l, b = 5.1l;
+    b <= a;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 5.0, b = 5.1;
-  //   b < a;
-  // }));
+  CHECK(0, ({
+    long double a = 5.0l, b = 5.1l;
+    b < a;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.0, b = 5.0;
-  //   a == b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.0l, b = 5.0l;
+    a == b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 5.0, b = 5.1;
-  //   a == b;
-  // }));
+  CHECK(0, ({
+    long double a = 5.0l, b = 5.1l;
+    a == b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 5.0, b = 5.0;
-  //   a != b;
-  // }));
+  CHECK(0, ({
+    long double a = 5.0l, b = 5.0l;
+    a != b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.0, b = 5.1;
-  //   a != b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.0l, b = 5.1l;
+    a != b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 0.01, b = 5.1;
-  //   a && b;
-  // }));
+  CHECK(1, ({
+    long double a = 0.01l, b = 5.1l;
+    a && b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 0.0, b = 5.1;
-  //   a && b;
-  // }));
+  CHECK(0, ({
+    long double a = 0.0l, b = 5.1l;
+    a && b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 0.0, b = 0.0;
-  //   a && b;
-  // }));
+  CHECK(0, ({
+    long double a = 0.0l, b = 0.0l;
+    a && b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 5.1, b = 0.0;
-  //   a && b;
-  // }));
+  CHECK(0, ({
+    long double a = 5.1l, b = 0.0l;
+    a && b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.1, b = 0.01;
-  //   a && b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.1l, b = 0.01l;
+    a && b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 0.01, b = 5.1;
-  //   a || b;
-  // }));
+  CHECK(1, ({
+    long double a = 0.01, b = 5.1;
+    a || b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 0.0, b = 5.1;
-  //   a || b;
-  // }));
+  CHECK(1, ({
+    long double a = 0.0l, b = 5.1l;
+    a || b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 0.0, b = 0.0;
-  //   a || b;
-  // }));
+  CHECK(0, ({
+    long double a = 0.0l, b = 0.0l;
+    a || b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.1, b = 0.0;
-  //   a || b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.1l, b = 0.0l;
+    a || b;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 5.1, b = 0.01;
-  //   a || b;
-  // }));
+  CHECK(1, ({
+    long double a = 5.1l, b = 0.01l;
+    a || b;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 5.1;
-  //   !a;
-  // }));
+  CHECK(0, ({
+    long double a = 5.1l;
+    !a;
+  }));
 
-  // CHECK(0, ({
-  //   long double a = 0.00001;
-  //   !a;
-  // }));
+  CHECK(0, ({
+    long double a = 0.00001l;
+    !a;
+  }));
 
-  // CHECK(1, ({
-  //   long double a = 0.0;
-  //   !a;
-  // }));
+  CHECK(1, ({
+    long double a = 0.0l;
+    !a;
+  }));
 
-  // CHECKLD(5.1, ({
-  //   long double a = 5.1;
-  //   a++;
-  // }));
+  CHECKLD(5.1l, ({
+    long double a = 5.1l;
+    a++;
+  }));
 
-  // CHECKLD(6.1, ({
-  //   long double a = 5.1;
-  //   a++;
-  //   a;
-  // }));
+  CHECKLD(6.1l, ({
+    long double a = 5.1l;
+    a++;
+    a;
+  }));
 
-  // CHECKLD(6.1, ({
-  //   long double a = 5.1;
-  //   ++a;
-  // }));
+  CHECKLD(6.1l, ({
+    long double a = 5.1l;
+    ++a;
+  }));
 
-  // CHECKLD(6.1, ({
-  //   long double a = 5.1;
-  //   ++a;
-  //   a;
-  // }));
+  CHECKLD(6.1l, ({
+    long double a = 5.1l;
+    ++a;
+    a;
+  }));
 
   return 0;
 }

@@ -676,6 +676,9 @@ void compile_node(Node *node) {
       return;
     case ND_ASSIGN:
       expand_assign(node);
+      if (node->deep != NULL) {
+        compile_node(node->deep);
+      }
       return;
     case ND_RETURN:
       compile_node(node->lhs);
@@ -813,6 +816,22 @@ void compile_node(Node *node) {
         println("  ucomis%s xmm2, xmm0", suffix);
         println("  cmovne eax, edx");
         println("  movzx rax, al");
+      } else if (node->lhs->ty->kind == TY_LDOUBLE) {
+        println("  sub rsp, 16");
+        println("  fstp TBYTE PTR [rsp]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  setnp al");
+        println("  fld TBYTE PTR [rsp]");
+        println("  mov edx, 0");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  cmovne eax, edx");
+        println("  movzx eax, al");
+        println("  add rsp, 16");
       } else {
         println("  cmp rax, 0");
         println("  sete al");
@@ -872,20 +891,135 @@ void compile_node(Node *node) {
   if (node->lhs->ty->kind == TY_LDOUBLE) {
     compile_node(node->lhs);
     compile_node(node->rhs);
+
+    println("  sub rsp, 32");
+    println("  fstp TBYTE PTR [rsp]");
+    println("  fstp TBYTE PTR [rsp+16]");
     switch (node->kind) {
       case ND_ADD:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
         println("  faddp st(1), st");
-        return;
+        break;
       case ND_SUB:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
         println("  fsubp st(1), st");
-        return;
+        break;
       case ND_MUL:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
         println("  fmulp st(1), st");
-        return;
+        break;
       case ND_DIV:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
         println("  fdivp st(1), st");
-        return;
+        break;
+      case ND_EQ:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  setnp al");
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  mov edx, 0");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  cmovne eax, edx");
+        println("  movzx eax, al");
+        break;
+      case ND_NEQ:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  setp al");
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  mov edx, 1");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  cmovne eax, edx");
+        println("  movzx eax, al");
+        break;
+      case ND_LC:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fcomip st, st(1)");
+        println("  fstp st(0)");
+        println("  seta al");
+        println("  movzx eax, al");
+        break;
+      case ND_LEC:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fcomip st, st(1)");
+        println("  fstp st(0)");
+        println("  setnb al");
+        println("  movzx eax, al");
+        break;
+      case ND_LOGICALAND:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  jp 1f");
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  je 3f");
+        println("1:");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  jp 2f");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  je 3f");
+        println("2:");
+        println("  mov eax, 1");
+        println("  jmp 4f");
+        println("3:");
+        println("  mov eax, 0");
+        println("4:");
+        break;
+      case ND_LOGICALOR:
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  jp 1f");
+        println("  fld TBYTE PTR [rsp+16]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  jne 1f");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  jp 1f");
+        println("  fld TBYTE PTR [rsp]");
+        println("  fldz");
+        println("  fucomip st, st(1)");
+        println("  fstp st(0)");
+        println("  je 2f");
+        println("1:");
+        println("  mov eax, 1");
+        println("  jmp 3f");
+        println("2:");
+        println("  mov eax, 0");
+        println("3:");
+        break;
     }
+    println("  add rsp, 32");
+    return;
   }
 
   // lhs: rax, rhs: rdi

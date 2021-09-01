@@ -1728,11 +1728,15 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 // unary-operator   = "&" | "*" | "+" | "-" | "~" | "!"
 static Node *unary(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "++")) {
-    return to_assign(tkn, new_add(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+    Node *node = to_assign(tkn, new_add(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+    node->deep = node->lhs;
+    return node;
   }
 
   if (equal(tkn, "--")) {
-    return to_assign(tkn, new_sub(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+    Node *node = to_assign(tkn, new_sub(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
+    node->deep = node->lhs;
+    return node;
   }
 
   // unary-operator
@@ -1864,7 +1868,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
   if (equal(tkn, "++")) {
     node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
-    node = new_sub(tkn, node, new_num(tkn, 1));
+    node->deep = new_sub(tkn, node->lhs, new_num(tkn, 1));
 
     if (end_tkn != NULL) *end_tkn = tkn->next;
     return node;
@@ -1872,7 +1876,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
   if (equal(tkn, "--")) {
     node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
-    node = new_add(tkn, node, new_num(tkn, 1));
+    node->deep = new_add(tkn, node->lhs, new_num(tkn, 1));
     tkn = tkn->next;
   }
 
