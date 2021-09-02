@@ -176,21 +176,6 @@ static char *permit_keywords[] = {
   "signed", "unsigned", "void", "_Bool", "char", "short", 
   "int", "long", "float", "double", "const"};
 
-static char read_escaped_char(char *ptr, char **endptr) {
-  *endptr = ptr + 1;
-  switch (*ptr) {
-    case '0': return '\0';
-    case 'a': return '\a';
-    case 'b': return '\b';
-    case 't': return '\t';
-    case 'n': return '\n';
-    case 'v': return '\v';
-    case 'f': return '\f';
-    case 'r': return '\r';
-  }
-  return *ptr;
-}
-
 static bool convert_tkn_int(Token *tkn) {
   char *ptr = tkn->loc;
   int base = 10;
@@ -284,6 +269,21 @@ static void convert_tkn_num(Token *tkn) {
   tkn->ty = ty;
 }
 
+static char read_escaped_char(char *ptr, char **endptr) {
+  *endptr = ptr + 1;
+  switch (*ptr) {
+    case '0': return '\0';
+    case 'a': return '\a';
+    case 'b': return '\b';
+    case 't': return '\t';
+    case 'n': return '\n';
+    case 'v': return '\v';
+    case 'f': return '\f';
+    case 'r': return '\r';
+  }
+  return *ptr;
+}
+
 static char *strlit_end(char *ptr) {
   for (; *ptr != '"'; ptr++) {
     if (*ptr == '\n' || *ptr == '\0') {
@@ -318,20 +318,28 @@ static Token *read_strlit(char *begin, char **endptr) {
   return tkn;
 }
 
-// static char *read_strlit(char *str, char **end_ptr) {
-//   int str_len = 0;
-//   {
-//     char *now_loc = str;
-//     while (*now_loc != '"') {
-//       read_char(now_loc, &now_loc);
-//     }
-//     str_len = (int)(now_loc - str);
-//   }
-//   char *ret = calloc(str_len + 1, sizeof(char));
-//   memcpy(ret, str, str_len);
-//   *end_ptr = str + str_len;
-//   return ret;
-// }
+static Token *read_charlit(char *begin, char **endptr) {
+  char *ptr = begin + 1;
+  char c;
+
+  if (*ptr == '\\') {
+    c = read_escaped_char(ptr + 1, &ptr);
+  } else {
+    c = *ptr;
+    ptr++;
+  }
+
+  if (*ptr != '\'') {
+    errorf_loc(ER_COMPILE, ptr, 1, "Char must be closed with single quotation marks");
+  }
+  ptr++;
+  *endptr = ptr;
+
+  Token *tkn = new_token(TK_NUM, begin, ptr - begin);
+  tkn->val = c;
+  tkn->ty = ty_i8;
+  return tkn;
+}
 
 static char *read_file(char *path) {
   FILE *fp;
@@ -377,17 +385,17 @@ Token *tokenize(char *path) {
 
   while (*ptr) {
     // Comment out of line
-    if (memcmp(ptr, "//", 2) == 0) {
+    if (streq(ptr, "//")) {
       while (*ptr != '\n') {
         ptr++;
       }
       ptr++;
       continue;
     }
-    
+
     // Comment out of block
-    if (memcmp(ptr, "/*", 2) == 0) {
-      while (memcmp(ptr, "*/", 2) != 0) {
+    if (streq(ptr, "/*")) {
+      while (!streq(ptr, "*/")) {
         ptr++;
       }
       ptr += 2;
@@ -411,6 +419,12 @@ Token *tokenize(char *path) {
       continue;
     }
 
+    // Char literal
+    if (*ptr == '\'') {
+      cur = cur->next = read_charlit(ptr, &ptr);
+      continue;
+    }
+
     // String literal
     if (*ptr == '"') {
       cur = cur->next = read_strlit(ptr, &ptr);
@@ -431,26 +445,6 @@ Token *tokenize(char *path) {
     }
 
     if (check) {
-      continue;
-    }
-
-    // Check char
-    if (*ptr == '\'') {
-      cur = cur->next = new_token(TK_NUM, ptr, 3);
-      ptr++;
-
-      if (*ptr == '\\') {
-        cur->val = read_escaped_char(ptr + 1, &ptr);
-      } else {
-        cur->val = *ptr;
-        ptr++;
-      }
-      cur->ty = ty_i8;
-
-      if (*ptr != '\'') {
-        errorf_loc(ER_COMPILE, ptr, 1, "The char must be a single character.");
-      }
-      ptr++;
       continue;
     }
 
