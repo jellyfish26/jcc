@@ -43,12 +43,6 @@ static void gen_emptypop(int num) {
 static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
-      // String literal
-      if (node->use_var->ty->kind == TY_STR) {
-        println("  mov rax, offset %s", node->use_var->name);
-        return;
-      }
-
       if (node->use_var->is_global) {
         println("  mov rax, offset %s", node->use_var->name);
         return;
@@ -66,7 +60,7 @@ static void gen_addr(Node *node) {
 }
 
 static void gen_load(Type *ty) {
-  if (ty->kind == TY_ARRAY || ty->kind == TY_STR) {
+  if (ty->kind == TY_ARRAY) {
     // If it is an array or a string, it will automatically be treated as a pointer
     // and we cannot load the content direclty.
     return;
@@ -362,7 +356,6 @@ static int get_type_idx(Type *type) {
       ret = 2;
       break;
     case TY_LONG:
-    case TY_STR:
     case TY_PTR:
     case TY_ARRAY:
       ret = 3;
@@ -537,7 +530,7 @@ static void gen_gvar_define(Obj *var) {
   println(".data");
   println("%s:", var->name);
 
-  if (var->ty->kind == TY_STR) {
+  if (var->strlit != NULL) {
     for (int i = 0; i < var->name_len; i++) {
       println("  .byte %d", var->strlit[i]);
     }

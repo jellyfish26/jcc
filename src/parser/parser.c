@@ -118,13 +118,9 @@ Node *new_var(Token *tkn, Obj *obj) {
   return node;
 }
 
-Node *new_strlit(Token *tkn, char *strlit) {
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = TY_STR;
-  ty->var_size = 8;
-
-  Obj *obj = new_obj(ty, new_unique_label());
-  obj->strlit = strlit;
+Node *new_strlit(Token *tkn) {
+  Obj *obj = new_obj(tkn->ty, new_unique_label());
+  obj->strlit = tkn->strlit;
   add_gvar(obj);
 
   Node *node = new_var(tkn, obj);
@@ -156,7 +152,6 @@ static bool is_addr_node(Node *node) {
   switch (node->ty->kind) {
     case TY_PTR:
     case TY_ARRAY:
-    case TY_STR:
       return true;
     default:
       return false;
@@ -649,8 +644,8 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   // If type is not Array, initializer return address of string literal.
   // Otherwise, char number store in each elements of Array.
 
-  if (init->ty->kind != TY_ARRAY) {
-    init->node = new_strlit(tkn, tkn->strlit);
+  if (init->ty->kind == TY_PTR) {
+    init->node = new_strlit(tkn);
     tkn = tkn->next;
     if (end_tkn != NULL) *end_tkn = tkn;
     return;
@@ -1940,7 +1935,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
 
   if (tkn->kind == TK_STR) {
     if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_strlit(tkn, tkn->strlit);
+    return new_strlit(tkn);
   }
 
   return constant(tkn, end_tkn);

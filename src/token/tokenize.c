@@ -315,6 +315,7 @@ static Token *read_strlit(char *begin, char **endptr) {
 
   Token *tkn = new_token(TK_STR, begin, end - begin);
   tkn->strlit = str;
+  tkn->ty = array_to(ty_i8, len);
   return tkn;
 }
 

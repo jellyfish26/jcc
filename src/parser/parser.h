@@ -118,7 +118,6 @@ typedef enum {
   TY_DOUBLE,   // "double"
   TY_LDOUBLE,  // "long double"
   TY_PTR,      // Pointer type
-  TY_STR,      // String literal type
   TY_ARRAY,    // Array type
   TY_FUNC,     // Function
 } TypeKind;
