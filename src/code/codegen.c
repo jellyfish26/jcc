@@ -1270,24 +1270,7 @@ void compile_node(Node *node) {
 void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
   println(".intel_syntax noprefix");
-  for (Obj *gvar = get_gvars(); gvar != NULL; gvar = gvar->next) {
-    // String literal or floating constant
-    switch (gvar->ty->kind) {
-      case TY_STR:
-        gen_gvar_define(gvar);
-      case TY_FLOAT:
-      case TY_DOUBLE:
-      case TY_LDOUBLE:
-        if (gvar->name == NULL) {
-          gen_gvar_define(gvar);
-        }
-        break;
-      default:
-        break;
-    }
-  }
 
-  // Expand functions
   for (Node *node = head; node != NULL; node = node->next) {
     if (node->kind != ND_FUNC) {
       if (node->kind == ND_INIT) {

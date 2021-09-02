@@ -42,6 +42,8 @@ static Relocate *relocate_label;
 static Node *label_node;
 static Node *goto_node;
 
+static Node *literal_node;
+
 // Prototype
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty);
@@ -115,6 +117,11 @@ Node *new_strlit(Token *tkn, char *strlit) {
 
   Obj *obj = new_obj(ty, strlit);
   add_gvar(obj, false);
+
+  Node *node = new_var(tkn, obj);
+  node->next = literal_node;
+  literal_node = node;
+
   return new_var(tkn, obj);
 }
 
@@ -122,6 +129,10 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
   Obj *obj = calloc(1, sizeof(Obj));
   obj->ty = ty;
   obj->fval = fval;
+
+  Node *node = new_var(tkn, obj);
+  node->next = literal_node;
+  literal_node = node;
 
   Node *ret = calloc(1, sizeof(Node));
   ret->kind = ND_NUM;
@@ -1016,14 +1027,18 @@ Node *program(Token *tkn) {
   Node *cur = &head;
 
   while (!is_eof(tkn)) {
-    cur->next = funcdef(tkn, &tkn);
+    Node *node = funcdef(tkn, &tkn);
 
-    if (cur->next == NULL) {
-      cur->next = declaration(tkn, &tkn, true);
-      cur->next = last_stmt(cur->next);
+    if (node == NULL) {
+      node = declaration(tkn, &tkn, true);
     }
-    
-    cur = cur->next;
+
+    cur->next = literal_node;
+    cur = last_stmt(cur);
+    cur->next = node;
+    cur = last_stmt(cur);
+
+    literal_node = NULL;
   }
   return head.next;
 }

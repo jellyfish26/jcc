@@ -97,7 +97,6 @@ Node *new_node(NodeKind kind, Token *tkn);
 Node *new_num(Token *tkn, int64_t val);
 Node *new_cast(Token *tkn, Node *lhs, Type *ty);
 Node *new_var(Token *tkn, Obj *obj);
-Node *new_strlit(Token *tkn, char *strlit);
 Node *new_assign(Token *tkn, Node *lhs, Node *rhs);
 Node *to_assign(Token *tkn, Node *rhs);
 Node *last_stmt(Node *now);
