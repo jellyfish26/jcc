@@ -310,6 +310,7 @@ static Token *read_strlit(char *begin, char **endptr) {
       ptr++;
     }
   }
+  len++;
   end++;
   *endptr = end;
 

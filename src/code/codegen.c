@@ -530,14 +530,6 @@ static void gen_gvar_define(Obj *var) {
   println(".data");
   println("%s:", var->name);
 
-  if (var->strlit != NULL) {
-    for (int i = 0; i < strlen(var->strlit); i++) {
-      println("  .byte %d", var->strlit[i]);
-    }
-    println("  .byte %d", 0);
-    return;
-  }
-
   println("  .zero %d", var->ty->var_size);
 }
 

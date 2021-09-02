@@ -48,7 +48,11 @@ static Node *literal_node;
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty);
 static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty);
+static Initializer *new_initializer(Type *ty, bool is_flexible);
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init);
+static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init);
+static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init);
+static void create_init_node(Initializer *init, Node **connect, bool only_const, Type *ty);
 static int64_t eval_expr(Node *node);
 static int64_t eval_expr2(Node *node, char **label);
 static int64_t eval_addr(Node *node, char **label);
@@ -119,15 +123,26 @@ Node *new_var(Token *tkn, Obj *obj) {
 }
 
 Node *new_strlit(Token *tkn) {
-  Obj *obj = new_obj(tkn->ty, new_unique_label());
-  obj->strlit = tkn->strlit;
-  add_gvar(obj);
+  Initializer *init = new_initializer(tkn->ty, false);
+  string_initializer(tkn, NULL, init);
 
-  Node *node = new_var(tkn, obj);
+  Node *node = new_node(ND_INIT, tkn);
+
+  Node head = {};
+  Node *dummy = &head;
+  create_init_node(init, &dummy, true, tkn->ty);
+
+  node->lhs = new_var(tkn, new_obj(tkn->ty, new_unique_label()));
+  node->lhs->use_var->is_global = true;
+  node->rhs = head.lhs;
+
   node->next = literal_node;
   literal_node = node;
 
-  return new_var(tkn, obj);
+  Node *addr = new_node(ND_ADDR, tkn);
+  addr->lhs = node->lhs;
+
+  return addr;
 }
 
 Node *new_floating(Token *tkn, Type *ty, long double fval) {
@@ -641,13 +656,14 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
     return;
   }
 
+  int len = ((Type*)tkn->ty)->array_len;
+
   if (init->is_flexible) {
-    int len = tkn->len - 2;
     Initializer *tmp = new_initializer(array_to(init->ty->base, len), false);
     *init = *tmp;
   }
 
-  for (int idx = 0; idx < tkn->len - 2; idx++) {
+  for (int idx = 0; idx < len; idx++) {
     init->children[idx]->node = new_num(tkn, tkn->strlit[idx]);
   }
 

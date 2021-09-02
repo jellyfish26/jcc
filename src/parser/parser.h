@@ -185,8 +185,6 @@ struct Obj {
   int name_len;
   bool is_global;  // Global or Local
 
-  char *strlit;
-
   // Local variable
   int offset;
 
