@@ -78,6 +78,14 @@ static Node *postfix(Token *tkn, Token **end_tkn);
 static Node *primary(Token *tkn, Token **end_tkn);
 static Node *constant(Token *tkn, Token **end_tkn);
 
+static int label_cnt = 0;
+
+static char *new_unique_label() {
+  char *ptr = calloc(10, sizeof(char));
+  sprintf(ptr, ".Luni%d", label_cnt++);
+  return ptr;
+}
+
 Node *new_node(NodeKind kind, Token *tkn) {
   Node *node = calloc(1, sizeof(Node));
   node->tkn = tkn;
@@ -115,7 +123,8 @@ Node *new_strlit(Token *tkn, char *strlit) {
   ty->kind = TY_STR;
   ty->var_size = 8;
 
-  Obj *obj = new_obj(ty, strlit);
+  Obj *obj = new_obj(ty, new_unique_label());
+  obj->strlit = strlit;
   add_gvar(obj, false);
 
   Node *node = new_var(tkn, obj);
@@ -142,14 +151,6 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
 
   add_gvar(obj, false);
   return ret;
-}
-
-static int label_cnt = 0;
-
-static char *new_unique_label() {
-  char *ptr = calloc(10, sizeof(char));
-  sprintf(ptr, ".Luni%d", label_cnt++);
-  return ptr;
 }
 
 static bool is_addr_node(Node *node) {

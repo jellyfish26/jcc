@@ -45,7 +45,7 @@ static void gen_addr(Node *node) {
     case ND_VAR:
       // String literal
       if (node->use_var->ty->kind == TY_STR) {
-        println("  mov rax, offset .LC%d", node->use_var->offset);
+        println("  mov rax, offset %s", node->use_var->name);
         return;
       }
 
@@ -537,9 +537,9 @@ static void gen_gvar_define(Obj *var) {
   println(".data");
 
   if (var->ty->kind == TY_STR) {
-    println(".LC%d:", var->offset);
+    println("%s:", var->name);
     for (int i = 0; i < var->name_len; i++) {
-      println("  .byte %d", var->name[i]);
+      println("  .byte %d", var->strlit[i]);
     }
     println("  .byte %d", 0);
     return;
