@@ -125,7 +125,7 @@ Node *new_strlit(Token *tkn, char *strlit) {
 
   Obj *obj = new_obj(ty, new_unique_label());
   obj->strlit = strlit;
-  add_gvar(obj, false);
+  add_gvar(obj);
 
   Node *node = new_var(tkn, obj);
   node->next = literal_node;
@@ -135,8 +135,7 @@ Node *new_strlit(Token *tkn, char *strlit) {
 }
 
 Node *new_floating(Token *tkn, Type *ty, long double fval) {
-  Obj *obj = calloc(1, sizeof(Obj));
-  obj->ty = ty;
+  Obj *obj = new_obj(ty, new_unique_label());
   obj->fval = fval;
 
   Node *node = new_var(tkn, obj);
@@ -149,7 +148,7 @@ Node *new_floating(Token *tkn, Type *ty, long double fval) {
   ret->ty = ty;
   ret->fval = fval;
 
-  add_gvar(obj, false);
+  add_gvar(obj);
   return ret;
 }
 
@@ -967,7 +966,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     }
 
     if (is_global) {
-      add_gvar(obj, true);
+      add_gvar(obj);
     } else {
       add_lvar(obj);
     }

@@ -170,16 +170,10 @@ void add_lobj(Obj *obj) {
   lscope->others = obj;
 }
 
-void add_gvar(Obj *var, bool is_substance) {
+void add_gvar(Obj *var) {
   var->is_global = true;
   if (gscope == NULL) {
     gscope = calloc(1, sizeof(Scope));
-  }
-
-  if (gscope->vars == NULL) {
-    var->offset = 0;
-  } else {
-    var->offset = gscope->vars->offset + (is_substance ? 0 : 1);
   }
 
   var->next = gscope->vars;

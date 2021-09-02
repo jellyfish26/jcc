@@ -205,7 +205,7 @@ void new_scope();
 void del_scope();
 void add_lvar(Obj *var);
 void add_lobj(Obj *obj);
-void add_gvar(Obj *var, bool is_substance);
+void add_gvar(Obj *var);
 void add_gobj(Obj *obj);
 Obj *find_obj(char *name);
 Obj *get_gvars();

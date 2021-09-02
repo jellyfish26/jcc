@@ -535,9 +535,9 @@ static void gen_gvar_init(Node *node) {
 
 static void gen_gvar_define(Obj *var) {
   println(".data");
+  println("%s:", var->name);
 
   if (var->ty->kind == TY_STR) {
-    println("%s:", var->name);
     for (int i = 0; i < var->name_len; i++) {
       println("  .byte %d", var->strlit[i]);
     }
@@ -545,29 +545,26 @@ static void gen_gvar_define(Obj *var) {
     return;
   }
 
-  if (var->name == NULL && var->ty->kind == TY_FLOAT) {
+  if (var->ty->kind == TY_FLOAT) {
     float *ptr = calloc(1, sizeof(float));
     *ptr = (float)var->fval;
-    println(".LC%d:", var->offset);
     println("  .long %d", *(int*)ptr);
     free(ptr);
     return;
   }
 
-  if (var->name == NULL && var->ty->kind == TY_DOUBLE) {
+  if (var->ty->kind == TY_DOUBLE) {
     double *ptr = calloc(1, sizeof(double));
     *ptr = (double)var->fval;
-    println(".LC%d:", var->offset);
     println("  .long %d", *(int*)ptr);
     println("  .long %d", *((int*)ptr + 1));
     free(ptr);
     return;
   }
 
-  if (var->name == NULL && var->ty->kind == TY_LDOUBLE) {
+  if (var->ty->kind == TY_LDOUBLE) {
     long double *ptr = calloc(1, sizeof(long double));
     *ptr = var->fval;
-    println(".LC%d:", var->offset);
     for (int i = 0; i < 4; i++) {
       println("  .long %d", *((int*)ptr + i));
     }
@@ -575,7 +572,6 @@ static void gen_gvar_define(Obj *var) {
     return;
   }
 
-  println("%s:", var->name);
   println("  .zero %d", var->ty->var_size);
 }
 
@@ -660,13 +656,13 @@ void compile_node(Node *node) {
         println("  mov rax, %ld", node->val);
         break;
       case TY_FLOAT:
-        println("  movss xmm0, DWORD PTR .LC%d[rip]", node->use_var->offset);
+        println("  movss xmm0, DWORD PTR %s[rip]", node->use_var->name);
         break;
       case TY_DOUBLE:
-        println("  movsd xmm0, QWORD PTR .LC%d[rip]", node->use_var->offset);
+        println("  movsd xmm0, QWORD PTR %s[rip]", node->use_var->name);
         break;
       case TY_LDOUBLE:
-        println("  fld TBYTE PTR .LC%d[rip]", node->use_var->offset);
+        println("  fld TBYTE PTR %s[rip]", node->use_var->name);
     }
     Type *ty = node->ty;
     return;
