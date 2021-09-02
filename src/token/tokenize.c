@@ -3,11 +3,13 @@
 
 #include <ctype.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static char *source_str;
 
@@ -139,6 +141,14 @@ static Token *new_token(TokenKind kind, Token *connect, char *loc, int tkn_len) 
   return ret;
 }
 
+static bool streq(char *ptr, char *eq) {
+  return strncmp(ptr, eq, strlen(eq)) == 0;
+}
+
+static bool strcaseeq(char *ptr, char *eq) {
+  return strncasecmp(ptr, eq, strlen(eq)) == 0;
+}
+
 static bool is_useable_char(char c) {
   bool ret = false;
   ret |= ('a' <= c && c <= 'z');
@@ -197,6 +207,99 @@ char read_char(char *str, char **end_ptr) {
   return *str;
 }
 
+static bool convert_tkn_int(Token *tkn) {
+  char *ptr = tkn->loc;
+  int base = 10;
+
+  if (strcaseeq(ptr, "0x")) {
+    base = 16;
+  } else if (streq(ptr, "0")) {
+    base = 8;
+  }
+
+  int64_t val = strtoull(ptr, &ptr, base);
+  if (*ptr == '.') {
+    return false;
+  }
+
+  bool suf_u = false;
+  bool suf_l = false;
+
+  if ((strcaseeq(ptr, "u") && streq(ptr + 1, "ll")) ||
+      (strcaseeq(ptr, "u") && streq(ptr + 1, "LL")) ||
+      (streq(ptr, "ll") && strcaseeq(ptr + 2, "u")) ||
+      (streq(ptr, "LL") && strcaseeq(ptr + 2, "u"))) {
+    ptr += 3;
+    suf_u = suf_l = true;
+  } else if (strcaseeq(ptr, "ul")) {
+    ptr += 2;
+    suf_u = suf_l = true;
+  } else if (streq(ptr, "ll") || streq(ptr, "LL")) {
+    ptr += 2;
+    suf_l = true;
+  } else if (strcaseeq(ptr, "l")) {
+    ptr++;
+    suf_l = true;
+  } else if (strcaseeq(ptr, "u")) {
+    ptr++;
+    suf_u = true;
+  }
+
+  Type *ty = ty_i32;
+  if (base == 10) {
+    if (suf_u && suf_l) {
+      ty = ty_u64;
+    } else if (suf_l) {
+      ty = ty_i64;
+    } else if (suf_u) {
+      ty = (val >> 32 ? ty_u64 : ty_u32);
+    } else {
+      ty = (val >> 31 ? ty_i64 : ty_i32);
+    }
+  } else {
+    if (suf_u && suf_l) {
+      ty = ty_u64;
+    } else if (suf_l) {
+      ty = (val >> 63 ? ty_u64 : ty_i64);
+    } else if (suf_u) {
+      ty = (val >> 32 ? ty_u64 : ty_u32);
+    } else if (val >> 63) {
+      ty = ty_u64;
+    } else if (val >> 32) {
+      ty = ty_i64;
+    } else if (val >> 31) {
+      ty = ty_u32;
+    }
+  }
+
+  tkn->kind = TK_NUM;
+  tkn->val = val;
+  tkn->ty = ty;
+  return true;
+}
+
+static void convert_tkn_num(Token *tkn) {
+  if (convert_tkn_int(tkn)) {
+    return;
+  }
+
+  char *ptr = tkn->loc;
+  long double fval = strtold(ptr, &ptr);
+
+  Type *ty = ty_f64;
+  if (strcaseeq(ptr, "f")) {
+    ty = ty_f32;
+    ptr++;
+  } else if (strcaseeq(ptr, "l")) {
+    ty = ty_f80;
+    ptr++;
+  }
+
+  tkn->kind = TK_NUM;
+  tkn->fval = fval;
+  tkn->ty = ty;
+}
+
 static char *read_strlit(char *str, char **end_ptr) {
   int str_len = 0;
   {
@@ -210,105 +313,6 @@ static char *read_strlit(char *str, char **end_ptr) {
   memcpy(ret, str, str_len);
   *end_ptr = str + str_len;
   return ret;
-}
-
-// Return null, if float constant
-static Token *read_integer(char *str, char **end_ptr, Token *connect) {
-  Token *tkn = new_token(TK_NUM, connect, str, 0);
-  int prefix = 10;
-
-  if (memcmp(str, "0x", 2) == 0) {
-    prefix = 16;
-    str += 2;
-  } else if (*str == '0') {
-    prefix = 8;
-    str += 1;
-  }
-
-  int64_t val = strtoull(str, &str, prefix);
-  if (*str == '.') {
-    return NULL;
-  }
-
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = TY_INT;
-  ty->var_size = 4;
-
-  // Implicit type
-  if (prefix == 10 && ((uint64_t)val>>31)>0) {
-    ty->kind = TY_LONG;
-    ty->var_size = 8;
-  }
-
-  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>30)>0) {
-    ty->is_unsigned = true;
-  }
-
-  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>31)>0) {
-    ty->kind = TY_LONG;
-    ty->var_size = 8;
-  }
-
-  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>62)>0) {
-    ty->kind = TY_LONG;
-    ty->var_size = 8;
-  }
-
-  if ((prefix == 8 || prefix == 16) && ((uint64_t)val>>63)>0) {
-    ty->kind = TY_LONG;
-    ty->var_size = 8;
-    ty->is_unsigned = true;
-  }
-
-  // Explicit type
-  if (*str == 'u' || *str == 'U') {
-    ty->is_unsigned = true;
-    str++;
-  }
-
-  if (*str == 'l' || *str == 'L') {
-    ty->kind = TY_LONG;
-    ty->var_size = 8;
-    str++;
-  } else if (memcmp(str, "ll", 2) == 0 || memcmp(str, "LL", 2) == 0) {
-    ty->kind = TY_LONG;
-    ty->var_size = 8;
-    str += 2;
-  }
-
-  if (*str == 'u' || *str == 'U') {
-    if (ty->is_unsigned) {
-      errorf_loc(ER_COMPILE, str, 1, "Invalid suffix of integer constant.");
-    }
-    ty->is_unsigned = true;
-    str++;
-  }
-
-  tkn->val = val;
-  tkn->len = str - tkn->loc;
-  tkn->ty = ty;
-  *end_ptr = str;
-  return tkn;
-}
-
-static Token *read_float(char *str, char **end_ptr, Token *connect) {
-  Token *tkn = new_token(TK_NUM, connect, str, 0);
-  long double val = strtold(str, &str);
-
-  Type *ty = ty_f64;
-  if (*str == 'f' || *str == 'F') {
-    ty = ty_f32;
-    str++;
-  } else if (*str == 'l' || *str == 'L') {
-    ty = ty_f80;
-    str++;
-  }
-
-  tkn->fval = val;
-  tkn->len = str - tkn->loc;
-  tkn->ty = ty;
-  *end_ptr = str;
-  return tkn;
 }
 
 static char *read_file(char *path) {
@@ -377,28 +381,15 @@ Token *tokenize(char *path) {
       continue;
     }
 
-    if ((*ptr == '-' || *ptr == '+') && isdigit(*(ptr + 1))) {
-      char *p;
-      strtol(ptr + 1, &p, 10);
-      if (*p == '.') {
-        Token *tkn = read_float(ptr, &ptr, cur);
-        cur = tkn;
-        continue;
-      }
-    }
-
+    // Numerical literal
     if (isdigit(*ptr)) {
-      Token *tkn = read_integer(ptr, &ptr, cur);
-      if (tkn != NULL) {
-        cur = tkn;
-        continue;
+      char *begin = ptr;
+      while (isalnum(*ptr) || *ptr == '.') {
+          ptr++;
       }
-
-      tkn = read_float(ptr, &ptr, cur);
-      if (tkn != NULL) {
-        cur = tkn;
-        continue;
-      }
+      cur = new_token(TK_NUM, cur, begin, ptr - begin);
+      convert_tkn_num(cur);
+      continue;
     }
 
     bool check = false;
