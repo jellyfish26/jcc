@@ -531,37 +531,10 @@ static void gen_gvar_define(Obj *var) {
   println("%s:", var->name);
 
   if (var->strlit != NULL) {
-    for (int i = 0; i < var->name_len; i++) {
+    for (int i = 0; i < strlen(var->strlit); i++) {
       println("  .byte %d", var->strlit[i]);
     }
     println("  .byte %d", 0);
-    return;
-  }
-
-  if (var->ty->kind == TY_FLOAT) {
-    float *ptr = calloc(1, sizeof(float));
-    *ptr = (float)var->fval;
-    println("  .long %d", *(int*)ptr);
-    free(ptr);
-    return;
-  }
-
-  if (var->ty->kind == TY_DOUBLE) {
-    double *ptr = calloc(1, sizeof(double));
-    *ptr = (double)var->fval;
-    println("  .long %d", *(int*)ptr);
-    println("  .long %d", *((int*)ptr + 1));
-    free(ptr);
-    return;
-  }
-
-  if (var->ty->kind == TY_LDOUBLE) {
-    long double *ptr = calloc(1, sizeof(long double));
-    *ptr = var->fval;
-    for (int i = 0; i < 4; i++) {
-      println("  .long %d", *((int*)ptr + i));
-    }
-    free(ptr);
     return;
   }
 
@@ -648,14 +621,36 @@ void compile_node(Node *node) {
       case TY_LONG:
         println("  mov rax, %ld", node->val);
         break;
-      case TY_FLOAT:
-        println("  movss xmm0, DWORD PTR %s[rip]", node->use_var->name);
+      case TY_FLOAT: {
+        float *ptr = calloc(1, sizeof(float));
+        *ptr = (float)node->fval;
+        println("  sub rsp, 4");
+        println("  mov DWORD PTR [rsp], %d", *(int*)ptr);
+        println("  movss xmm0, DWORD PTR [rsp]");
+        println("  add rsp, 4");
         break;
-      case TY_DOUBLE:
-        println("  movsd xmm0, QWORD PTR %s[rip]", node->use_var->name);
+      }
+      case TY_DOUBLE: {
+        double *ptr = calloc(1, sizeof(double));
+        *ptr = (double)node->fval;
+        println("  sub rsp, 8");
+        println("  mov DWORD PTR [rsp], %d", *(int*)ptr);
+        println("  mov DWORD PTR [rsp+4], %d", *((int*)ptr + 1));
+        println("  movsd xmm0, QWORD PTR [rsp]");
+        println("  add rsp, 8");
         break;
-      case TY_LDOUBLE:
-        println("  fld TBYTE PTR %s[rip]", node->use_var->name);
+      }
+      case TY_LDOUBLE: {
+        long double *ptr = calloc(1, sizeof(long double));
+        *ptr = (long double)node->fval;
+        println("  sub rsp, 16");
+        println("  mov DWORD PTR [rsp], %d", *(int*)ptr);
+        println("  mov DWORD PTR [rsp+4], %d", *((int*)ptr + 1));
+        println("  mov DWORD PTR [rsp+8], %d", *((int*)ptr + 2));
+        println("  mov DWORD PTR [rsp+12], %d", *((int*)ptr + 3));
+        println("  fld TBYTE PTR [rsp]");
+        println("  add rsp, 16");
+      }
     }
     Type *ty = node->ty;
     return;

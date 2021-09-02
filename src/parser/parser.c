@@ -131,21 +131,11 @@ Node *new_strlit(Token *tkn) {
 }
 
 Node *new_floating(Token *tkn, Type *ty, long double fval) {
-  Obj *obj = new_obj(ty, new_unique_label());
-  obj->fval = fval;
-
-  Node *node = new_var(tkn, obj);
-  node->next = literal_node;
-  literal_node = node;
-
-  Node *ret = calloc(1, sizeof(Node));
-  ret->kind = ND_NUM;
-  ret->use_var = obj;
-  ret->ty = ty;
-  ret->fval = fval;
-
-  add_gvar(obj);
-  return ret;
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = ND_NUM;
+  node->ty = ty;
+  node->fval = fval;
+  return node;
 }
 
 static bool is_addr_node(Node *node) {
