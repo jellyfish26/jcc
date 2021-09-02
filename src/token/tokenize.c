@@ -130,15 +130,12 @@ bool is_eof(Token *tkn) {
   return tkn->kind == TK_EOF;
 }
 
-static Token *new_token(TokenKind kind, Token *connect, char *loc, int tkn_len) {
-  Token *ret = calloc(1, sizeof(Token));
-  ret->kind = kind;
-  ret->loc = loc;
-  ret->len = tkn_len;
-  if (connect) {
-    connect->next = ret;
-  }
-  return ret;
+static Token *new_token(TokenKind kind, char *loc, int len) {
+  Token *tkn = calloc(1, sizeof(Token));
+  tkn->kind = kind;
+  tkn->loc = loc;
+  tkn->len = len;
+  return tkn;
 }
 
 static bool streq(char *ptr, char *eq) {
@@ -179,32 +176,19 @@ static char *permit_keywords[] = {
   "signed", "unsigned", "void", "_Bool", "char", "short", 
   "int", "long", "float", "double", "const"};
 
-char read_char(char *str, char **end_ptr) {
-  if (*str == 92) {
-    *end_ptr = str + 2;
-    switch (*(str + 1)) {
-      case '0':
-        return '\0';
-      case 'a':
-        return '\a';
-      case 'b':
-        return '\b';
-      case 't':
-        return '\t';
-      case 'n':
-        return '\n';
-      case 'v':
-        return '\v';
-      case 'f':
-        return '\f';
-      case 'r':
-        return '\r';
-      default:
-        return *(str + 1);
-    }
+static char read_escaped_char(char *ptr, char **endptr) {
+  *endptr = ptr + 1;
+  switch (*ptr) {
+    case '0': return '\0';
+    case 'a': return '\a';
+    case 'b': return '\b';
+    case 't': return '\t';
+    case 'n': return '\n';
+    case 'v': return '\v';
+    case 'f': return '\f';
+    case 'r': return '\r';
   }
-  *end_ptr = str + 1;
-  return *str;
+  return *ptr;
 }
 
 static bool convert_tkn_int(Token *tkn) {
@@ -300,20 +284,54 @@ static void convert_tkn_num(Token *tkn) {
   tkn->ty = ty;
 }
 
-static char *read_strlit(char *str, char **end_ptr) {
-  int str_len = 0;
-  {
-    char *now_loc = str;
-    while (*now_loc != '"') {
-      read_char(now_loc, &now_loc);
+static char *strlit_end(char *ptr) {
+  for (; *ptr != '"'; ptr++) {
+    if (*ptr == '\n' || *ptr == '\0') {
+      errorf_loc(ER_COMPILE, ptr, 1, "String must be closed with double quotation marks");
     }
-    str_len = (int)(now_loc - str);
+
+    if (*ptr == '\\') {
+      ptr++;
+    }
   }
-  char *ret = calloc(str_len + 1, sizeof(char));
-  memcpy(ret, str, str_len);
-  *end_ptr = str + str_len;
-  return ret;
+  return ptr;
 }
+
+static Token *read_strlit(char *begin, char **endptr) {
+  char *end = strlit_end(begin + 1);
+  char *str = calloc(end - begin, sizeof(char));
+
+  int len = 0;
+  for (char *ptr = begin + 1; ptr < end;) {
+    if (*ptr == '\\') {
+      str[len++] = read_escaped_char(ptr + 1, &ptr);
+    } else {
+      str[len++] = *ptr;
+      ptr++;
+    }
+  }
+  end++;
+  *endptr = end;
+
+  Token *tkn = new_token(TK_STR, begin, end - begin);
+  tkn->strlit = str;
+  return tkn;
+}
+
+// static char *read_strlit(char *str, char **end_ptr) {
+//   int str_len = 0;
+//   {
+//     char *now_loc = str;
+//     while (*now_loc != '"') {
+//       read_char(now_loc, &now_loc);
+//     }
+//     str_len = (int)(now_loc - str);
+//   }
+//   char *ret = calloc(str_len + 1, sizeof(char));
+//   memcpy(ret, str, str_len);
+//   *end_ptr = str + str_len;
+//   return ret;
+// }
 
 static char *read_file(char *path) {
   FILE *fp;
@@ -376,6 +394,7 @@ Token *tokenize(char *path) {
       continue;
     }
 
+    // Skip space
     if (isspace(*ptr)) {
       ptr++;
       continue;
@@ -387,8 +406,14 @@ Token *tokenize(char *path) {
       while (isalnum(*ptr) || *ptr == '.') {
           ptr++;
       }
-      cur = new_token(TK_NUM, cur, begin, ptr - begin);
+      cur = cur->next = new_token(TK_NUM, begin, ptr - begin);
       convert_tkn_num(cur);
+      continue;
+    }
+
+    // String literal
+    if (*ptr == '"') {
+      cur = cur->next = read_strlit(ptr, &ptr);
       continue;
     }
 
@@ -398,7 +423,7 @@ Token *tokenize(char *path) {
     for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
       int panct_len = strlen(permit_panct[i]);
       if (strncmp(ptr, permit_panct[i], panct_len) == 0) {
-        cur = new_token(TK_PUNCT, cur, ptr, panct_len);
+        cur = cur->next = new_token(TK_PUNCT, ptr, panct_len);
         ptr += panct_len;
         check = true;
         break;
@@ -411,9 +436,15 @@ Token *tokenize(char *path) {
 
     // Check char
     if (*ptr == '\'') {
-      char *s_pos = ptr;
-      cur = new_token(TK_NUM, cur, ptr, 3);
-      cur->val = read_char(ptr + 1, &ptr);
+      cur = cur->next = new_token(TK_NUM, ptr, 3);
+      ptr++;
+
+      if (*ptr == '\\') {
+        cur->val = read_escaped_char(ptr + 1, &ptr);
+      } else {
+        cur->val = *ptr;
+        ptr++;
+      }
       cur->ty = ty_i8;
 
       if (*ptr != '\'') {
@@ -423,23 +454,11 @@ Token *tokenize(char *path) {
       continue;
     }
 
-    if (*ptr == '"') {
-      char *s_pos = ptr;
-      cur = new_token(TK_STR, cur, ptr, 0);
-      cur->str_lit = read_strlit(ptr + 1, &ptr);
-      cur->len = (ptr - s_pos) - 2;
-      if (*ptr != '"') {
-        errorf_loc(ER_COMPILE, ptr, 1, "The string must end with \".");
-      }
-      ptr++;
-      continue;
-    }
-
     // Check keywords
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
       if (memcmp(ptr, permit_keywords[i], keyword_len) == 0 && *(ptr + keyword_len + 1) == ' ') {
-        cur = new_token(TK_KEYWORD, cur, ptr, keyword_len);
+        cur = cur->next = new_token(TK_KEYWORD, ptr, keyword_len);
         ptr += keyword_len;
         check = true;
         break;
@@ -456,12 +475,12 @@ Token *tokenize(char *path) {
         ptr++;
       }
       int ident_len = ptr - start;
-      cur = new_token(TK_IDENT, cur, start, ident_len);
+      cur = cur->next = new_token(TK_IDENT, start, ident_len);
       continue;
     }
     printf("%s", ptr);
     errorf_loc(ER_TOKENIZE, ptr, 1, "Unexpected tokenize");
   }
-  new_token(TK_EOF, cur, NULL, 1);
+  cur = cur->next = new_token(TK_EOF, NULL, 1);
   return head.next;
 }

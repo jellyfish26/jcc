@@ -639,24 +639,20 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   // Otherwise, char number store in each elements of Array.
 
   if (init->ty->kind != TY_ARRAY) {
-    init->node = new_strlit(tkn, tkn->str_lit);
+    init->node = new_strlit(tkn, tkn->strlit);
     tkn = tkn->next;
     if (end_tkn != NULL) *end_tkn = tkn;
     return;
   }
 
   if (init->is_flexible) {
-    int len = 0;
-    for (char *chr = tkn->str_lit; *chr != '\0'; read_char(chr, &chr)) len++;
+    int len = tkn->len - 2;
     Initializer *tmp = new_initializer(array_to(init->ty->base, len), false);
     *init = *tmp;
   }
 
-  int idx = 0;
-  char *chr = tkn->str_lit;
-  while (*chr != '\0') {
-    init->children[idx]->node = new_num(tkn, read_char(chr, &chr));
-    idx++;
+  for (int idx = 0; idx < tkn->len - 2; idx++) {
+    init->children[idx]->node = new_num(tkn, tkn->strlit[idx]);
   }
 
   tkn = tkn->next;
@@ -1929,7 +1925,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
 
   if (tkn->kind == TK_STR) {
     if (end_tkn != NULL) *end_tkn = tkn->next;
-    return new_strlit(tkn, tkn->str_lit);
+    return new_strlit(tkn, tkn->strlit);
   }
 
   return constant(tkn, end_tkn);

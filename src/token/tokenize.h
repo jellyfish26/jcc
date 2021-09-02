@@ -29,7 +29,7 @@ struct Token {
   int64_t val;       // Value if kind is TK_NUM 
   long double fval;  // Floating-value if kind is TK_NUM
 
-  char *str_lit;   // String literal
+  char *strlit;  // String literal
 };
 
 char read_char(char *str, char **end_ptr);

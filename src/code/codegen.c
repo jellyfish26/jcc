@@ -538,7 +538,10 @@ static void gen_gvar_define(Obj *var) {
 
   if (var->ty->kind == TY_STR) {
     println(".LC%d:", var->offset);
-    println("  .string \"%s\"", var->name);
+    for (int i = 0; i < var->name_len; i++) {
+      println("  .byte %d", var->name[i]);
+    }
+    println("  .byte %d", 0);
     return;
   }
 
