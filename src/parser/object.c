@@ -1,5 +1,6 @@
 #include "token/tokenize.h"
 #include "parser/parser.h"
+#include "util/util.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -127,32 +128,30 @@ typedef struct Scope Scope;
 struct Scope {
   Scope *up;
 
-  Obj *vars;
-  Obj *others;  // Tag: function declaration / function definition
+  HashMap *map_vars;
+  HashMap *map_objs;
 };
 
 Scope *lscope;
 Scope *gscope;
 Obj *used_objs;
 
-void new_scope() {
+static Scope *new_scope() {
   Scope *scope = calloc(1, sizeof(Scope));
+  scope->map_vars = calloc(1, sizeof(HashMap));
+  scope->map_objs = calloc(1, sizeof(HashMap));
+  return scope;
+}
+
+void enter_scope() {
+  Scope *scope = new_scope();
   scope->up = lscope;
   lscope = scope;
 }
 
-void del_scope() {
+void leave_scope() {
   if (lscope == NULL) {
     errorf(ER_INTERNAL, "Internal error at scope");
-  }
-
-  if (lscope->vars != NULL) {
-    Obj *end = lscope->vars;
-    while (end->next != NULL) {
-      end = end->next;
-    }
-    end->next = used_objs;
-    used_objs = lscope->vars;
   }
 
   lscope = lscope->up;
@@ -160,56 +159,45 @@ void del_scope() {
 
 void add_lvar(Obj *var) {
   var->is_global = false;
-  var->next = lscope->vars;
-  lscope->vars = var;
+  hashmap_insert(lscope->map_vars, var->name, var);
+
+  var->next = used_objs;
+  used_objs = var;
 }
 
 void add_lobj(Obj *obj) {
   obj->is_global = false;
-  obj->next = lscope->others;
-  lscope->others = obj;
+  hashmap_insert(lscope->map_objs, obj->name, obj);
 }
 
 void add_gvar(Obj *var) {
-  var->is_global = true;
   if (gscope == NULL) {
-    gscope = calloc(1, sizeof(Scope));
+    gscope = new_scope();
   }
 
-  var->next = gscope->vars;
-  gscope->vars = var;
+  var->is_global = true;
+  hashmap_insert(gscope->map_vars, var->name, var);
 }
 
 void add_gobj(Obj *obj) {
-  obj->is_global = true;
   if (gscope == NULL) {
-    gscope = calloc(1, sizeof(Scope));
+    gscope = new_scope();
   }
 
-  obj->next = gscope->others;
-  gscope->others = obj;
+  obj->is_global = true;
+  hashmap_insert(gscope->map_objs, obj->name, obj);
 }
 
-Obj *check_objs(Obj *head, char *name) {
-  int len = strlen(name);
-  for (Obj *obj = head; obj != NULL; obj = obj->next) {
-    if ((len == obj->name_len) && (memcmp(name, obj->name, len) == 0)) {
-      return obj;
-    }
-  }
-
-  return NULL;
-}
 
 Obj *find_obj(char *name) {
   // Find in local object
   for (Scope *cur = lscope; cur != NULL; cur = cur->up) {
-    Obj *obj = check_objs(cur->vars, name);
+    Obj *obj = hashmap_get(cur->map_vars, name);
     if (obj != NULL) {
       return obj;
     }
 
-    obj = check_objs(cur->others, name);
+    obj = hashmap_get(cur->map_objs, name);
     if (obj != NULL) {
       return obj;
     }
@@ -219,12 +207,12 @@ Obj *find_obj(char *name) {
     return NULL;
   }
 
-  Obj *obj = check_objs(gscope->vars, name);
+  Obj *obj = hashmap_get(gscope->map_vars, name);
   if (obj != NULL) {
     return obj;
   }
 
-  obj = check_objs(gscope->others, name);
+  obj = hashmap_get(gscope->map_objs, name);
   return obj;
 }
 
@@ -235,11 +223,11 @@ bool check_scope(char *name) {
   }
 
   if (lscope == NULL) {
-    ret |= (check_objs(gscope->vars, name) != NULL);
-    ret |= (check_objs(gscope->others, name) != NULL);
+    ret |= (hashmap_get(gscope->map_vars, name) != NULL);
+    ret |= (hashmap_get(gscope->map_objs, name) != NULL);
   } else {
-    ret |= (check_objs(lscope->vars, name) != NULL);
-    ret |= (check_objs(lscope->others, name) != NULL);
+    ret |= (hashmap_get(lscope->map_vars, name) != NULL);
+    ret |= (hashmap_get(lscope->map_objs, name) != NULL);
   }
   return ret;
 }
@@ -322,10 +310,6 @@ int init_offset() {
   used_objs = NULL;
   now_address += 16 - (now_address % 16);
   return now_address;
-}
-
-Obj *get_gvars() {
-  return gscope->vars;
 }
 
 // if type size left < right is true

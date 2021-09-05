@@ -1069,7 +1069,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
     errorf_tkn(ER_COMPILE, tkn, "Conflict define");
   }
 
-  new_scope();
+  enter_scope();
   ty->is_prototype = false;
 
   Obj *func = find_obj(ty->name);
@@ -1084,7 +1084,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   }
 
   node->deep = comp_stmt(tkn, &tkn);
-  del_scope();
+  leave_scope();
   node->func->vars_size = init_offset();
 
   // Relocate label
@@ -1147,9 +1147,9 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     node->val = eval_expr(expr(tkn->next, &tkn));
     tkn = skip(tkn, ":");
 
-    new_scope();
+    enter_scope();
     node->deep = statement(tkn, end_tkn);
-    del_scope();
+    leave_scope();
 
     return node;
   }
@@ -1158,9 +1158,9 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     Node *node = new_node(ND_DEFAULT, tkn);
     tkn = skip(tkn->next, ":");
 
-    new_scope();
+    enter_scope();
     node->deep = statement(tkn, end_tkn);
-    del_scope();
+    leave_scope();
 
     return node;
   }
@@ -1180,14 +1180,14 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     ret->cond = assign(tkn, &tkn);
     tkn = skip(tkn, ")");
 
-    new_scope();
+    enter_scope();
     ret->then = statement(tkn, &tkn);
-    del_scope();
+    leave_scope();
 
     if (equal(tkn, "else")) {
-      new_scope();
+      enter_scope();
       ret->other = statement(tkn->next, &tkn);
-      del_scope();
+      leave_scope();
     }
 
     if (end_tkn != NULL) *end_tkn = tkn;
@@ -1209,9 +1209,9 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     }
     tkn = skip(tkn, ")");
     
-    new_scope();
+    enter_scope();
     Node *stmt = statement(tkn, end_tkn);
-    del_scope();
+    leave_scope();
 
     if (stmt->kind == ND_BLOCK) {
       Node head = {};
@@ -1248,7 +1248,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   // iteration-statement
   if (equal(tkn, "while")) {
     tkn = skip(tkn->next, "(");
-    new_scope();
+    enter_scope();
 
     char *break_store = break_label;
     char *conti_store = conti_label;
@@ -1262,7 +1262,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     tkn = skip(tkn, ")");
 
     ret->then = statement(tkn, &tkn);
-    del_scope();
+    leave_scope();
 
     break_label = break_store;
     conti_label = conti_store;
@@ -1279,9 +1279,9 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     break_label = node->break_label = new_unique_label();
     conti_label = node->conti_label = new_unique_label();
 
-    new_scope();
+    enter_scope();
     node->then = statement(tkn->next, &tkn);
-    del_scope();
+    leave_scope();
 
     tkn = skip(skip(tkn, "while"), "(");
     node->cond = expr(tkn, &tkn);
@@ -1296,7 +1296,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   // iteration-statement
   if (equal(tkn, "for")) {
     tkn = skip(tkn->next, "(");
-    new_scope();
+    enter_scope();
 
     char *break_store = break_label;
     char *conti_store = conti_label;
@@ -1322,7 +1322,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     }
 
     ret->then = statement(tkn, &tkn);
-    del_scope();
+    leave_scope();
 
     break_label = break_store;
     conti_label = conti_store;
@@ -1409,9 +1409,9 @@ static Node *comp_stmt(Token *tkn, Token **end_tkn) {
       cur->next = declaration(tkn, &tkn, false);
 
       if (cur->next == NULL) {
-        new_scope();
+        enter_scope();
         cur->next = statement(tkn, &tkn);
-        del_scope();
+        leave_scope();
       }
 
       cur = last_stmt(cur);
@@ -1907,9 +1907,9 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 static Node *primary(Token *tkn, Token **end_tkn) {
   // GNU Statements
   if (equal(tkn, "(") && equal(tkn->next, "{")) {
-    new_scope();
+    enter_scope();
     Node *ret = statement(tkn->next, &tkn);
-    del_scope();
+    leave_scope();
  
     tkn = skip(tkn, ")");
  

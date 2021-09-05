@@ -198,13 +198,12 @@ struct Obj {
 
 void add_type(Node *node);
 Obj *new_obj(Type *type, char *name);
-void new_scope();
-void del_scope();
+void enter_scope();
+void leave_scope();
 void add_lvar(Obj *var);
 void add_lobj(Obj *obj);
 void add_gvar(Obj *var);
 void add_gobj(Obj *obj);
 Obj *find_obj(char *name);
-Obj *get_gvars();
 bool check_scope(char *name);
 int init_offset();
