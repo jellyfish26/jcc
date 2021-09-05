@@ -1,5 +1,6 @@
 #include "parser/parser.h"
 #include "token/tokenize.h"
+#include "util/util.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -27,18 +28,10 @@ struct VarAttr {
   bool is_const;
 };
 
-typedef struct Relocate Relocate;
-struct Relocate {
-  char *label;
-  char *rel_label;
-
-  Relocate *next;
-};
-
 static char *break_label;
 static char *conti_label;
 
-static Relocate *relocate_label;
+static HashMap *label_map;
 static Node *label_node;
 static Node *goto_node;
 
@@ -239,31 +232,6 @@ Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   }
 
   return node;
-}
-
-bool new_relocate(char *label) {
-  for (Relocate *relocate = relocate_label; relocate != NULL; relocate = relocate->next) {
-    if (strcmp(label, relocate->label) == 0) {
-      return false;
-    }
-  }
-
-  Relocate *relocate = calloc(1, sizeof(Relocate));
-  relocate->label = label;
-  relocate->rel_label = new_unique_label();
-  relocate->next = relocate_label;
-  relocate_label = relocate;
-  return true;
-}
-
-char *get_relocate(char *label) {
-  for (Relocate *relocate = relocate_label; relocate != NULL; relocate = relocate->next) {
-    if (strcmp(label, relocate->label) == 0) {
-      return relocate->rel_label;
-    }
-  }
-
-  return NULL;
 }
 
 Node *to_assign(Token *tkn, Node *rhs) {
@@ -1055,7 +1023,7 @@ Node *program(Token *tkn) {
 static Node *funcdef(Token *tkn, Token **end_tkn) {
   label_node = NULL;
   goto_node = NULL;
-  relocate_label = NULL;
+  label_map = calloc(1, sizeof(HashMap));
 
   Node *node = new_node(ND_FUNC, tkn);
   Type *ty = declspec(tkn, &tkn);
@@ -1089,11 +1057,11 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
 
   // Relocate label
   for (Node *stmt = label_node; stmt != NULL; stmt = stmt->deep) {
-    stmt->label = get_relocate(stmt->label);
+    stmt->label = hashmap_get(label_map, stmt->label);
   }
 
   for (Node *stmt = goto_node; stmt != NULL; stmt = stmt->deep) {
-    char *label = get_relocate(stmt->label);
+    char *label = hashmap_get(label_map, stmt->label);
     if (label == NULL) {
       errorf_tkn(ER_COMPILE, stmt->tkn, "Label '%s' is not defined", stmt->label);
     }
@@ -1126,9 +1094,10 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
 // expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn) {
   if (get_ident(tkn) && equal(tkn->next, ":")) {
-    if (!new_relocate(get_ident(tkn))) {
+    if (hashmap_get(label_map, get_ident(tkn)) != NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Duplicate label");
     }
+    hashmap_insert(label_map, get_ident(tkn), new_unique_label());
 
     Node *node = new_node(ND_LABEL, tkn);
     node->label = get_ident(tkn);
