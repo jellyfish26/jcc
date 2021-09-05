@@ -128,8 +128,7 @@ typedef struct Scope Scope;
 struct Scope {
   Scope *up;
 
-  HashMap *map_vars;
-  HashMap *map_objs;
+  HashMap *map;
 };
 
 Scope *lscope;
@@ -138,8 +137,7 @@ Obj *used_objs;
 
 static Scope *new_scope() {
   Scope *scope = calloc(1, sizeof(Scope));
-  scope->map_vars = calloc(1, sizeof(HashMap));
-  scope->map_objs = calloc(1, sizeof(HashMap));
+  scope->map = calloc(1, sizeof(HashMap));
   return scope;
 }
 
@@ -157,26 +155,14 @@ void leave_scope() {
   lscope = lscope->up;
 }
 
-void add_lvar(Obj *var) {
+void add_lobj(Obj *var, bool can_set_offset) {
   var->is_global = false;
-  hashmap_insert(lscope->map_vars, var->name, var);
+  hashmap_insert(lscope->map, var->name, var);
 
-  var->next = used_objs;
-  used_objs = var;
-}
-
-void add_lobj(Obj *obj) {
-  obj->is_global = false;
-  hashmap_insert(lscope->map_objs, obj->name, obj);
-}
-
-void add_gvar(Obj *var) {
-  if (gscope == NULL) {
-    gscope = new_scope();
+  if (can_set_offset) {
+    var->next = used_objs;
+    used_objs = var;
   }
-
-  var->is_global = true;
-  hashmap_insert(gscope->map_vars, var->name, var);
 }
 
 void add_gobj(Obj *obj) {
@@ -185,19 +171,14 @@ void add_gobj(Obj *obj) {
   }
 
   obj->is_global = true;
-  hashmap_insert(gscope->map_objs, obj->name, obj);
+  hashmap_insert(gscope->map, obj->name, obj);
 }
 
 
 Obj *find_obj(char *name) {
   // Find in local object
   for (Scope *cur = lscope; cur != NULL; cur = cur->up) {
-    Obj *obj = hashmap_get(cur->map_vars, name);
-    if (obj != NULL) {
-      return obj;
-    }
-
-    obj = hashmap_get(cur->map_objs, name);
+    Obj *obj = hashmap_get(cur->map, name);
     if (obj != NULL) {
       return obj;
     }
@@ -207,32 +188,22 @@ Obj *find_obj(char *name) {
     return NULL;
   }
 
-  Obj *obj = hashmap_get(gscope->map_vars, name);
-  if (obj != NULL) {
-    return obj;
-  }
-
-  obj = hashmap_get(gscope->map_objs, name);
-  return obj;
+  return hashmap_get(gscope->map, name);
 }
 
 bool check_scope(char *name) {
-  bool ret = false;
   if (gscope == NULL) {
     return NULL;
   }
 
   if (lscope == NULL) {
-    ret |= (hashmap_get(gscope->map_vars, name) != NULL);
-    ret |= (hashmap_get(gscope->map_objs, name) != NULL);
+    return (hashmap_get(gscope->map, name) != NULL);
   } else {
-    ret |= (hashmap_get(lscope->map_vars, name) != NULL);
-    ret |= (hashmap_get(lscope->map_objs, name) != NULL);
+    return (hashmap_get(lscope->map, name) != NULL);
   }
-  return ret;
 }
 
-bool check_func_params(Type *lty, Type *rty) {
+static bool check_func_params(Type *lty, Type *rty) {
   // If the parameters are same type, we can be redeclared.
   bool chk = (lty->param_cnt == rty->param_cnt);
 
@@ -273,7 +244,6 @@ bool declare_func(Type *ty) {
   // If the number of parameters in the function declaration is zero,
   // we can update the function declaration.
   if (already->params == NULL) {
-    already->name_len = 0;
     add_gobj(new_obj(ty, ty->name));
     return true;
   }
@@ -294,7 +264,6 @@ bool define_func(Type *ty) {
     return false;
   }
 
-  alrady->name_len = 0;
   add_gobj(new_obj(ty, ty->name));
   return true;
 }

@@ -173,8 +173,6 @@ Type *array_to(Type *type, int array_len);
 bool is_integer_ty(Type *ty);
 bool is_float_ty(Type *ty);
 bool is_same_type(Type *lty, Type *rty);
-bool declare_func(Type *ty);
-bool define_func(Type *ty);
 
 // Variable or Function
 struct Obj {
@@ -200,10 +198,10 @@ void add_type(Node *node);
 Obj *new_obj(Type *type, char *name);
 void enter_scope();
 void leave_scope();
-void add_lvar(Obj *var);
-void add_lobj(Obj *obj);
-void add_gvar(Obj *var);
+void add_lobj(Obj *var, bool can_set_offset);
 void add_gobj(Obj *obj);
 Obj *find_obj(char *name);
 bool check_scope(char *name);
 int init_offset();
+bool declare_func(Type *ty);
+bool define_func(Type *ty);

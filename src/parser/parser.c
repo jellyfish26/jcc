@@ -967,9 +967,9 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     }
 
     if (is_global) {
-      add_gvar(obj);
+      add_gobj(obj);
     } else {
-      add_lvar(obj);
+      add_lobj(obj, true);
     }
   }
 
@@ -1079,7 +1079,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   for (int i = 0; i < ty->param_cnt; i++) {
     Type *param_ty = *(ty->params + i);
     Obj *param = new_obj(param_ty, param_ty->name);
-    add_lvar(param);
+    add_lobj(param, true);
     *(func->params + i) = param;
   }
 
