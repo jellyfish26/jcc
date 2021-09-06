@@ -23,7 +23,6 @@ static void println(char *fmt, ...) {
 //
 
 void compile_node(Node *node);
-int get_type_size(Type *type);
 
 static void gen_push(const char *reg) {
   println("  push %s", reg);
@@ -387,22 +386,7 @@ static void gen_cast(Node *node) {
   }
 }
 
-static void gen_comp(char *comp_op, char *lreg, char *rreg) {
-  println("  cmp %s, %s", lreg, rreg);
-  println("  %s al", comp_op);
-  println("  movzx rax, al");
-}
-
 int branch_label = 0;
-
-// Right to left
-void expand_assign(Node *node) {
-  gen_addr(node->lhs);
-  gen_push("rax");
-
-  compile_node(node->rhs);
-  gen_store(node->ty);
-}
 
 void expand_ternary(Node *node, int label) {
   compile_node(node->cond);
@@ -612,7 +596,6 @@ void compile_node(Node *node) {
         println("  add rsp, 16");
       }
     }
-    Type *ty = node->ty;
     return;
   }
 
@@ -643,7 +626,10 @@ void compile_node(Node *node) {
       gen_addr(node->lhs);
       return;
     case ND_ASSIGN:
-      expand_assign(node);
+      gen_addr(node->lhs);
+      gen_push("rax");
+      compile_node(node->rhs);
+      gen_store(node->ty);
       if (node->deep != NULL) {
         compile_node(node->deep);
       }
@@ -867,52 +853,35 @@ void compile_node(Node *node) {
     println("  fld TBYTE PTR [rsp]");
     switch (node->kind) {
       case ND_ADD:
-        println("  faddp st(1), st");
+        println("  faddp");
         break;
       case ND_SUB:
-        println("  fsubp st(1), st");
+        println("  fsubp");
         break;
       case ND_MUL:
-        println("  fmulp st(1), st");
+        println("  fmulp");
         break;
       case ND_DIV:
-        println("  fdivp st(1), st");
+        println("  fdivp");
         break;
       case ND_EQ:
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  setnp al");
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
-        println("  mov edx, 0");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  cmovne eax, edx");
-        println("  movzx eax, al");
-        break;
       case ND_NEQ:
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  setp al");
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
-        println("  mov edx, 1");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  cmovne eax, edx");
-        println("  movzx eax, al");
-        break;
       case ND_LC:
-        println("  fcomip st, st(1)");
-        println("  fstp st(0)");
-        println("  seta al");
-        println("  movzx eax, al");
-        break;
       case ND_LEC:
-        println("  fcomip st, st(1)");
+        println("  fcomip");
         println("  fstp st(0)");
-        println("  setnb al");
-        println("  movzx eax, al");
+
+        if (node->kind == ND_EQ) {
+          println("  sete al");
+        } else if (node->kind == ND_NEQ) {
+          println("  setne al");
+        } else if (node->kind == ND_LC) {
+          println("  seta al");
+        } else {
+          println("  setae al");
+        }
+
+        println("  movzx rax, al");
         break;
       case ND_LOGICALAND:
         println("  fstp TBYTE PTR [rsp]");
@@ -998,10 +967,7 @@ void compile_node(Node *node) {
 
   if (node->lhs->ty->kind == TY_FLOAT || node->lhs->ty->kind == TY_DOUBLE) {
 
-    char *suffix = "d";
-    if (node->lhs->ty->kind == TY_FLOAT) {
-      suffix = "s";
-    }
+    char *suffix = (node->lhs->ty->kind == TY_FLOAT) ? "s" : "d";
 
     switch (node->kind) {
       case ND_ADD:
@@ -1017,29 +983,25 @@ void compile_node(Node *node) {
         println("  divs%s xmm0, xmm1", suffix);
         return;
       case ND_EQ:
-        println("  xor rdx, rdx");
-        println("  ucomis%s xmm0, xmm1", suffix);
-        println("  setnp al");
-        println("  ucomis%s xmm0, xmm1", suffix);
-        println("  cmovne eax, edx");
-        println("  movzx rax, al");
-        return;
       case ND_NEQ:
-        println("  mov rdx, 1");
-        println("  ucomis%s xmm0, xmm1", suffix);
-        println("  setp al");
-        println("  ucomis%s xmm0, xmm1", suffix);
-        println("  cmovne eax, edx");
-        println("  movzx rax, al");
-        return;
       case ND_LC:
-        println("  comis%s xmm1, xmm0", suffix);
-        println("  seta al");
-        println("  movzx rax, al");
-        return;
       case ND_LEC:
-        println("  comis%s xmm1, xmm0", suffix);
-        println("  setnb al");
+        println("  ucomis%s xmm1, xmm0", suffix);
+
+        if (node->kind == ND_EQ) {
+          println("  sete al");
+          println("  setnp dl");
+          println("  and al, dl");
+        } else if (node->kind == ND_NEQ) {
+          println("  setne al");
+          println("  setp dl");
+          println("  or al, dl");
+        } else if (node->kind == ND_LC) {
+          println("  seta al");
+        } else {
+          println("  setnb al");
+        }
+
         println("  movzx rax, al");
         return;
       case ND_LOGICALAND:
@@ -1131,35 +1093,31 @@ void compile_node(Node *node) {
       }
       break;
     case ND_EQ:
-      gen_comp("sete", rax, rdi);
-      break;
     case ND_NEQ:
-      gen_comp("setne", rax, rdi);
-      break;
-    case ND_LC: {
-      bool is_unsigned = false;
-      is_unsigned |= node->lhs->ty->is_unsigned;
-      is_unsigned |= node->rhs->ty->is_unsigned;
+    case ND_LC:
+    case ND_LEC:
+      println("  cmp %s, %s", rax, rdi);
 
-      if (is_unsigned) {
-        gen_comp("setb", rax, rdi);
+      if (node->kind == ND_EQ) {
+        println("  sete al");
+      } else if (node->kind == ND_NEQ) {
+        println("  setne al");
+      } else if (node->kind == ND_LC) {
+        if (node->lhs->ty->is_unsigned) {
+          println("  setb al");
+        } else {
+          println("  setl al");
+        }
       } else {
-        gen_comp("setl", rax, rdi);
+        if (node->lhs->ty->is_unsigned) {
+          println("  setbe al");
+        } else {
+          println("  setle al");
+        }
       }
-      break;
-    }
-    case ND_LEC: {
-      bool is_unsigned = false;
-      is_unsigned |= node->lhs->ty->is_unsigned;
-      is_unsigned |= node->rhs->ty->is_unsigned;
 
-      if (is_unsigned) {
-        gen_comp("setbe", rax, rdi);
-      } else {
-        gen_comp("setle", rax, rdi);
-      }
+      println("  movzx rax, al");
       break;
-    }
     case ND_BITWISEAND:
       println("  and %s, %s", rax, rdi);
       break;

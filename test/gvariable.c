@@ -60,6 +60,8 @@ long double ldd = ldc + 2.0l;
 
 long double init_arr9[4][4] = {{1.5l, 2.3f, 0.0, 4.3}, {5.2}, {6.2f, 7.5f}, {}};
 
+char gstr[] = "aiueo";
+
 int main() {
   CHECK(2, ({a = 2; a;}));
   CHECK(5, ({b = 1; int *c = &a; *c = 4; a + b;}));
@@ -194,5 +196,6 @@ int main() {
     ans;
   }));
 
+  CHECK('i', gstr[1]);
   return 0;
 }
