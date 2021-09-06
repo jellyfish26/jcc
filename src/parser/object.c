@@ -136,7 +136,8 @@ typedef struct Scope Scope;
 struct Scope {
   Scope *up;
 
-  HashMap map;
+  HashMap var;
+  HashMap tag;
 };
 
 static Scope *scope = &(Scope){};
@@ -156,8 +157,8 @@ void leave_scope() {
   scope = scope->up;
 }
 
-void add_obj(Obj *var, bool set_offset) {
-  hashmap_insert(&(scope->map), var->name, var);
+void add_var(Obj *var, bool set_offset) {
+  hashmap_insert(&(scope->var), var->name, var);
 
   if (set_offset) {
     int sz = var->ty->var_size;
@@ -165,20 +166,14 @@ void add_obj(Obj *var, bool set_offset) {
   }
 }
 
-void add_gobj(Obj *obj) {
-  Scope *sc = scope;
-  while (sc->up != NULL) {
-    sc = sc->up;
-  }
-
-  obj->is_global = true;
-  hashmap_insert(&(sc->map), obj->name, obj);
+void add_tag(Type *ty) {
+  hashmap_insert(&(scope->tag), ty->name, ty);
 }
 
-Obj *find_obj(char *name) {
+Obj *find_var(char *name) {
   // Find in local object
   for (Scope *cur = scope; cur != NULL; cur = cur->up) {
-    Obj *obj = hashmap_get(&(cur->map), name);
+    Obj *obj = hashmap_get(&(cur->var), name);
     if (obj != NULL) {
       return obj;
     }
@@ -187,9 +182,26 @@ Obj *find_obj(char *name) {
   return NULL;
 }
 
-bool check_scope(char *name) {
-  return hashmap_get(&(scope->map), name) != NULL;
+Type *find_tag(char *name) {
+  // Find in local tag
+  for (Scope *cur = scope; cur != NULL; cur = cur->up) {
+    Type *ty = hashmap_get(&(cur->tag), name);
+    if (ty != NULL) {
+      return ty;
+    }
+  }
+
+  return NULL;
 }
+
+bool can_declare_var(char *name) {
+  return hashmap_get(&(scope->var), name) == NULL;
+}
+
+bool can_declare_tag(char *name) {
+  return hashmap_get(&(scope->tag), name) == NULL;
+}
+
 
 static bool check_func_params(Type *lty, Type *rty) {
   if (lty->param_cnt != rty->param_cnt) {
@@ -211,10 +223,10 @@ static bool check_func_params(Type *lty, Type *rty) {
 
 bool declare_func(Type *ty) {
   ty->is_prototype = true;
-  Obj *already = find_obj(ty->name);
+  Obj *already = find_var(ty->name);
 
   if (already == NULL) {
-    add_gobj(new_obj(ty, ty->name));
+    add_var(new_obj(ty, ty->name), false);
     return true;
   }
 
@@ -234,7 +246,7 @@ bool declare_func(Type *ty) {
   // If the number of parameters in the function declaration is zero,
   // we can update the function declaration.
   if (already->params == NULL) {
-    add_gobj(new_obj(ty, ty->name));
+    add_var(new_obj(ty, ty->name), false);
     return true;
   }
 
@@ -243,10 +255,10 @@ bool declare_func(Type *ty) {
 
 bool define_func(Type *ty) {
   ty->is_prototype = false;
-  Obj *alrady = find_obj(ty->name);
+  Obj *alrady = find_var(ty->name);
 
   if (alrady == NULL) {
-    add_gobj(new_obj(ty, ty->name));
+    add_var(new_obj(ty, ty->name), false);
     return true;
   }
 
@@ -254,7 +266,7 @@ bool define_func(Type *ty) {
     return false;
   }
 
-  add_gobj(new_obj(ty, ty->name));
+  add_var(new_obj(ty, ty->name), false);
   return true;
 }
 

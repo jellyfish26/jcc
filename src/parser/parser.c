@@ -284,7 +284,7 @@ static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
 //
-// type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned"
+// type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned" |
 // type-qualifier = "const"
 static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
@@ -920,15 +920,12 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
       errorf_tkn(ER_COMPILE, tkn, "Conflict declaration");
     }
   } else {
-    if (check_scope(ty->name)) {
+    if (!can_declare_var(ty->name)) {
       errorf_tkn(ER_COMPILE, tkn, "This variable already declare");
     }
 
-    if (is_global) {
-      add_gobj(obj);
-    } else {
-      add_obj(obj, true);
-    }
+    obj->is_global = is_global;
+    add_var(obj, !is_global);
   }
 
   if (ty->kind == TY_FUNC) {
@@ -1030,7 +1027,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   enter_scope();
   ty->is_prototype = false;
 
-  Obj *func = find_obj(ty->name);
+  Obj *func = find_var(ty->name);
   node->func = func;
 
   Obj head = {};
@@ -1039,7 +1036,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   for (Type *param = ty->params; param != NULL; param = param->next) {
     cur->next = new_obj(param, param->name);
     cur = cur->next;
-    add_obj(cur, true);
+    add_var(cur, true);
   }
   func->params = head.next;
 
@@ -1901,7 +1898,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
   // identifier
   char *ident = get_ident(tkn);
   if (ident != NULL) {
-    Obj *obj = find_obj(ident);
+    Obj *obj = find_var(ident);
 
     if (obj == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
