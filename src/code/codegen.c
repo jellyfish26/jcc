@@ -97,6 +97,17 @@ static void gen_load(Type *ty) {
 static void gen_store(Type *ty) {
   gen_pop("rdi");
 
+  if (ty->kind == TY_FLOAT) {
+    println("  movss DWORD PTR [rdi], xmm0");
+    return;
+  } else if (ty->kind == TY_DOUBLE) {
+    println("  movsd QWORD PTR [rdi], xmm0");
+    return;
+  } else if (ty->kind == TY_LDOUBLE) {
+    println("  fstp TBYTE PTR [rdi]");
+    return;
+  }
+
   if (ty->var_size == 1) {
     println("  mov BYTE PTR [rdi], al");
   } else if (ty->var_size == 2) {
@@ -105,19 +116,6 @@ static void gen_store(Type *ty) {
     println("  mov DWORD PTR [rdi], eax");
   } else {
     println("  mov QWORD PTR [rdi], rax");
-  }
-}
-
-// Store the value of the xmm0 register at the address pointed to by the top of the stack.
-static void gen_fstore(Type *ty) {
-  gen_pop("rdi");
-
-  if (ty->var_size == 4) {
-    println("  movss DWORD PTR [rdi], xmm0");
-  } else if (ty->var_size == 8) {
-    println("  movsd QWORD PTR [rdi], xmm0");
-  } else {
-    println("  fstp  TBYTE PTR [rdi]");
   }
 }
 
@@ -401,16 +399,7 @@ void expand_assign(Node *node) {
   gen_push("rax");
 
   compile_node(node->rhs);
-
-  switch (node->ty->kind) {
-    case TY_FLOAT:
-    case TY_DOUBLE:
-    case TY_LDOUBLE:
-      gen_fstore(node->ty);
-      break;
-    default:
-      gen_store(node->ty);
-  }
+  gen_store(node->ty);
 }
 
 void expand_ternary(Node *node, int label) {
@@ -445,17 +434,7 @@ static void gen_lvar_init(Node *node) {
           println("  mov rax, 0");
       }
     }
-
-    switch (init->ty->kind) {
-      case TY_FLOAT:
-      case TY_DOUBLE:
-      case TY_LDOUBLE:
-        gen_fstore(init->ty);
-        break;
-      default:
-        gen_store(init->ty);
-    }
-
+    gen_store(init->ty);
     println("  mov rax, rdi");
     println("  add rax, %d", init->ty->var_size);
   }
@@ -895,30 +874,22 @@ void compile_node(Node *node) {
     println("  sub rsp, 32");
     println("  fstp TBYTE PTR [rsp]");
     println("  fstp TBYTE PTR [rsp+16]");
+    println("  fld TBYTE PTR [rsp+16]");
+    println("  fld TBYTE PTR [rsp]");
     switch (node->kind) {
       case ND_ADD:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  faddp st(1), st");
         break;
       case ND_SUB:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fsubp st(1), st");
         break;
       case ND_MUL:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fmulp st(1), st");
         break;
       case ND_DIV:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fdivp st(1), st");
         break;
       case ND_EQ:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fucomip st, st(1)");
         println("  fstp st(0)");
         println("  setnp al");
@@ -931,8 +902,6 @@ void compile_node(Node *node) {
         println("  movzx eax, al");
         break;
       case ND_NEQ:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fucomip st, st(1)");
         println("  fstp st(0)");
         println("  setp al");
@@ -945,23 +914,19 @@ void compile_node(Node *node) {
         println("  movzx eax, al");
         break;
       case ND_LC:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fcomip st, st(1)");
         println("  fstp st(0)");
         println("  seta al");
         println("  movzx eax, al");
         break;
       case ND_LEC:
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fld TBYTE PTR [rsp]");
         println("  fcomip st, st(1)");
         println("  fstp st(0)");
         println("  setnb al");
         println("  movzx eax, al");
         break;
       case ND_LOGICALAND:
-        println("  fld TBYTE PTR [rsp+16]");
+        println("  fstp TBYTE PTR [rsp]");
         println("  fldz");
         println("  fucomip st, st(1)");
         println("  fstp st(0)");
@@ -990,7 +955,7 @@ void compile_node(Node *node) {
         println("4:");
         break;
       case ND_LOGICALOR:
-        println("  fld TBYTE PTR [rsp+16]");
+        println("  fstp TBYTE PTR [rsp]");
         println("  fldz");
         println("  fucomip st, st(1)");
         println("  fstp st(0)");
@@ -1293,7 +1258,7 @@ void codegen(Node *head, char *filename) {
             continue;
           case TY_LONG:
           case TY_PTR:
-            println("  mov DWORD PTR [rbp-%d], %s", arg->offset, argregs32[general]);
+            println("  mov QWORD PTR [rbp-%d], %s", arg->offset, argregs64[general]);
             general++;
             continue;
         }

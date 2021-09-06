@@ -127,7 +127,6 @@ Obj *new_obj(Type *type, char *name) {
 typedef struct Scope Scope;
 struct Scope {
   Scope *up;
-
   HashMap *map;
 };
 

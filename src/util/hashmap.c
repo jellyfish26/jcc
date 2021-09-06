@@ -26,9 +26,6 @@ static uint64_t fnv1hash(char *str, int len) {
     hash ^= (unsigned char)str[i];
   }
 
-  if (hash == 0) {
-    return hash = 1;
-  }
   return hash;
 }
 

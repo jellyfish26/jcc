@@ -75,11 +75,10 @@ static Node *postfix(Token *tkn, Token **end_tkn);
 static Node *primary(Token *tkn, Token **end_tkn);
 static Node *constant(Token *tkn, Token **end_tkn);
 
-static int label_cnt = 0;
-
 static char *new_unique_label() {
+  static int cnt = 0;
   char *ptr = calloc(10, sizeof(char));
-  sprintf(ptr, ".Luni%d", label_cnt++);
+  sprintf(ptr, ".Luni%d", cnt++);
   return ptr;
 }
 
@@ -1412,38 +1411,49 @@ static Node *expr(Token *tkn, Token **end_tkn) {
 static Node *assign(Token *tkn, Token **end_tkn) {
   Node *node = conditional(tkn, &tkn);
 
-  if (equal(tkn, "="))
+  if (equal(tkn, "=")) {
     return new_assign(tkn, node, assign(tkn->next, end_tkn));
+  }
 
-  if (equal(tkn, "+="))
+  if (equal(tkn, "+=")) {
     return to_assign(tkn, new_add(tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "-="))
+  if (equal(tkn, "-=")) {
     return to_assign(tkn, new_sub(tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "*="))
+  if (equal(tkn, "*=")) {
     return to_assign(tkn, new_calc(ND_MUL, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "/="))
+  if (equal(tkn, "/=")) {
     return to_assign(tkn, new_calc(ND_DIV, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "%="))
+  if (equal(tkn, "%=")) {
     return to_assign(tkn, new_calc(ND_REMAINDER, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "<<="))
+  if (equal(tkn, "<<=")) {
     return to_assign(tkn, new_calc(ND_LEFTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, ">>="))
+  if (equal(tkn, ">>=")) {
     return to_assign(tkn, new_calc(ND_RIGHTSHIFT, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "&="))
+  if (equal(tkn, "&=")) {
     return to_assign(tkn, new_calc(ND_BITWISEAND, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "^="))
+  if (equal(tkn, "^=")) {
     return to_assign(tkn, new_calc(ND_BITWISEXOR, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
-  if (equal(tkn, "|="))
+  if (equal(tkn, "|=")) {
     return to_assign(tkn, new_calc(ND_BITWISEOR, tkn, node, assign(tkn->next, end_tkn)));
+  }
 
   add_type(node);
   if (end_tkn != NULL) *end_tkn = tkn;
