@@ -38,6 +38,10 @@ int dla(long double a, int b) {
   return (int)a + b;
 }
 
+int dlb(long double a, double b, double c, double d, double e, float g, double h, double i, double j, double k, int l) {
+  return (int)a + (int)b + (int)c + (int)d + (int)e + (int)g + (int)h + (int)i + (int)j + (int)k + l;
+}
+
 
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
@@ -58,6 +62,8 @@ int main() {
   CHECK(3, foo(2, 1));
   CHECK(3, da(2.0, 1));
   CHECK(6, dla(5.0l, 1));
+
+  CHECK(66, dlb(1.0l, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11));
   return 0;
 }
 

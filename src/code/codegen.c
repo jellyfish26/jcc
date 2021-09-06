@@ -798,9 +798,7 @@ void compile_node(Node *node) {
     }
 
     println("  call %s", node->func->name);
-    if (stcnt > 0) {
-      gen_emptypop(stcnt);
-    }
+    gen_emptypop(stcnt);
     return;
   }
 
@@ -808,24 +806,19 @@ void compile_node(Node *node) {
     compile_node(node->lhs);
     compile_node(node->rhs);
 
-    println("  sub rsp, 32");
-    println("  fstp TBYTE PTR [rsp]");
-    println("  fstp TBYTE PTR [rsp+16]");
-    println("  fld TBYTE PTR [rsp+16]");
-    println("  fld TBYTE PTR [rsp]");
     switch (node->kind) {
       case ND_ADD:
         println("  faddp");
-        break;
+        return;
       case ND_SUB:
         println("  fsubp");
-        break;
+        return;
       case ND_MUL:
         println("  fmulp");
-        break;
+        return;
       case ND_DIV:
         println("  fdivp");
-        break;
+        return;
       case ND_EQ:
       case ND_NEQ:
       case ND_LC:
@@ -844,34 +837,22 @@ void compile_node(Node *node) {
         }
 
         println("  movzx rax, al");
-        break;
+        return;
     }
-    println("  add rsp, 32");
-    return;
-  }
-
-  // lhs: rax, rhs: rdi
-  compile_node(node->rhs);
-  switch (node->rhs->ty->kind) {
-    case TY_FLOAT:
-    case TY_DOUBLE:
-      println("  movaps xmm1, xmm0");
-      break;
-    default:
-      gen_push("rax");
-  }
-
-  compile_node(node->lhs);
-  switch (node->lhs->ty->kind) {
-    case TY_FLOAT:
-    case TY_DOUBLE:
-      break;
-    default:
-      gen_pop("rdi");
   }
 
   if (node->lhs->ty->kind == TY_FLOAT || node->lhs->ty->kind == TY_DOUBLE) {
     char *suffix = (node->lhs->ty->kind == TY_FLOAT) ? "s" : "d";
+
+    compile_node(node->lhs);
+    println(" movd rax, xmm0");
+    gen_push("rax");
+
+    compile_node(node->rhs);
+    println("  movap%s xmm1, xmm0", suffix);
+    gen_pop("rax");
+    println("  movd xmm0, rax");
+
 
     switch (node->kind) {
       case ND_ADD:
@@ -910,6 +891,14 @@ void compile_node(Node *node) {
         return;
     }
   }
+
+  // lhs: rax, rhs: rdi
+  compile_node(node->lhs);
+  gen_push("rax");
+
+  compile_node(node->rhs);
+  println("  mov rdi, rax");
+  gen_pop("rax");
 
   // Default register is 32bit
   char *rax = "eax", *rdi = "edi", *rdx = "edx";
@@ -1050,82 +1039,47 @@ void codegen(Node *head, char *filename) {
 
     // Set arguments
     int flcnt = 0, gecnt = 0, stframe = 16;
-
+    
+    gen_push("rdi");
     for (Obj *param = node->func->params; param != NULL; param = param->next) {
-      if (gecnt < 6) {
-        switch (param->ty->kind) {
-          case TY_CHAR:
-            println("  mov BYTE PTR [rbp-%d], %s", param->offset, argregs8[gecnt]);
-            gecnt++;
-            continue;
-          case TY_SHORT:
-            println("  mov WORD PTR [rbp-%d], %s", param->offset, argregs16[gecnt]);
-            gecnt++;
-            continue;
-          case TY_INT:
-            println("  mov DWORD PTR [rbp-%d], %s", param->offset, argregs32[gecnt]);
-            gecnt++;
-            continue;
-          case TY_LONG:
-          case TY_PTR:
-            println("  mov QWORD PTR [rbp-%d], %s", param->offset, argregs64[gecnt]);
-            gecnt++;
-            continue;
-        }
-      }
-
-      if (flcnt < 8) {
-        switch (param->ty->kind) {
-          case TY_FLOAT:
-            println("  movss DWORD PTR [rbp-%d], xmm%d", param->offset, flcnt);
-            flcnt++;
-            continue;
-          case TY_DOUBLE:
-            println("  movsd QWORD PTR [rbp-%d], xmm%d", param->offset, flcnt);
-            flcnt++;
-            continue;
-        }
-      }
+      gen_addr(new_var(NULL, param));
+      gen_push("rax");
 
       switch (param->ty->kind) {
         case TY_CHAR:
-          println("  mov al, BYTE PTR [rbp+%d]", stframe);
-          println("  mov BYTE PTR [rbp-%d], al", param->offset);
-          stframe += 8;
-          break;
         case TY_SHORT:
-          println("  mov ax, WORD PTR [rbp+%d]", stframe);
-          println("  mov WORD PTR [rbp-%d], ax", param->offset);
-          stframe += 8;
-          break;
         case TY_INT:
-          println("  mov eax, DWORD PTR [rbp+%d]", stframe);
-          println("  mov DWORD PTR [rbp-%d], eax", param->offset);
-          stframe += 8;
-          break;
         case TY_LONG:
         case TY_PTR:
-          println("  mov eax, DWORD PTR [rbp+%d]", stframe);
-          println("  mov DWORD PTR [rbp-%d], eax", param->offset);
-          stframe += 8;
+          if (gecnt == 0) {
+            println("  mov rax, QWORD PTR [rsp+8]");
+            gecnt++;
+          } else if (gecnt < 6) {
+            println("  mov rax, %s", argregs64[gecnt++]);
+          } else {
+            println("  mov rax, QWORD PTR [rbp+%d]", stframe);
+            stframe += 8;
+          }
           break;
         case TY_FLOAT:
-          println("  movss xmm0, DWORD PTR [rbp+%d]", stframe);
-          println("  movss DWORD PTR [rbp-%d], xmm0", param->offset);
-          stframe += 8;
+        case TY_DOUBLE: {
+          char *suffix = (param->ty->kind == TY_FLOAT) ? "s" : "d";
+
+          if (flcnt < 8) {
+            println("  movap%s xmm0, xmm%d", suffix, flcnt++);
+          } else {
+            println("  movd xmm0, QWORD PTR [rbp+%d]", stframe);
+            stframe += 8;
+          }
           break;
-        case TY_DOUBLE:
-          println("  movsd xmm0, QWORD PTR [rbp+%d]", stframe);
-          println("  movsd QWORD PTR [rbp-%d], xmm0", param->offset);
-          stframe += 8;
-          break;
+        }
         case TY_LDOUBLE:
           println("  fld TBYTE PTR [rbp+%d]", stframe);
-          println("  fstp TBYTE PTR [rbp-%d]", param->offset);
           stframe += 16;
-          break;
       }
+      gen_store(param->ty);
     }
+    gen_pop("rdi");
 
     compile_node(node->deep);
 
