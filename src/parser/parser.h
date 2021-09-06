@@ -202,7 +202,7 @@ void add_type(Node *node);
 Obj *new_obj(Type *type, char *name);
 void enter_scope();
 void leave_scope();
-void add_lobj(Obj *var, bool can_set_offset);
+void add_obj(Obj *var, bool can_set_offset);
 void add_gobj(Obj *obj);
 Obj *find_obj(char *name);
 bool check_scope(char *name);

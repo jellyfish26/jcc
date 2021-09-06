@@ -927,7 +927,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     if (is_global) {
       add_gobj(obj);
     } else {
-      add_lobj(obj, true);
+      add_obj(obj, true);
     }
   }
 
@@ -1039,7 +1039,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   for (Type *param = ty->params; param != NULL; param = param->next) {
     cur->next = new_obj(param, param->name);
     cur = cur->next;
-    add_lobj(cur, true);
+    add_obj(cur, true);
   }
   func->params = head.next;
 

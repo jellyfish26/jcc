@@ -135,36 +135,29 @@ Obj *new_obj(Type *type, char *name) {
 typedef struct Scope Scope;
 struct Scope {
   Scope *up;
-  HashMap *map;
+
+  HashMap map;
 };
 
-static Scope *lscope;
-static Scope *gscope;
+static Scope *scope = &(Scope){};
 static int offset;
 
-static Scope *new_scope() {
-  Scope *scope = calloc(1, sizeof(Scope));
-  scope->map = calloc(1, sizeof(HashMap));
-  return scope;
-}
-
 void enter_scope() {
-  Scope *scope = new_scope();
-  scope->up = lscope;
-  lscope = scope;
+  Scope *sc = calloc(1, sizeof(Scope));
+  sc->up = scope;
+  scope = sc;
 }
 
 void leave_scope() {
-  if (lscope == NULL) {
+  if (scope == NULL) {
     errorf(ER_INTERNAL, "Internal error at scope");
   }
 
-  lscope = lscope->up;
+  scope = scope->up;
 }
 
-void add_lobj(Obj *var, bool set_offset) {
-  var->is_global = false;
-  hashmap_insert(lscope->map, var->name, var);
+void add_obj(Obj *var, bool set_offset) {
+  hashmap_insert(&(scope->map), var->name, var);
 
   if (set_offset) {
     int sz = var->ty->var_size;
@@ -173,41 +166,29 @@ void add_lobj(Obj *var, bool set_offset) {
 }
 
 void add_gobj(Obj *obj) {
-  if (gscope == NULL) {
-    gscope = new_scope();
+  Scope *sc = scope;
+  while (sc->up != NULL) {
+    sc = sc->up;
   }
 
   obj->is_global = true;
-  hashmap_insert(gscope->map, obj->name, obj);
+  hashmap_insert(&(sc->map), obj->name, obj);
 }
-
 
 Obj *find_obj(char *name) {
   // Find in local object
-  for (Scope *cur = lscope; cur != NULL; cur = cur->up) {
-    Obj *obj = hashmap_get(cur->map, name);
+  for (Scope *cur = scope; cur != NULL; cur = cur->up) {
+    Obj *obj = hashmap_get(&(cur->map), name);
     if (obj != NULL) {
       return obj;
     }
   }
 
-  if (gscope == NULL) {
-    return NULL;
-  }
-
-  return hashmap_get(gscope->map, name);
+  return NULL;
 }
 
 bool check_scope(char *name) {
-  if (gscope == NULL) {
-    return NULL;
-  }
-
-  if (lscope == NULL) {
-    return (hashmap_get(gscope->map, name) != NULL);
-  } else {
-    return (hashmap_get(lscope->map, name) != NULL);
-  }
+  return hashmap_get(&(scope->map), name) != NULL;
 }
 
 static bool check_func_params(Type *lty, Type *rty) {
@@ -216,7 +197,6 @@ static bool check_func_params(Type *lty, Type *rty) {
   }
   lty = lty->params;
   rty = rty->params;
-
 
   while (lty != NULL && rty != NULL) {
     if (!is_same_type(lty, rty)) {
