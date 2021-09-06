@@ -466,29 +466,22 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
   }
 
   Type head = {};
-  Type *param = &head;
+  Type *cur = &head;
 
   while (!consume(tkn, &tkn, ")")) {
-    if (param != &head) {
+    if (cur != &head) {
       tkn = skip(tkn, ",");
     }
 
-    Type *cur = declspec(tkn, &tkn);
-    cur = declarator(tkn, &tkn, cur);
+    Type *param_ty = declspec(tkn, &tkn);
+    param_ty = declarator(tkn, &tkn, param_ty);
 
-    param->next = cur;
-    param = cur;
+    cur->next = param_ty;
+    cur = param_ty;
     ty->param_cnt++;
   }
 
-  if (ty->param_cnt != 0) {
-    ty->params = calloc(ty->param_cnt, sizeof(Type*));
-    for (int i = 0; i < ty->param_cnt; i++) {
-      *(ty->params + i) = head.next;
-      head.next = head.next->next;
-    }
-  }
-
+  ty->params = head.next;
   if (end_tkn != NULL) *end_tkn = tkn;
   return ty;
 }
@@ -1042,13 +1035,15 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
   Obj *func = find_obj(ty->name);
   node->func = func;
 
-  func->params = calloc(ty->param_cnt, sizeof(Obj*));
-  for (int i = 0; i < ty->param_cnt; i++) {
-    Type *param_ty = *(ty->params + i);
-    Obj *param = new_obj(param_ty, param_ty->name);
-    add_lobj(param, true);
-    *(func->params + i) = param;
+  Obj head = {};
+  Obj *cur = &head;
+
+  for (Type *param = ty->params; param != NULL; param = param->next) {
+    cur->next = new_obj(param, param->name);
+    cur = cur->next;
+    add_lobj(cur, true);
   }
+  func->params = head.next;
 
   node->deep = comp_stmt(tkn, &tkn);
   leave_scope();
@@ -1836,23 +1831,17 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
       argc++;
     }
 
-    if (fcall->ty->param_cnt != 0 & fcall->ty->param_cnt != argc) {
+    if (fcall->ty->param_cnt != 0 && fcall->ty->param_cnt != argc) {
       errorf_tkn(ER_COMPILE, tkn, "Do not match arguments to function call, expected %d, have %d", fcall->ty->param_cnt, argc);
     }
     
-    fcall->argc = argc;
-    fcall->args = calloc(argc, sizeof(Node*));
-    argc = 0;
-
-    for (Node *expr = head.next; expr != NULL; expr = expr->next) {
-      if (fcall->ty->param_cnt != 0) {
-        expr->lhs = new_cast(tkn, expr->lhs, *(fcall->ty->params + argc));
-        add_type(expr->lhs);
-      }
-      *(fcall->args + argc) = expr;
-      argc++;
+    cur = head.next;
+    for (Type *arg_ty = fcall->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
+      cur->lhs = new_cast(cur->tkn, cur->lhs, arg_ty);
+      cur = cur->next;
     }
 
+    fcall->args = head.next;
     if (end_tkn != NULL) *end_tkn = tkn;
     return fcall;
   }

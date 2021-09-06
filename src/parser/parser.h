@@ -77,9 +77,11 @@ struct Node {
   Node *other; // cond false statement
   Node *loop;  // Loop statement
 
-  Obj *func;    // Function or Function call
-  int argc;     // Arguments count
-  Node **args;  // Arguemnts
+  // Function call
+  Obj *func;
+  int argc;
+  Node *args;
+  bool pass_by_stack;
 
   char *label;
   char *break_label;
@@ -143,10 +145,12 @@ struct Type {
 
   // Function type
   Type *ret_ty;
-  int param_cnt;
-  Type **params;
-  Type *next;
   bool is_prototype;
+
+  // Function params
+  int param_cnt;
+  Type *params;
+  Type *next;
 };
 
 // Must call init_type function before use.
@@ -173,11 +177,11 @@ Type *array_to(Type *type, int array_len);
 bool is_integer_ty(Type *ty);
 bool is_float_ty(Type *ty);
 bool is_same_type(Type *lty, Type *rty);
+Type *extract_ty(Type *ty);
 
 // Variable or Function
 struct Obj {
   Type *ty;  // Obj type
-  Obj *next;
   
   char *name;
   int name_len;
@@ -187,7 +191,8 @@ struct Obj {
   int offset;
 
   // Function
-  Obj **params;
+  Obj *params;
+  Obj *next;
   int vars_size;
 
   int64_t val;

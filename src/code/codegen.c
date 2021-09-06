@@ -341,9 +341,11 @@ static char *cast_table[][11] = {
   {i8f80, i16f80, i32f80, i64f80, u8f80, u16f80, u32f80, u64f80, f32f80, f64f80, NULL}, // f80
 };
 
-static int get_type_idx(Type *type) {
+static int get_type_idx(Type *ty) {
+  ty = extract_ty(ty);
+
   int ret;
-  switch (type->kind) {
+  switch (ty->kind) {
     case TY_CHAR:
       ret = 0;
       break;
@@ -370,7 +372,7 @@ static int get_type_idx(Type *type) {
     default:
       return 0;
   };
-  if (type->is_unsigned) {
+  if (ty->is_unsigned) {
     ret += 4;
   }
   return ret;
@@ -441,8 +443,14 @@ static void gen_lvar_init(Node *node) {
 }
 
 static void gen_gvar_init(Node *node) {
+  Obj *obj = node->kind == ND_INIT ? node->lhs->use_var : node->use_var;
   println(".data");
-  println("%s:", node->lhs->use_var->name);
+  println("%s:", obj->name);
+
+  if (node->kind == ND_VAR) {
+    println("  .zero %d", obj->ty->var_size);
+    return;
+  }
 
 
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
@@ -505,82 +513,63 @@ static void gen_gvar_init(Node *node) {
   }
 }
 
-static void gen_gvar_define(Obj *var) {
-  println(".data");
-  println("%s:", var->name);
+static void push_argsre(Node *node, bool pass_stack) {
+  if (node == NULL) {
+    return;
+  }
 
-  println("  .zero %d", var->ty->var_size);
+  push_argsre(node->next, pass_stack);
+
+  if ((pass_stack && !node->pass_by_stack) || (!pass_stack && node->pass_by_stack)) {
+    return;
+  }
+
+  Type *ty = extract_ty(node->lhs->ty);
+  switch (ty->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+      compile_node(node->lhs);
+      println("  movd rax, xmm0");
+      gen_push("rax");
+      break;
+    case TY_LDOUBLE:
+      compile_node(node->lhs);
+      println("  sub rsp, 16");
+      println("  fstp TBYTE PTR [rsp]");
+      break;
+    default:
+      compile_node(node->lhs);
+      gen_push("rax");
+  }
 }
 
-static void cnt_func_params(Node *node, int *general, int *floating) {
-  Type *ty = node->func->ty;
+static void push_args(Node *node, bool pass_stack) {
+  // floating cnt, general cnt
+  // pass by stack if flcnt >= 8 or gecnt >= 6
+  int flcnt = 0, gecnt = 0;
 
-  for (int i = 0; i < node->argc; i++) {
-    TypeKind kind = (*(node->args + i))->lhs->ty->kind;
-    if (kind == TY_FUNC) {
-      kind = (*(node->args + i))->lhs->ty->ret_ty->kind;
-    }
+  for (Node *arg = node->args; arg != NULL; arg = arg->next) {
+    Type *arg_ty = extract_ty(arg->lhs->ty);
 
-    switch (kind) {
+    switch (arg_ty->kind) {
       case TY_FLOAT:
       case TY_DOUBLE:
-        (*floating)++;
+        if (flcnt >= 8) {
+          arg->pass_by_stack = true;
+        }
+        flcnt++;
+        break;
+      case TY_LDOUBLE:
+        arg->pass_by_stack = true;
         break;
       default:
-        (*general)++;
+        if (gecnt >= 6) {
+          arg->pass_by_stack = true;
+        }
+        gecnt++;
     }
   }
-}
-
-static void push_func_params(Node *node, bool is_reg) {
-  Type *ty = node->func->ty;
-
-  int general = 0, floating = 0;
-  cnt_func_params(node, &general, &floating);
-
-  for (int i = node->argc - 1; i >= 0; i--) {
-    TypeKind kind = (*(node->args + i))->lhs->ty->kind;
-    if (kind == TY_FUNC) {
-      kind = (*(node->args + i))->lhs->ty->ret_ty->kind;
-    }
-
-    switch (kind) {
-      case TY_FLOAT:
-      case TY_DOUBLE: {
-        bool is_expand = false;
-        floating--;
-        is_expand |= (floating <= 7 && is_reg);
-        is_expand |= (floating > 7 && !is_reg);
-
-        if (is_expand) {
-          compile_node((*(node->args + i))->lhs);
-          println("  movd rax, xmm0");
-          gen_push("rax");
-        }
-        break;
-      }
-      case TY_LDOUBLE:
-          if (is_reg) {
-            break;
-          }
-
-          compile_node((*(node->args + i))->lhs);
-          println("  sub rsp, 16");
-          println("  fstp TBYTE PTR [rsp]");
-          break;
-      default: {
-        bool is_expand = false;
-        general--;
-        is_expand |= (general <= 5 && is_reg);
-        is_expand |= (general > 5 && !is_reg);
-
-        if (is_expand) {
-          compile_node((*(node->args + i))->lhs);
-          gen_push("rax");
-        }
-      }
-    }
-  }
+  push_argsre(node->args, pass_stack);
 }
 
 void compile_node(Node *node) {
@@ -825,44 +814,44 @@ void compile_node(Node *node) {
   if (node->kind == ND_FUNCCALL) {
     Type *ty = node->func->ty;
 
-    push_func_params(node, false);
-    push_func_params(node, true);
+    push_args(node, true);
+    push_args(node, false);
 
-    int general = 0, floating = 0, stack = 0;
-    for (int i = 0; i < node->argc; i++) {
-      TypeKind kind = (*(node->args + i))->lhs->ty->kind;
-      if (kind == TY_FUNC) {
-        kind = (*(node->args + i))->lhs->ty->ret_ty->kind;
-      }
+    // floating cnt, general cnt, stack cnt
+    // pass by stack if flcnt >= 8 or gecnt >= 6
+    int flcnt = 0, gecnt = 0, stcnt = 0;
 
-      switch (kind) {
+    for (Node *arg = node->args; arg != NULL; arg = arg->next) {
+      Type *ty = extract_ty(arg->lhs->ty);
+
+      switch (ty->kind) {
         case TY_FLOAT:
         case TY_DOUBLE:
-          if (floating <= 7) {
+          if (flcnt < 8) {
             gen_pop("rax");
-            println("  movd xmm%d, rax", floating);
+            println("  movd xmm%d, rax", flcnt);
+            flcnt++;
           } else {
-            stack++;
+            stcnt++;
           }
-          floating++;
           break;
         case TY_LDOUBLE:
-          stack += 2;
+          stcnt += 2;
           break;
         default:
-          if (general <= 5) {
+          if (gecnt < 6) {
             gen_pop("rax");
-            println("  mov %s, rax", argregs64[general]);
+            println("  mov %s, rax", argregs64[gecnt]);
+            gecnt++;
           } else {
-            stack++;
+            stcnt++;
           }
-          general++;
       }
     }
 
     println("  call %s", node->func->name);
-    if (stack > 0) {
-      gen_emptypop(stack);
+    if (stcnt > 0) {
+      gen_emptypop(stcnt);
     }
     return;
   }
@@ -1214,11 +1203,7 @@ void codegen(Node *head, char *filename) {
 
   for (Node *node = head; node != NULL; node = node->next) {
     if (node->kind != ND_FUNC) {
-      if (node->kind == ND_INIT) {
-        gen_gvar_init(node);
-      } else {
-        gen_gvar_define(node->use_var);
-      }
+      gen_gvar_init(node);
       continue;
     }
 
@@ -1237,82 +1222,80 @@ void codegen(Node *head, char *filename) {
     println("  sub rsp, %d", func->vars_size);
 
     // Set arguments
-    int general = 0, floating = 0, stack_frame = 16;
+    int flcnt = 0, gecnt = 0, stframe = 16;
 
-    for (int i = 0; i < func->ty->param_cnt; i++) {
-      Obj *arg = *(func->params + i);
-
-      if (general < 6) {
-        switch (arg->ty->kind) {
+    for (Obj *param = node->func->params; param != NULL; param = param->next) {
+      if (gecnt < 6) {
+        switch (param->ty->kind) {
           case TY_CHAR:
-            println("  mov BYTE PTR [rbp-%d], %s", arg->offset, argregs8[general]);
-            general++;
+            println("  mov BYTE PTR [rbp-%d], %s", param->offset, argregs8[gecnt]);
+            gecnt++;
             continue;
           case TY_SHORT:
-            println("  mov WORD PTR [rbp-%d], %s", arg->offset, argregs16[general]);
-            general++;
+            println("  mov WORD PTR [rbp-%d], %s", param->offset, argregs16[gecnt]);
+            gecnt++;
             continue;
           case TY_INT:
-            println("  mov DWORD PTR [rbp-%d], %s", arg->offset, argregs32[general]);
-            general++;
+            println("  mov DWORD PTR [rbp-%d], %s", param->offset, argregs32[gecnt]);
+            gecnt++;
             continue;
           case TY_LONG:
           case TY_PTR:
-            println("  mov QWORD PTR [rbp-%d], %s", arg->offset, argregs64[general]);
-            general++;
+            println("  mov QWORD PTR [rbp-%d], %s", param->offset, argregs64[gecnt]);
+            gecnt++;
             continue;
         }
       }
 
-      if (floating < 8) {
-        switch (arg->ty->kind) {
+      if (flcnt < 8) {
+        switch (param->ty->kind) {
           case TY_FLOAT:
-            println("  movss DWORD PTR [rbp-%d], xmm%d", arg->offset, floating);
-            floating++;
+            println("  movss DWORD PTR [rbp-%d], xmm%d", param->offset, flcnt);
+            flcnt++;
             continue;
           case TY_DOUBLE:
-            println("  movsd QWORD PTR [rbp-%d], xmm%d", arg->offset, floating);
-            floating++;
+            println("  movsd QWORD PTR [rbp-%d], xmm%d", param->offset, flcnt);
+            flcnt++;
             continue;
         }
       }
 
-      switch (arg->ty->kind) {
+      switch (param->ty->kind) {
         case TY_CHAR:
-          println("  mov al, BYTE PTR [rbp+%d]", stack_frame);
-          println("  mov BYTE PTR [rbp-%d], al", arg->offset);
-          stack_frame += 8;
+          println("  mov al, BYTE PTR [rbp+%d]", stframe);
+          println("  mov BYTE PTR [rbp-%d], al", param->offset);
+          stframe += 8;
           break;
         case TY_SHORT:
-          println("  mov ax, WORD PTR [rbp+%d]", stack_frame);
-          println("  mov WORD PTR [rbp-%d], ax", arg->offset);
-          stack_frame += 8;
+          println("  mov ax, WORD PTR [rbp+%d]", stframe);
+          println("  mov WORD PTR [rbp-%d], ax", param->offset);
+          stframe += 8;
           break;
         case TY_INT:
-          println("  mov eax, DWORD PTR [rbp+%d]", stack_frame);
-          println("  mov DWORD PTR [rbp-%d], eax", arg->offset);
-          stack_frame += 8;
+          println("  mov eax, DWORD PTR [rbp+%d]", stframe);
+          println("  mov DWORD PTR [rbp-%d], eax", param->offset);
+          stframe += 8;
           break;
         case TY_LONG:
         case TY_PTR:
-          println("  mov eax, DWORD PTR [rbp+%d]", stack_frame);
-          println("  mov DWORD PTR [rbp-%d], eax", arg->offset);
-          stack_frame += 8;
+          println("  mov eax, DWORD PTR [rbp+%d]", stframe);
+          println("  mov DWORD PTR [rbp-%d], eax", param->offset);
+          stframe += 8;
           break;
         case TY_FLOAT:
-          println("  movss xmm0, DWORD PTR [rbp+%d]", stack_frame);
-          println("  movss DWORD PTR [rbp-%d], xmm0", arg->offset);
-          stack_frame += 8;
+          println("  movss xmm0, DWORD PTR [rbp+%d]", stframe);
+          println("  movss DWORD PTR [rbp-%d], xmm0", param->offset);
+          stframe += 8;
           break;
         case TY_DOUBLE:
-          println("  movsd xmm0, QWORD PTR [rbp+%d]", stack_frame);
-          println("  movsd QWORD PTR [rbp-%d], xmm0", arg->offset);
-          stack_frame += 8;
+          println("  movsd xmm0, QWORD PTR [rbp+%d]", stframe);
+          println("  movsd QWORD PTR [rbp-%d], xmm0", param->offset);
+          stframe += 8;
           break;
         case TY_LDOUBLE:
-          println("  fld TBYTE PTR [rbp+%d]", stack_frame);
-          println("  fstp TBYTE PTR [rbp-%d]", arg->offset);
-          stack_frame += 16;
+          println("  fld TBYTE PTR [rbp+%d]", stframe);
+          println("  fstp TBYTE PTR [rbp-%d]", param->offset);
+          stframe += 16;
           break;
       }
     }

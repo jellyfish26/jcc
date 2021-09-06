@@ -111,6 +111,14 @@ bool is_same_type(Type *lty, Type *rty) {
   return true;
 }
 
+// In the case of functions, we need to look at the type of the return type.
+Type *extract_ty(Type *ty) {
+  if (ty->kind == TY_FUNC) {
+    return ty->ret_ty;
+  }
+  return ty;
+}
+
 Obj *new_obj(Type *type, char *name) {
   if (type == NULL) {
     return NULL;
@@ -130,9 +138,9 @@ struct Scope {
   HashMap *map;
 };
 
-Scope *lscope;
-Scope *gscope;
-Obj *used_objs;
+static Scope *lscope;
+static Scope *gscope;
+static int offset;
 
 static Scope *new_scope() {
   Scope *scope = calloc(1, sizeof(Scope));
@@ -154,13 +162,13 @@ void leave_scope() {
   lscope = lscope->up;
 }
 
-void add_lobj(Obj *var, bool can_set_offset) {
+void add_lobj(Obj *var, bool set_offset) {
   var->is_global = false;
   hashmap_insert(lscope->map, var->name, var);
 
-  if (can_set_offset) {
-    var->next = used_objs;
-    used_objs = var;
+  if (set_offset) {
+    int sz = var->ty->var_size;
+    var->offset = (offset += sz);
   }
 }
 
@@ -203,19 +211,22 @@ bool check_scope(char *name) {
 }
 
 static bool check_func_params(Type *lty, Type *rty) {
-  // If the parameters are same type, we can be redeclared.
-  bool chk = (lty->param_cnt == rty->param_cnt);
-
-  if (chk) {
-    for (int i = 0; i < lty->param_cnt; i++) {
-      if (!is_same_type(*(lty->params + i), *(rty->params + i))) {
-        chk = false;
-        break;
-      }
-    }
+  if (lty->param_cnt != rty->param_cnt) {
+    return false;
   }
+  lty = lty->params;
+  rty = rty->params;
 
-  return chk;
+
+  while (lty != NULL && rty != NULL) {
+    if (!is_same_type(lty, rty)) {
+      return false;
+    }
+
+    lty = lty->next;
+    rty = rty->next;
+  }
+  return true;
 }
 
 bool declare_func(Type *ty) {
@@ -268,16 +279,9 @@ bool define_func(Type *ty) {
 }
 
 int init_offset() {
-  int now_address = 0;
-
-  for (Obj *cur = used_objs; cur != NULL; cur = cur->next) {
-    now_address += cur->ty->var_size;
-    cur->offset = now_address;
-  }
-
-  used_objs = NULL;
-  now_address += 16 - (now_address % 16);
-  return now_address;
+  int sz = offset + 16 - (offset % 16);
+  offset = 0;
+  return sz;
 }
 
 // if type size left < right is true
