@@ -23,10 +23,9 @@ struct Initializer {
   Node *node;
 };
 
-typedef struct VarAttr VarAttr;
-struct VarAttr {
+typedef struct {
   bool is_const;
-};
+} VarAttr;
 
 static char *break_label;
 static char *conti_label;
@@ -110,7 +109,7 @@ Node *new_cast(Token *tkn, Node *lhs, Type *ty) {
 Node *new_var(Token *tkn, Obj *obj) {
   Node *node = new_node(ND_VAR, tkn);
   node->use_var = obj;
-  node->ty = obj->ty;
+  add_type(node);
   return node;
 }
 
@@ -240,7 +239,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 static bool is_typename(Token *tkn) {
   char *keywords[] = {
     "void", "_Bool", "char", "short", "int", "long", "float", "double", "signed", "unsigned",
-    "const"
+    "const", "enum"
   };
 
   for (int i = 0; i < sizeof(keywords) / sizeof(*keywords); i++) {
@@ -281,10 +280,93 @@ static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
   return is_qual;
 };
 
+// enum-specifier = "enum" idenfitier |
+//                  "enum" identifier? "{" enumerator ("," enumerator)* ","? "}"
+//
+// enumerator = identifier |
+//              identifier "=" constant-expression
+static Type *enumspec(Token *tkn, Token **end_tkn) {
+  tkn = skip(tkn, "enum");
+  char *tag = get_ident(tkn);
+
+  if (tag != NULL && !equal(tkn->next, "{")) {
+    Type *ty = find_tag(tag);
+    if (ty == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "This enum tag is not declared");
+    } else if (ty->kind != TY_ENUM) {
+      errorf_tkn(ER_COMPILE, tkn, "This tag is not an enum tag");
+    }
+
+    if (end_tkn != NULL) *end_tkn = tkn->next;
+    return ty;
+  }
+
+  tkn = skip(tag == NULL ? tkn : tkn->next, "{");
+
+  Type *enumerator_ty = copy_ty(ty_i32);
+
+  Obj head = {};
+  Obj *cur = &head;
+  int64_t val = -1;
+
+  while (!consume(tkn, &tkn, "}")) {
+    if (cur != &head) {
+      tkn = skip(tkn, ",");
+    }
+
+    char *ident = get_ident(tkn);
+    if (cur == &head && ident == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Expected identifier");
+    }
+
+    if (ident == NULL && consume(tkn, &tkn, "}")) {
+      break;
+    }
+
+    if (!can_declare_var(ident)) {
+      errorf_tkn(ER_COMPILE, tkn, "This enumerator already declare");
+    }
+
+    if (consume(tkn->next, &tkn, "=")) {
+      val = eval_expr(expr(tkn, &tkn));
+    } else {
+      val++;
+    }
+
+    if (val >> 31 && enumerator_ty->kind == TY_INT) {
+      enumerator_ty = copy_ty(ty_i64);
+    }
+
+    Obj *obj = new_obj(NULL, ident);
+    obj->val = val;
+
+    cur->next = obj;
+    cur = obj;
+  }
+
+  Type *ty = copy_ty(enumerator_ty);
+  ty->kind = TY_ENUM;
+  ty->base = enumerator_ty;
+  ty->is_const = true;
+
+  for (Obj *obj = head.next; obj != NULL; obj = obj->next) {
+    obj->ty = ty;
+    add_var(obj, false);
+  }
+
+  if (tag != NULL) {
+    add_tag(ty, tag);
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
 //
 // type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned" |
+//                  enum-specifier
 // type-qualifier = "const"
 static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
@@ -312,6 +394,11 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
   while (is_typename(tkn)) {
     if (typequal(tkn, &tkn, attr)) {
       continue;
+    }
+
+    if (ty == NULL && equal(tkn, "enum")) {
+      ty = enumspec(tkn, &tkn)->base;
+      break;
     }
 
     // Counting Types
@@ -890,7 +977,6 @@ static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
   Type *ty = declspec(tkn, &tkn);
 
   if (ty == NULL) {
-    if (end_tkn != NULL) *end_tkn = tkn;
     return NULL;
   }
 
@@ -898,8 +984,8 @@ static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
   Node *cur = &head;
 
   while (!consume(tkn, &tkn, ";")) {
-    if (cur != &head) {
-      tkn = skip(tkn, ",");
+    if (cur != &head && !consume(tkn, &tkn, ",")) {
+      return NULL;
     }
 
     cur->next = initdecl(tkn, &tkn, ty, is_global);
@@ -907,6 +993,9 @@ static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
+  if (head.next == NULL) {
+    return new_node(ND_VOID, tkn);
+  }
   return head.next;
 }
 
@@ -983,10 +1072,14 @@ Node *program(Token *tkn) {
   Node *cur = &head;
 
   while (!is_eof(tkn)) {
-    Node *node = funcdef(tkn, &tkn);
+    Node *node = declaration(tkn, &tkn, true);
 
     if (node == NULL) {
-      node = declaration(tkn, &tkn, true);
+      node = funcdef(tkn, &tkn);
+    }
+
+    if (node->kind == ND_VOID) {
+      node = NULL;
     }
 
     cur->next = literal_node;
@@ -1905,6 +1998,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     }
 
     Node *node = new_var(tkn, obj);
+    add_type(node);
     if (end_tkn != NULL) *end_tkn = tkn->next;
     return node;
   }

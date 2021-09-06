@@ -121,6 +121,7 @@ typedef enum {
   TY_PTR,      // Pointer type
   TY_ARRAY,    // Array type
   TY_FUNC,     // Function
+  TY_ENUM,     // Enum type
 } TypeKind;
 
 
@@ -170,6 +171,7 @@ extern Type *ty_f32;
 extern Type *ty_f64;
 extern Type *ty_f80;
 
+Type *copy_ty(Type *ty);
 void init_type();
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
@@ -203,7 +205,7 @@ Obj *new_obj(Type *type, char *name);
 void enter_scope();
 void leave_scope();
 void add_var(Obj *var, bool set_offset);
-void add_tag(Type *ty);
+void add_tag(Type *ty, char *name);
 Obj *find_var(char *name);
 Type *find_tag(char *name);
 bool can_declare_var(char *name);

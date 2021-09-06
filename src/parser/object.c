@@ -24,7 +24,7 @@ Type *ty_f32;
 Type *ty_f64;
 Type *ty_f80;
 
-static Type *new_type(TypeKind kind, bool is_unsigned, int size) {
+static Type *new_ty(TypeKind kind, bool is_unsigned, int size) {
   Type *ty = calloc(1, sizeof(Type));
   ty->kind = kind;
   ty->is_unsigned = is_unsigned;
@@ -32,27 +32,33 @@ static Type *new_type(TypeKind kind, bool is_unsigned, int size) {
   return ty;
 }
 
+Type *copy_ty(Type *ty) {
+  Type *cty = calloc(1, sizeof(Type));
+  memcpy(cty, ty, sizeof(Type));
+  return cty;
+}
+
 void init_type() {
-  ty_void = new_type(TY_VOID, false, 0);
-  ty_bool = new_type(TY_CHAR, false, 1);
+  ty_void = new_ty(TY_VOID, false, 0);
+  ty_bool = new_ty(TY_CHAR, false, 1);
 
-  ty_i8  = new_type(TY_CHAR, false, 1);
-  ty_i16 = new_type(TY_SHORT, false, 2);
-  ty_i32 = new_type(TY_INT, false, 4);
-  ty_i64 = new_type(TY_LONG, false, 8);
+  ty_i8  = new_ty(TY_CHAR, false, 1);
+  ty_i16 = new_ty(TY_SHORT, false, 2);
+  ty_i32 = new_ty(TY_INT, false, 4);
+  ty_i64 = new_ty(TY_LONG, false, 8);
 
-  ty_u8  = new_type(TY_CHAR, true, 1);
-  ty_u16 = new_type(TY_SHORT, true, 2);
-  ty_u32 = new_type(TY_INT, true, 4);
-  ty_u64 = new_type(TY_LONG, true, 8);
+  ty_u8  = new_ty(TY_CHAR, true, 1);
+  ty_u16 = new_ty(TY_SHORT, true, 2);
+  ty_u32 = new_ty(TY_INT, true, 4);
+  ty_u64 = new_ty(TY_LONG, true, 8);
 
-  ty_f32 = new_type(TY_FLOAT, false, 4);
-  ty_f64 = new_type(TY_DOUBLE, false, 8);
-  ty_f80 = new_type(TY_LDOUBLE, false, 16);
+  ty_f32 = new_ty(TY_FLOAT, false, 4);
+  ty_f64 = new_ty(TY_DOUBLE, false, 8);
+  ty_f80 = new_ty(TY_LDOUBLE, false, 16);
 }
 
 Type *pointer_to(Type *base) {
-  Type *ty = new_type(TY_PTR, false, 8);
+  Type *ty = new_ty(TY_PTR, false, 8);
   ty->base = base;
   return ty;
 }
@@ -120,9 +126,6 @@ Type *extract_ty(Type *ty) {
 }
 
 Obj *new_obj(Type *type, char *name) {
-  if (type == NULL) {
-    return NULL;
-  }
   int name_len = strlen(name);
   Obj *ret = calloc(1, sizeof(Obj));
   ret->ty = type;
@@ -166,8 +169,8 @@ void add_var(Obj *var, bool set_offset) {
   }
 }
 
-void add_tag(Type *ty) {
-  hashmap_insert(&(scope->tag), ty->name, ty);
+void add_tag(Type *ty, char *name) {
+  hashmap_insert(&(scope->tag), name, ty);
 }
 
 Obj *find_var(char *name) {
@@ -312,6 +315,9 @@ void add_type(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       node->ty = node->use_var->ty;
+      if (node->ty->kind == TY_ENUM) {
+        node->ty = node->ty->base;
+      }
       return;
     case ND_ADD:
     case ND_SUB:

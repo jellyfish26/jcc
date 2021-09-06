@@ -557,6 +557,10 @@ static void push_args(Node *node, bool pass_stack) {
 }
 
 void compile_node(Node *node) {
+  if (node->kind == ND_VOID) {
+    return;
+  }
+
   if (node->kind == ND_NUM) {
     switch (node->ty->kind) {
       case TY_CHAR:
@@ -619,8 +623,12 @@ void compile_node(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
-      gen_addr(node);
-      gen_load(node->ty);
+      if (node->use_var->ty->kind == TY_ENUM) {
+        println("  mov rax, %ld", node->use_var->val);
+      } else {
+        gen_addr(node);
+        gen_load(node->ty);
+      }
       return;
     case ND_ADDR:
       gen_addr(node->lhs);
