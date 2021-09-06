@@ -33,7 +33,6 @@ typedef enum {
   ND_BITWISENOT,  // "~" (Bitwise NOT)
   ND_LOGICALAND,  // "&&" (Logical AND)
   ND_LOGICALOR,   // "||" (Logical OR)
-  ND_LOGICALNOT,  // "!" (Logical NOT)
   ND_COND,        // "?:" conditional
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)

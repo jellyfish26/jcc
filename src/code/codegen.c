@@ -755,44 +755,6 @@ void compile_node(Node *node) {
       compile_node(node->lhs);
       println("  not rax");
       return;
-    case ND_LOGICALNOT: {
-      char *suffix = "d";
-      if (node->lhs->ty->kind == TY_FLOAT) {
-        suffix = "s";
-      }
-
-      compile_node(node->lhs);
-      if (node->lhs->ty->kind == TY_FLOAT || node->lhs->ty->kind == TY_DOUBLE) {
-        println("  pxor xmm2, xmm2");
-        println("  ucomis%s xmm2, xmm0", suffix);
-        println("  setnp al");
-        println("  xor rdx, rdx");
-        println("  ucomis%s xmm2, xmm0", suffix);
-        println("  cmovne eax, edx");
-        println("  movzx rax, al");
-      } else if (node->lhs->ty->kind == TY_LDOUBLE) {
-        println("  sub rsp, 16");
-        println("  fstp TBYTE PTR [rsp]");
-        println("  fld TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  setnp al");
-        println("  fld TBYTE PTR [rsp]");
-        println("  mov edx, 0");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  cmovne eax, edx");
-        println("  movzx eax, al");
-        println("  add rsp, 16");
-      } else {
-        println("  cmp rax, 0");
-        println("  sete al");
-        println("  movzx rax, al");
-      }
-      return;
-    }
     default:
       break;
   }
@@ -883,63 +845,6 @@ void compile_node(Node *node) {
 
         println("  movzx rax, al");
         break;
-      case ND_LOGICALAND:
-        println("  fstp TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  jp 1f");
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  je 3f");
-        println("1:");
-        println("  fld TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  jp 2f");
-        println("  fld TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  je 3f");
-        println("2:");
-        println("  mov eax, 1");
-        println("  jmp 4f");
-        println("3:");
-        println("  mov eax, 0");
-        println("4:");
-        break;
-      case ND_LOGICALOR:
-        println("  fstp TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  jp 1f");
-        println("  fld TBYTE PTR [rsp+16]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  jne 1f");
-        println("  fld TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  jp 1f");
-        println("  fld TBYTE PTR [rsp]");
-        println("  fldz");
-        println("  fucomip st, st(1)");
-        println("  fstp st(0)");
-        println("  je 2f");
-        println("1:");
-        println("  mov eax, 1");
-        println("  jmp 3f");
-        println("2:");
-        println("  mov eax, 0");
-        println("3:");
-        break;
     }
     println("  add rsp, 32");
     return;
@@ -966,7 +871,6 @@ void compile_node(Node *node) {
   }
 
   if (node->lhs->ty->kind == TY_FLOAT || node->lhs->ty->kind == TY_DOUBLE) {
-
     char *suffix = (node->lhs->ty->kind == TY_FLOAT) ? "s" : "d";
 
     switch (node->kind) {
@@ -1004,43 +908,8 @@ void compile_node(Node *node) {
 
         println("  movzx rax, al");
         return;
-      case ND_LOGICALAND:
-        println("  pxor xmm2, xmm2");
-        println("  ucomis%s xmm2, xmm0", suffix);
-        println("  jp 1f");
-        println("  ucomis%s xmm2, xmm0", suffix);
-        println("  je 3f");
-        println("1:");
-        println("  ucomis%s xmm2, xmm1", suffix);
-        println("  jp 2f");
-        println("  ucomis%s xmm2, xmm1", suffix);
-        println("  je 3f");
-        println("2:");
-        println("  mov rax, 1");
-        println("  jmp 4f");
-        println("3:");
-        println("  mov rax, 0");
-        println("4:");
-        return;
-      case ND_LOGICALOR:
-        println("  pxor xmm2, xmm2");
-        println("  ucomis%s xmm2, xmm0", suffix);
-        println("  jp 1f");
-        println("  ucomis%s xmm2, xmm0", suffix);
-        println("  jne 1f");
-        println("  ucomis%s xmm2, xmm1", suffix);
-        println("  jp 1f");
-        println("  ucomis%s xmm2, xmm1", suffix);
-        println("  jne 1f");
-        println("  mov rax, 0");
-        println("  jmp 2f");
-        println("1:");
-        println("  mov rax, 1");
-        println("2:");
-        return;
     }
   }
-
 
   // Default register is 32bit
   char *rax = "eax", *rdi = "edi", *rdx = "edx";

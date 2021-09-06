@@ -355,7 +355,6 @@ void add_type(Node *node) {
         case ND_LEC:
         case ND_LOGICALAND:
         case ND_LOGICALOR:
-        case ND_LOGICALNOT:
           node->ty = ty_bool;
           break;
         default:
@@ -366,9 +365,6 @@ void add_type(Node *node) {
     case ND_BITWISENOT:
       node->ty = node->lhs->ty;
       break;
-    case ND_LOGICALNOT:
-      node->ty = ty_bool;
-      return;
     case ND_ADDR: {
       Type *ty = pointer_to(node->lhs->ty);
       node->ty = ty;

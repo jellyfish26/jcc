@@ -790,8 +790,6 @@ static int64_t eval_expr2(Node *node, char **label) {
       }
 
       return eval_expr(node->lhs) || eval_expr(node->rhs);
-    case ND_LOGICALNOT:
-      return !eval_expr(node->lhs);
     case ND_COND:
       return eval_expr(node->cond) ? eval_expr2(node->lhs, label) : eval_expr2(node->rhs, label);
     case ND_VAR:
@@ -1485,6 +1483,8 @@ static Node *logical_or(Token *tkn, Token **end_tkn) {
   while (equal(tkn, "||")) {
     Token *operand = tkn;
     ret = new_calc(ND_LOGICALOR, operand, ret, logical_and(tkn->next, &tkn));
+    ret->lhs = new_calc(ND_NEQ, operand, ret->lhs, new_num(operand, 0));
+    ret->rhs = new_calc(ND_NEQ, operand, ret->rhs, new_num(operand, 0));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -1502,6 +1502,8 @@ static Node *logical_and(Token *tkn, Token **end_tkn) {
   while (equal(tkn, "&&")) {
     Token *operand = tkn;
     ret = new_calc(ND_LOGICALAND, operand, ret, bitor(tkn->next, &tkn));
+    ret->lhs = new_calc(ND_NEQ, operand, ret->lhs, new_num(operand, 0));
+    ret->rhs = new_calc(ND_NEQ, operand, ret->rhs, new_num(operand, 0));
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -1746,11 +1748,14 @@ static Node *unary(Token *tkn, Token **end_tkn) {
     return node;
   }
 
-  if (equal(tkn, "~") || equal(tkn, "!")) {
-    NodeKind kind = equal(tkn, "~") ? ND_BITWISENOT : ND_LOGICALNOT;
-    Node *node = new_node(kind, tkn);
+  if (equal(tkn, "~")) {
+    Node *node = new_node(ND_BITWISENOT, tkn);
     node->lhs = cast(tkn->next, end_tkn);
     return node;
+  }
+
+  if (equal(tkn, "!")) {
+    return new_calc(ND_EQ, tkn, cast(tkn->next, end_tkn), new_num(tkn, 0));
   }
 
   if (equal(tkn, "sizeof")) {
