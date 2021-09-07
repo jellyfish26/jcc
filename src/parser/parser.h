@@ -1,13 +1,14 @@
 #pragma once
 #include "token/tokenize.h"
+#include "util/util.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef struct Node Node;
 typedef struct Type Type;
 typedef struct Obj Obj;
-typedef struct Node Node;
-typedef struct Function Function;
+typedef struct Member Member;
 
 //
 // parse.c
@@ -122,6 +123,7 @@ typedef enum {
   TY_ARRAY,    // Array type
   TY_FUNC,     // Function
   TY_ENUM,     // Enum type
+  TY_STRUCT,   // Struct type
 } TypeKind;
 
 
@@ -151,6 +153,9 @@ struct Type {
   int param_cnt;
   Type *params;
   Type *next;
+
+  // Struct type
+  HashMap member;
 };
 
 // Must call init_type function before use.
@@ -214,3 +219,11 @@ Obj *find_obj(char *name);
 int init_offset();
 bool declare_func(Type *ty);
 bool define_func(Type *ty);
+
+struct Member {
+  Type *ty;
+  Token *tkn;
+
+  char *name;
+  int offset;
+};

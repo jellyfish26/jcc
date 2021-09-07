@@ -37,6 +37,7 @@ static Node *goto_node;
 static Node *literal_node;
 
 // Prototype
+static Type *declspec(Token *tkn, Token **end_tkn);
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty);
 static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty);
@@ -154,6 +155,12 @@ static bool is_addr_node(Node *node) {
   }
 }
 
+static Node *new_binary(NodeKind kind, Token *tkn, Node *lhs) {
+  Node *node = new_node(kind, tkn);
+  node->lhs = lhs;
+  return node;
+}
+
 Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   Node *node = new_node(kind, tkn);
   node->lhs = lhs;
@@ -239,7 +246,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 static bool is_typename(Token *tkn) {
   char *keywords[] = {
     "void", "_Bool", "char", "short", "int", "long", "float", "double", "signed", "unsigned",
-    "const", "enum"
+    "const", "enum", "struct"
   };
 
   for (int i = 0; i < sizeof(keywords) / sizeof(*keywords); i++) {
@@ -362,11 +369,78 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
   return ty;
 }
 
+// struct-or-union-specifier = struct-or-union identifier |
+//                             struct-or-union identifier? "{" struct-declaration-list "}"
+//
+// struct-or-union = "struct"
+//
+// struct-declaration-list = struct-declaration*
+// struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct -declarator)* ";"
+//
+// struct-declarator = declarator
+static Type *stunspec(Token *tkn, Token **end_tkn) {
+  tkn = skip(tkn, "struct");
+  char *tag = get_ident(tkn);
+
+  if (tag != NULL && !equal(tkn->next, "{")) {
+    Type *ty = find_tag(tag);
+    if (ty == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "This struct tag is not declared");
+    } else if (ty->kind != TY_STRUCT) {
+      errorf_tkn(ER_COMPILE, tkn, "This tag is not an struct tag");
+    }
+
+    if (end_tkn != NULL) *end_tkn = tkn->next;
+    return ty;
+  }
+
+  tkn = skip(tag == NULL ? tkn : tkn->next, "{");
+  
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = TY_STRUCT;
+
+  while (!consume(tkn, &tkn, "}")) {
+    Type *base_ty = declspec(tkn, &tkn);
+
+    if (base_ty == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Need type");
+    }
+
+    bool is_first = true;
+    while (!consume(tkn, &tkn, ";")) {
+      if (!is_first) {
+        tkn = skip(tkn, ",");
+      }
+      is_first = false;
+
+      Type *member_ty = declarator(tkn, &tkn, copy_ty(base_ty));
+      if (member_ty->name != NULL) {
+        Member *member = calloc(1, sizeof(Member));
+        member->ty = member_ty;
+        member->tkn = member_ty->tkn;
+        member->name = member_ty->name;
+        member->offset = ty->var_size;
+
+        hashmap_insert(&(ty->member), member->name, member);
+      }
+      ty->var_size += member_ty->var_size;
+    }
+  }
+
+  if (tag != NULL) {
+    add_tag(ty, tag);
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
 //
 // type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned" |
-//                  enum-specifier
+//                  enum-specifier |
+//                  struct-or-union-specifier
 // type-qualifier = "const"
 static Type *declspec(Token *tkn, Token **end_tkn) {
   // We replace the type with a number and count it,
@@ -398,6 +472,11 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
 
     if (ty == NULL && equal(tkn, "enum")) {
       ty = enumspec(tkn, &tkn)->base;
+      break;
+    }
+
+    if (ty == NULL && equal(tkn, "struct")) {
+      ty = stunspec(tkn, &tkn);
       break;
     }
 
@@ -1869,11 +1948,14 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 //                            postfix-expression "(" argument-expression-list? ")" |
 //                            postfix-expression "++" |
 //                            postfix-expression "--"
+//                            postfix-expression "."  identifier
+//                            postfix-expression "->" identifier
 //
 //                            implement:
 //                            primary-expression ( "[" expression "]" )*
 //                            primary-expression ( "(" argument-expression-list? ")" )*
 //                            primary-expression ( "++" | "--" )
+//                            primary-expreesion ( "." | "->" identifier)*
 //
 // argument-expression-list = assignment-expression |
 //                            argument-expression-list "," assignment-expression
@@ -1946,6 +2028,34 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
     node->deep = new_add(tkn, node->lhs, new_num(tkn, 1));
     tkn = tkn->next;
+  }
+
+  while (equal(tkn, ".")) {
+    add_type(node);
+    if (node->ty->kind != TY_STRUCT) {
+      errorf_tkn(ER_COMPILE, tkn, "Need struct type");
+    }
+
+    char *ident = get_ident(tkn->next);
+
+    if (ident == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Need identifier");
+    }
+
+    Member *member = hashmap_get(&(node->ty->member), ident);
+    if (member == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "This member is not found");
+    }
+
+    node = new_binary(ND_ADDR, tkn, node);
+    node = new_binary(ND_ADD, tkn, node);
+    node->rhs = new_num(tkn, member->offset);
+    node = new_binary(ND_CONTENT, tkn, node);
+
+    add_type(node);
+    node->ty = member->ty;
+
+    tkn = tkn->next->next;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
