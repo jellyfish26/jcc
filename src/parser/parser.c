@@ -491,14 +491,13 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     return NULL;
   }
 
-  Type *ret = calloc(1, sizeof(Type));
-  memcpy(ret, ty, sizeof(Type));
+  ty = copy_ty(ty);
 
   if (attr->is_const) {
-    ret->is_const = true;
+    ty->is_const = true;
   }
 
-  return ret;
+  return ty;
 }
 
 // pointer = "*" type-qualifier-list? |
@@ -633,44 +632,41 @@ static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty) {
 }
 
 static Initializer *new_initializer(Type *ty, bool is_flexible) {
-  Initializer *ret = calloc(1, sizeof(Initializer));
-  ret->ty = ty;
+  Initializer *init = calloc(1, sizeof(Initializer));
+  init ->ty = ty;
 
   if (ty->kind == TY_ARRAY) {
     if (is_flexible && ty->var_size == 0) {
-      ret->is_flexible = true;
-      return ret;
+      init->is_flexible = true;
+    } else {
+      init->children = calloc(ty->array_len, sizeof(Initializer *));
+      for (int i = 0; i < ty->array_len; i++) {
+        init->children[i] = new_initializer(ty->base, false);
+      }
     }
-
-    ret->children = calloc(ty->array_len, sizeof(Initializer *));
-    for (int i = 0; i < ty->array_len; i++) {
-      ret->children[i] = new_initializer(ty->base, false);
-    }
-    return ret;
   }
-  return ret;
+  return init;
 }
 
-static int count_array_init_elements(Token *tkn, Type *ty) {
-  int cnt = 0;
+static void fill_flexible_initializer(Token *tkn, Type *ty, Initializer *init) {
   Initializer *dummy = new_initializer(ty->base, false);
   tkn = skip(tkn, "{");
+  int len = 0;
 
   while (true) {
-    if (cnt > 0 && !consume(tkn, &tkn, ",")) break;
+    if (len > 0 && !consume(tkn, &tkn, ",")) break;
     if (equal(tkn, "}")) break;
     initializer_only(tkn, &tkn, dummy);
-    cnt++;
+    len++;
   }
 
-  return cnt;
+  *init = *new_initializer(array_to(init->ty->base, len), false);
 }
 
 // array_initializer = "{" initializer_only ("," initializer_only)* ","? "}" | "{" "}"
 static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (init->is_flexible) {
-    int len = count_array_init_elements(tkn, init->ty);
-    *init = *new_initializer(array_to(init->ty->base, len), false);
+    fill_flexible_initializer(tkn, init->ty, init);
   }
 
   tkn = skip(tkn, "{");
@@ -695,11 +691,9 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
 static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   // If type is not Array, initializer return address of string literal.
   // Otherwise, char number store in each elements of Array.
-
   if (init->ty->kind == TY_PTR) {
     init->node = new_strlit(tkn);
-    tkn = tkn->next;
-    if (end_tkn != NULL) *end_tkn = tkn;
+    if (end_tkn != NULL) *end_tkn = tkn->next;
     return;
   }
 
@@ -732,10 +726,9 @@ static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
 }
 
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {
-  Initializer *ret = new_initializer(ty, true);
-  initializer_only(tkn, &tkn, ret);
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ret;
+  Initializer *init = new_initializer(ty, true);
+  initializer_only(tkn, end_tkn, init);
+  return init;
 }
 
 static void create_init_node(Initializer *init, Node **connect, bool only_const, Type *ty) {
