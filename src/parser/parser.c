@@ -1955,7 +1955,8 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 //                            primary-expression ( "[" expression "]" )*
 //                            primary-expression ( "(" argument-expression-list? ")" )*
 //                            primary-expression ( "++" | "--" )
-//                            primary-expreesion ( "." | "->" identifier)*
+//                            primary-expression ( "->" identifier )*
+//                            primary-expreesion ( "."  identifier )*
 //
 // argument-expression-list = assignment-expression |
 //                            argument-expression-list "," assignment-expression
@@ -2028,6 +2029,33 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
     node->deep = new_add(tkn, node->lhs, new_num(tkn, 1));
     tkn = tkn->next;
+  }
+
+  while (equal(tkn, "->")) {
+    add_type(node);
+    if (node->ty->kind != TY_PTR && node->ty->base->kind != TY_STRUCT) {
+      errorf_tkn(ER_COMPILE, tkn, "Need struct pointer type");
+    }
+
+    char *ident = get_ident(tkn->next);
+
+    if (ident == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Need identifier");
+    }
+
+    Member *member = hashmap_get(&(node->ty->base->member), ident);
+    if (member == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "This member is not found");
+    }
+
+    node = new_binary(ND_ADD, tkn, node);
+    node->rhs = new_num(tkn, member->offset);
+    node = new_binary(ND_CONTENT, tkn, node);
+
+    add_type(node);
+    node->ty = member->ty;
+
+    tkn = tkn->next->next;
   }
 
   while (equal(tkn, ".")) {
