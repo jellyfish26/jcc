@@ -1951,13 +1951,6 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 //                            postfix-expression "."  identifier
 //                            postfix-expression "->" identifier
 //
-//                            implement:
-//                            primary-expression ( "[" expression "]" )*
-//                            primary-expression ( "(" argument-expression-list? ")" )*
-//                            primary-expression ( "++" | "--" )
-//                            primary-expression ( "->" identifier )*
-//                            primary-expreesion ( "."  identifier )*
-//
 // argument-expression-list = assignment-expression |
 //                            argument-expression-list "," assignment-expression
 //
@@ -1966,123 +1959,92 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 static Node *postfix(Token *tkn, Token **end_tkn) {
   Node *node = primary(tkn, &tkn);
 
-  if (equal(tkn, "[")) {
-    while (consume(tkn, &tkn, "[")) {
-      Node *cont_node = new_node(ND_CONTENT, tkn);
-
-      node = new_add(tkn, node, assign(tkn, &tkn));
-      cont_node->lhs = node;
-
-      node = cont_node;
+  while (equal(tkn, "[") || equal(tkn, "(") || equal(tkn, "++") ||
+         equal(tkn, "--") || equal(tkn, ".") || equal(tkn, "->")) {
+    if (equal(tkn, "[")) {
+      node = new_binary(ND_CONTENT, tkn, new_add(tkn, node, assign(tkn->next, &tkn)));
       tkn = skip(tkn, "]");
+      continue;
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return node;
-  }
+    if (equal(tkn, "(")) {
+      node = new_binary(ND_FUNCCALL, tkn, node);
+      node->func = node->lhs->use_var;
+      node->ty = node->lhs->use_var->ty;
+      node->lhs = NULL;
+      tkn = tkn->next;
 
-  if (equal(tkn, "(")) {
-    Node *fcall = new_node(ND_FUNCCALL, tkn);
-    fcall->func = node->use_var;
-    fcall->ty = node->use_var->ty;
-    tkn = tkn->next;
+      int argc = 0;
+      Node head = {};
+      Node *cur = &head;
 
-    int argc = 0;
-    Node head = {};
-    Node *cur = &head;
+      while (!consume(tkn, &tkn, ")")) {
+        if (cur != &head) {
+          tkn = skip(tkn, ",");
+        }
 
-    while (!consume(tkn, &tkn, ")")) {
-      if (cur != &head) {
-        tkn = skip(tkn, ",");
+        cur->next = new_binary(ND_VOID, tkn, assign(tkn, &tkn));
+        cur = cur->next;
+        argc++;
       }
 
-      cur->next = new_node(ND_VOID, tkn);
-      cur->next->lhs = assign(tkn, &tkn);
-      cur = cur->next;
-      argc++;
+      if (node->ty->param_cnt != 0 && node->ty->param_cnt != argc) {
+        errorf_tkn(ER_COMPILE, tkn, "Do not match arguments to function call, expected %d, have %d", node->ty->param_cnt, argc);
+      }
+
+      cur = head.next;
+      for (Type *arg_ty = node->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
+        cur->lhs = new_cast(cur->tkn, cur->lhs, arg_ty);
+        cur = cur->next;
+      }
+
+      node->args = head.next;
+      continue;
     }
 
-    if (fcall->ty->param_cnt != 0 && fcall->ty->param_cnt != argc) {
-      errorf_tkn(ER_COMPILE, tkn, "Do not match arguments to function call, expected %d, have %d", fcall->ty->param_cnt, argc);
-    }
-    
-    cur = head.next;
-    for (Type *arg_ty = fcall->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
-      cur->lhs = new_cast(cur->tkn, cur->lhs, arg_ty);
-      cur = cur->next;
+    if (equal(tkn, "++")) {
+      node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
+      node->deep = new_sub(tkn, node->lhs, new_num(tkn, 1));
+      tkn = tkn->next;
+      continue;
     }
 
-    fcall->args = head.next;
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return fcall;
-  }
+    if (equal(tkn, "--")) {
+      node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
+      node->deep = new_add(tkn, node->lhs, new_num(tkn, 1));
+      tkn = tkn->next;
+      continue;
+    }
 
-  if (equal(tkn, "++")) {
-    node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
-    node->deep = new_sub(tkn, node->lhs, new_num(tkn, 1));
-
-    if (end_tkn != NULL) *end_tkn = tkn->next;
-    return node;
-  }
-
-  if (equal(tkn, "--")) {
-    node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
-    node->deep = new_add(tkn, node->lhs, new_num(tkn, 1));
-    tkn = tkn->next;
-  }
-
-  while (equal(tkn, "->")) {
+    // "." or "->" operator
     add_type(node);
-    if (node->ty->kind != TY_PTR && node->ty->base->kind != TY_STRUCT) {
-      errorf_tkn(ER_COMPILE, tkn, "Need struct pointer type");
+
+    if (equal(tkn, "->") && node->ty->kind != TY_PTR) {
+      errorf_tkn(ER_COMPILE, tkn, "Need pointer type");
     }
 
-    char *ident = get_ident(tkn->next);
-
-    if (ident == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Need identifier");
-    }
-
-    Member *member = hashmap_get(&(node->ty->base->member), ident);
-    if (member == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "This member is not found");
-    }
-
-    node = new_binary(ND_ADD, tkn, node);
-    node->rhs = new_num(tkn, member->offset);
-    node = new_binary(ND_CONTENT, tkn, node);
-
-    add_type(node);
-    node->ty = member->ty;
-
-    tkn = tkn->next->next;
-  }
-
-  while (equal(tkn, ".")) {
-    add_type(node);
-    if (node->ty->kind != TY_STRUCT) {
+    Type *ty = equal(tkn, ".") ? node->ty : node->ty->base;
+    if (ty->kind != TY_STRUCT) {
       errorf_tkn(ER_COMPILE, tkn, "Need struct type");
     }
 
     char *ident = get_ident(tkn->next);
-
     if (ident == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "Need identifier");
     }
 
-    Member *member = hashmap_get(&(node->ty->member), ident);
+    Member *member = hashmap_get(&(ty->member), ident);
     if (member == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This member is not found");
     }
 
-    node = new_binary(ND_ADDR, tkn, node);
+    if (equal(tkn, ".")) node =new_binary(ND_ADDR, tkn, node);
     node = new_binary(ND_ADD, tkn, node);
     node->rhs = new_num(tkn, member->offset);
     node = new_binary(ND_CONTENT, tkn, node);
 
     add_type(node);
     node->ty = member->ty;
-
     tkn = tkn->next->next;
   }
 
