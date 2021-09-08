@@ -399,6 +399,9 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
   Type *ty = calloc(1, sizeof(Type));
   ty->kind = TY_STRUCT;
 
+  Member head = {};
+  Member *cur = &head;
+
   while (!consume(tkn, &tkn, "}")) {
     Type *base_ty = declspec(tkn, &tkn);
 
@@ -414,18 +417,24 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       is_first = false;
 
       Type *member_ty = declarator(tkn, &tkn, copy_ty(base_ty));
-      if (member_ty->name != NULL) {
+      if (member_ty != NULL) {
+        if (find_member(head.next, member_ty->name) != NULL) {
+          errorf_tkn(ER_COMPILE, tkn, "Duplicate member");
+        }
+
         Member *member = calloc(1, sizeof(Member));
         member->ty = member_ty;
         member->tkn = member_ty->tkn;
         member->name = member_ty->name;
         member->offset = ty->var_size;
+        ty->var_size += member_ty->var_size;
 
-        hashmap_insert(&(ty->member), member->name, member);
+        cur->next = member;
+        cur = member;
       }
-      ty->var_size += member_ty->var_size;
     }
   }
+  ty->member = head.next;
 
   if (tag != NULL) {
     add_tag(ty, tag);
@@ -712,7 +721,7 @@ static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty) {
 
 static Initializer *new_initializer(Type *ty, bool is_flexible) {
   Initializer *init = calloc(1, sizeof(Initializer));
-  init ->ty = ty;
+  init->ty = ty;
 
   if (ty->kind == TY_ARRAY) {
     if (is_flexible && ty->var_size == 0) {
@@ -723,7 +732,16 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
         init->children[i] = new_initializer(ty->base, false);
       }
     }
+  } else if (ty->kind == TY_STRUCT) {
+    init->children = calloc(ty->member_cnt, sizeof(Initializer *));
+
+    int i = 0;
+    for (Member *member = ty->member; member != NULL; member = member->next) {
+      init->children[i] = new_initializer(member->ty, false);
+      i++;
+    }
   }
+
   return init;
 }
 
@@ -740,30 +758,6 @@ static void fill_flexible_initializer(Token *tkn, Type *ty, Initializer *init) {
   }
 
   *init = *new_initializer(array_to(init->ty->base, len), false);
-}
-
-// array_initializer = "{" initializer_only ("," initializer_only)* ","? "}" | "{" "}"
-static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
-  if (init->is_flexible) {
-    fill_flexible_initializer(tkn, init->ty, init);
-  }
-
-  tkn = skip(tkn, "{");
-  if (consume(tkn, &tkn, "}")) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return;
-  }
-
-  int idx = 0;
-  while (true) {
-    if (idx > 0 && !consume(tkn, &tkn, ",")) break;
-    if (consume(tkn, &tkn, "}")) break;
-    initializer_only(tkn, &tkn, init->children[idx]);
-    idx++;
-  }
-
-  consume(tkn, &tkn, "}");
-  if (end_tkn != NULL) *end_tkn = tkn;
 }
 
 // string_initializer = string literal
@@ -791,11 +785,37 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (end_tkn != NULL) *end_tkn = tkn;
 }
 
+// array_initializer = "{" initializer_only ("," initializer_only)* ","? "}" | "{" "}"
+static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
+  if (init->is_flexible) {
+    fill_flexible_initializer(tkn, init->ty, init);
+  }
+
+  tkn = skip(tkn, "{");
+  if (consume(tkn, &tkn, "}")) {
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return;
+  }
+
+  int idx = 0;
+  while (true) {
+    if (idx > 0 && !consume(tkn, &tkn, ",")) break;
+    if (consume(tkn, &tkn, "}")) break;
+    initializer_only(tkn, &tkn, init->children[idx]);
+    idx++;
+  }
+
+  consume(tkn, &tkn, "}");
+  if (end_tkn != NULL) *end_tkn = tkn;
+}
+
+// struct-initialize
+
 // initializer = array_initializer | string_initializer | assign
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
   if (tkn->kind == TK_STR) {
     string_initializer(tkn, &tkn, init);
-  } else if (init->ty->kind == TY_ARRAY) {
+  } else if (init->ty->kind == TY_ARRAY || init->ty->kind == TY_STRUCT) {
     array_initializer(tkn, &tkn, init);
   } else {
     init->node = assign(tkn, &tkn);
@@ -839,8 +859,16 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
     return;
   }
 
-  for (int i = 0; i < init->ty->array_len; i++) {
-    create_init_node(init->children[i], connect, only_const, ty->base);
+  if (ty->kind == TY_ARRAY) {
+    for (int i = 0; i < init->ty->array_len; i++) {
+      create_init_node(init->children[i], connect, only_const, ty->base);
+    }
+  } else if (ty->kind == TY_STRUCT) {
+    int i = 0;
+    for (Member *member = ty->member; member != NULL; member = member->next) {
+      create_init_node(init->children[i], connect, only_const, member->ty);
+      i++;
+    }
   }
 
   return;
@@ -2033,12 +2061,12 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "Need identifier");
     }
 
-    Member *member = hashmap_get(&(ty->member), ident);
+    Member *member = find_member(ty->member, ident);
     if (member == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This member is not found");
     }
 
-    if (equal(tkn, ".")) node =new_binary(ND_ADDR, tkn, node);
+    if (equal(tkn, ".")) node = new_binary(ND_ADDR, tkn, node);
     node = new_binary(ND_ADD, tkn, node);
     node->rhs = new_num(tkn, member->offset);
     node = new_binary(ND_CONTENT, tkn, node);

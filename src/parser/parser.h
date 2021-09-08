@@ -155,7 +155,8 @@ struct Type {
   Type *next;
 
   // Struct type
-  HashMap member;
+  int member_cnt;
+  Member *member;
 };
 
 // Must call init_type function before use.
@@ -223,7 +224,10 @@ bool define_func(Type *ty);
 struct Member {
   Type *ty;
   Token *tkn;
+  Member *next;
 
   char *name;
   int offset;
 };
+
+Member *find_member(Member *head, char *name);

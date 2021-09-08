@@ -6,6 +6,8 @@ struct A {
 };
 
 int main() {
+  CHECK(8, sizeof(struct A));
+
   CHECK(2, ({
     struct A tmp;
     tmp.A = 1;
@@ -87,6 +89,30 @@ int main() {
 
     struct B *cat = &tmp;
     cat->hoge[0] + tmp.hoge[3];
+  }));
+
+  CHECK(6, ({
+    struct B {
+      struct A aa;
+      int bb;
+    };
+    struct B tmp = {
+      {1, 2},
+      3
+    };
+    tmp.aa.B + tmp.aa.A + tmp.bb;
+  }));
+
+  CHECK(9, ({
+    struct B {
+      int aa[3];
+      int bb;
+    };
+    struct B tmp = {
+      {1, 2, 3},
+      3
+    };
+    tmp.aa[0] + tmp.aa[1] + tmp.aa[2] + tmp.bb;
   }));
 
   return 0;

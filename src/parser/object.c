@@ -387,3 +387,12 @@ void add_type(Node *node) {
       if (node->rhs != NULL) node->ty = node->rhs->ty;
   }
 }
+
+Member *find_member(Member *head, char *name) {
+  for (Member *member = head; member != NULL; member = member->next) {
+    if (memcmp(member->name, name, strlen(name)) == 0) {
+      return member;
+    }
+  }
+  return NULL;
+}
