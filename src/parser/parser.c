@@ -90,26 +90,32 @@ Node *new_node(NodeKind kind, Token *tkn) {
 }
 
 Node *new_num(Token *tkn, int64_t val) {
-  Node *ret = calloc(1, sizeof(Node));
-  ret->kind = ND_NUM;
-  ret->tkn = tkn;
-  ret->val = val;
-
-  ret->ty = ty_i32;
-  return ret;
+  Node *node = new_node(ND_NUM, tkn);
+  node->ty = ty_i32;
+  node->val = val;
+  return node;
 }
 
-Node *new_cast(Token *tkn, Node *lhs, Type *ty) {
-  Node *node = new_node(ND_CAST, tkn);
-  node->lhs = lhs;
+Node *new_floating(Token *tkn, Type *ty, long double fval) {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = ND_NUM;
   node->ty = ty;
-  add_type(node->lhs);
+  node->fval = fval;
+  return node;
+}
+
+Node *new_cast(Node *expr, Type *ty) {
+  add_type(expr);
+
+  Node *node = new_node(ND_CAST, expr->tkn);
+  node->lhs = expr;
+  node->ty = ty;
   return node;
 }
 
 Node *new_var(Token *tkn, Obj *obj) {
   Node *node = new_node(ND_VAR, tkn);
-  node->use_var = obj;
+  node->var = obj;
   add_type(node);
   return node;
 }
@@ -125,7 +131,7 @@ Node *new_strlit(Token *tkn) {
   create_init_node(init, &dummy, true, tkn->ty);
 
   node->lhs = new_var(tkn, new_obj(tkn->ty, new_unique_label()));
-  node->lhs->use_var->is_global = true;
+  node->lhs->var->is_global = true;
   node->rhs = head.lhs;
 
   node->next = literal_node;
@@ -137,13 +143,6 @@ Node *new_strlit(Token *tkn) {
   return addr;
 }
 
-Node *new_floating(Token *tkn, Type *ty, long double fval) {
-  Node *node = calloc(1, sizeof(Node));
-  node->kind = ND_NUM;
-  node->ty = ty;
-  node->fval = fval;
-  return node;
-}
 
 static bool is_addr_node(Node *node) {
   switch (node->ty->kind) {
@@ -809,24 +808,20 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   }
 
   tkn = skip(tkn, "{");
-  if (consume(tkn, &tkn, "}")) {
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return;
-  }
-
   int idx = 0;
-  while (true) {
-    if (idx > 0 && !consume(tkn, &tkn, ",")) break;
-    if (consume(tkn, &tkn, "}")) break;
-    initializer_only(tkn, &tkn, init->children[idx]);
-    idx++;
-  }
 
-  consume(tkn, &tkn, "}");
+  while (!consume(tkn, &tkn, "}")) {
+    if (idx != 0) {
+      tkn = skip(tkn, ",");
+    }
+
+    if (!equal(tkn, "}")) {
+      initializer_only(tkn, &tkn, init->children[idx]);
+      idx++;
+    }
+  }
   if (end_tkn != NULL) *end_tkn = tkn;
 }
-
-// struct-initialize
 
 // initializer = array_initializer | string_initializer | assign
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
@@ -855,7 +850,7 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
     node->ty = ty;
 
     if (init->node != NULL && !is_same_type(ty, init->node->ty)) {
-      node->init = new_cast(init->node->tkn, init->node, ty);
+      node->init = new_cast(init->node, ty);
     }
 
     if (only_const && init->node != NULL) {
@@ -867,8 +862,8 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
         node->init = new_num(init->node->tkn, eval_expr2(node->init, &label));
       }
 
-      node->init->use_var = calloc(1, sizeof(Obj));
-      node->init->use_var->name = label;
+      node->init->var = calloc(1, sizeof(Obj));
+      node->init->var->name = label;
     }
 
     (*connect)->lhs = node;
@@ -1000,7 +995,7 @@ static int64_t eval_expr2(Node *node, char **label) {
       return eval_expr(node->cond) ? eval_expr2(node->lhs, label) : eval_expr2(node->rhs, label);
     case ND_VAR:
       if (label != NULL && node->ty->kind == TY_ARRAY) {
-        *label = node->use_var->name;
+        *label = node->var->name;
         return 0;
       }
 
@@ -1008,7 +1003,7 @@ static int64_t eval_expr2(Node *node, char **label) {
         break;
       }
 
-      return node->use_var->val;
+      return node->var->val;
     case ND_CAST: {
       if (is_float_ty(node->lhs->ty)) {
         return (int64_t)eval_double(node->lhs);
@@ -1038,14 +1033,14 @@ static int64_t eval_expr2(Node *node, char **label) {
 static int64_t eval_addr(Node *node, char **label) {
   switch (node->kind) {
     case ND_VAR:
-      if (!node->use_var->is_global) {
+      if (!node->var->is_global) {
         break;
       }
       if (label == NULL) {
         errorf_tkn(ER_COMPILE, node->tkn, "Pointer is not allowed");
       }
 
-      *label = node->use_var->name;
+      *label = node->var->name;
       return 0;
     case ND_CONTENT:
       return eval_expr2(node->lhs, label);
@@ -1067,11 +1062,11 @@ static long double eval_double(Node *node) {
     case ND_DIV:
       return eval_double(node->lhs) / eval_double(node->rhs);
     case ND_VAR:
-      if (!node->use_var->is_global) {
+      if (!node->var->is_global) {
         break;
       }
 
-      return node->use_var->fval;
+      return node->var->fval;
     case ND_CAST:
       if (is_float_ty(node->lhs->ty)) {
         return eval_double(node->lhs);
@@ -1161,8 +1156,8 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     node->ty = init->ty;
 
     if (is_global) {
-      node->lhs->use_var->val = node->rhs->init->val;
-      node->lhs->use_var->fval = node->rhs->init->fval;
+      node->lhs->var->val = node->rhs->init->val;
+      node->lhs->var->fval = node->rhs->init->fval;
     }
 
     if (end_tkn != NULL) *end_tkn = tkn;
@@ -1908,7 +1903,7 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 
     tkn = skip(tkn, ")");
 
-    return new_cast(tkn, cast(tkn, end_tkn), ty);
+    return new_cast(cast(tkn, end_tkn), ty);
   }
 
   return unary(tkn, end_tkn);
@@ -2016,8 +2011,8 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
     if (equal(tkn, "(")) {
       node = new_binary(ND_FUNCCALL, tkn, node);
-      node->func = node->lhs->use_var;
-      node->ty = node->lhs->use_var->ty;
+      node->func = node->lhs->var;
+      node->ty = node->lhs->var->ty;
       node->lhs = NULL;
       tkn = tkn->next;
 
@@ -2041,7 +2036,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
       cur = head.next;
       for (Type *arg_ty = node->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
-        cur->lhs = new_cast(cur->tkn, cur->lhs, arg_ty);
+        cur->lhs = new_cast(cur->lhs, arg_ty);
         cur = cur->next;
       }
 

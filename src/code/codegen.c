@@ -42,13 +42,13 @@ static void gen_emptypop(int num) {
 static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
-      if (node->use_var->is_global) {
-        println("  mov rax, offset %s", node->use_var->name);
+      if (node->var->is_global) {
+        println("  mov rax, offset %s", node->var->name);
         return;
       }
 
       println("  mov rax, rbp");
-      println("  sub rax, %d", node->use_var->offset);
+      println("  sub rax, %d", node->var->offset);
       return;
     case ND_CONTENT:
       compile_node(node->lhs);
@@ -324,20 +324,20 @@ static char f80u64[] =
   "  add rsp, 32";
 
 static char *cast_table[][11] = {
-// i8     i16     i32     i64     u8     u16     u32     u64     f32     f64     f80   to/from
+// i8     i16     i32     i64     u8     u16     u32     u64     f32     f64     f80    to/from
   {NULL,  NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i8,  f64i8,  f80i8},  // i8
   {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i16, f64i16, f80i16}, // i16
   {i32i8, i32i16, NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32i32, f64i32, f80i32}, // i32
   {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32i64, f64i64, f80i64}, // i64
 
-  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32u8,  f64u8,  f80u8}, // u8
+  {i32i8, NULL,   NULL,   i64i32, i32u8, i32u16, NULL,   i64i32, f32u8,  f64u8,  f80u8},  // u8
   {i32i8, i32i16, NULL,   i64i32, i32u8, NULL,   NULL,   i64i32, f32u16, f64u16, f80u16}, // u16
   {i32i8, i32i16, NULL,   i64u32, i32u8, i32u16, NULL,   i64u32, f32u32, f64u32, f80u32}, // u32
   {i32i8, i32i16, NULL,   NULL,   i32u8, i32u16, NULL,   NULL,   f32u64, f64u64, f80u64}, // u64
 
   {i8f32, i16f32, i32f32, i64f32, u8f32, u16f32, u32f32, u64f32, NULL,   f64f32, f80f32}, // f32
   {i8f64, i16f64, i32f64, i64f64, u8f64, u16f64, u32f64, u64f64, f32f64, NULL,   f80f64}, // f64
-  {i8f80, i16f80, i32f80, i64f80, u8f80, u16f80, u32f80, u64f80, f32f80, f64f80, NULL}, // f80
+  {i8f80, i16f80, i32f80, i64f80, u8f80, u16f80, u32f80, u64f80, f32f80, f64f80, NULL},   // f80
 };
 
 static int get_type_idx(Type *ty) {
@@ -427,7 +427,7 @@ static void gen_lvar_init(Node *node) {
 }
 
 static void gen_gvar_init(Node *node) {
-  Obj *obj = node->kind == ND_INIT ? node->lhs->use_var : node->use_var;
+  Obj *obj = node->kind == ND_INIT ? node->lhs->var : node->var;
   println(".data");
   println("%s:", obj->name);
 
@@ -488,7 +488,7 @@ static void gen_gvar_init(Node *node) {
         return;
     }
 
-    char *ptr_label = init->init->use_var->name;
+    char *ptr_label = init->init->var->name;
     if (ptr_label == NULL) {
       println("  %s %d", asm_ty, init->init->val);
     } else {
@@ -623,8 +623,8 @@ void compile_node(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
-      if (node->use_var->ty->kind == TY_ENUM) {
-        println("  mov rax, %ld", node->use_var->val);
+      if (node->var->ty->kind == TY_ENUM) {
+        println("  mov rax, %ld", node->var->val);
       } else {
         gen_addr(node);
         gen_load(node->ty);

@@ -295,8 +295,8 @@ static bool comp_type(Type *left, Type *right) {
 
 static void implicit_cast(Node **lhs, Node **rhs) {
   Type *type = comp_type((*lhs)->ty, (*rhs)->ty) ? (*rhs)->ty : (*lhs)->ty;
-  *lhs = new_cast((*lhs)->tkn, *lhs, type);
-  *rhs = new_cast((*rhs)->tkn, *rhs, type);
+  *lhs = new_cast(*lhs, type);
+  *rhs = new_cast(*rhs, type);
 }
 
 void add_type(Node *node) {
@@ -314,7 +314,7 @@ void add_type(Node *node) {
 
   switch (node->kind) {
     case ND_VAR:
-      node->ty = node->use_var->ty;
+      node->ty = node->var->ty;
       if (node->ty->kind == TY_ENUM) {
         node->ty = node->ty->base;
       }

@@ -69,7 +69,7 @@ struct Node {
 
   Node *deep;    // Block or statement
 
-  Obj *use_var; // Use target
+  Obj *var; // Variable
 
   Node *init;  // Initialization (variable, for statement)
   Node *cond;  // condition (if, for, while)
@@ -97,7 +97,7 @@ struct Node {
 
 Node *new_node(NodeKind kind, Token *tkn);
 Node *new_num(Token *tkn, int64_t val);
-Node *new_cast(Token *tkn, Node *lhs, Type *ty);
+Node *new_cast(Node *expr, Type *ty);
 Node *new_var(Token *tkn, Obj *obj);
 Node *new_assign(Token *tkn, Node *lhs, Node *rhs);
 Node *to_assign(Token *tkn, Node *rhs);
