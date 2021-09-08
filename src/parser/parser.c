@@ -50,7 +50,7 @@ static int64_t eval_expr(Node *node);
 static int64_t eval_expr2(Node *node, char **label);
 static int64_t eval_addr(Node *node, char **label);
 static long double eval_double(Node *node);
-static Node *funcdef(Token *tkn, Token **end_tkn);
+static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty);
 static Node *comp_stmt(Token *tkn, Token **end_tkn);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
@@ -408,13 +408,13 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
   Type *ty = calloc(1, sizeof(Type));
 
   while (!consume(tkn, &tkn, "}")) {
-    Type *base_ty = declspec(tkn, &tkn);
-
-    if (base_ty == NULL) {
+    if (!is_typename(tkn)) {
       errorf_tkn(ER_COMPILE, tkn, "Need type");
     }
 
+    Type *base_ty = declspec(tkn, &tkn);
     bool is_first = true;
+
     while (!consume(tkn, &tkn, ";")) {
       if (!is_first) {
         tkn = skip(tkn, ",");
@@ -481,6 +481,7 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     DOUBLE   = 1 << 14,
     SIGNED   = 1 << 16,
     UNSIGNED = 1 << 18,
+    OTHER    = 1 << 20,
   };
 
   VarAttr *attr = calloc(1, sizeof(VarAttr));
@@ -490,16 +491,6 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
   while (is_typename(tkn)) {
     if (typequal(tkn, &tkn, attr)) {
       continue;
-    }
-
-    if (ty == NULL && equal(tkn, "enum")) {
-      ty = enumspec(tkn, &tkn)->base;
-      break;
-    }
-
-    if (ty == NULL && (equal(tkn, "struct") || equal(tkn, "union"))) {
-      ty = stunspec(tkn, &tkn);
-      break;
     }
 
     // Counting Types
@@ -523,6 +514,16 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       ty_cnt += SIGNED;
     } else if (equal(tkn, "unsigned")) {
       ty_cnt += UNSIGNED;
+    }
+
+    if (equal(tkn, "enum")) {
+      ty = enumspec(tkn, &tkn)->base;
+      ty_cnt += OTHER;
+    }
+
+    if (equal(tkn, "struct") || equal(tkn, "union")) {
+      ty = stunspec(tkn, &tkn);
+      ty_cnt += OTHER;
     }
 
     switch (ty_cnt) {
@@ -581,6 +582,8 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       case LONG + DOUBLE:
         ty = ty_f80;
         break;
+      case OTHER:
+        continue;
       default:
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
     }
@@ -588,9 +591,6 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  if (ty == NULL) {
-    return NULL;
-  }
 
   ty = copy_ty(ty);
 
@@ -687,19 +687,6 @@ static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty) {
 
   if (*end_tkn != NULL) *end_tkn = tkn;
   return ty;
-}
-
-// type-name = specifier-qualifier-list abstract-declarator?
-//
-// Implement:
-// type-name = declspec abstract-declarator | None
-static Type *typename(Token *tkn, Token **end_tkn) {
-  Type *ty = declspec(tkn, &tkn);
-  if (ty == NULL) {
-    return NULL;
-  }
-
-  return abstract_declarator(tkn, end_tkn, ty);
 }
 
 // declarator = pointer? direct-declarator
@@ -1084,32 +1071,21 @@ static long double eval_double(Node *node) {
 // init-declarator-list = init-declarator | 
 //                        init-declarator-list "," init-declarator
 //
-//
-// implement:
-// declaration = declspec init-declarator ("," init-declarator)* ";"?
-static Node *declaration(Token *tkn, Token **end_tkn, bool is_global) {
-  Type *ty = declspec(tkn, &tkn);
-
-  if (ty == NULL) {
-    return NULL;
-  }
-
+// declaration -> init-declarator ("," init-declarator)* ";"?
+// declspec is replaced as base_ty argument.
+static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_global) {
   Node head = {};
   Node *cur = &head;
 
   while (!consume(tkn, &tkn, ";")) {
-    if (cur != &head && !consume(tkn, &tkn, ",")) {
-      return NULL;
+    if (cur != &head) {
+      tkn = skip(tkn, ",");
     }
-
-    cur->next = initdecl(tkn, &tkn, ty, is_global);
+    cur->next = initdecl(tkn, &tkn, base_ty, is_global);
     cur = cur->next;
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  if (head.next == NULL) {
-    return new_node(ND_VOID, tkn);
-  }
   return head.next;
 }
 
@@ -1178,22 +1154,20 @@ Node *last_stmt(Node *now) {
 // translation-unit     = external-declaration | translation-unit external-declaration
 // external-declaration = function-definition | declaration
 //
-// Implement:
-// program = (funcdef | declaration)*
-//
+// program -> (declspec (funcdef | declaration))*
 Node *program(Token *tkn) {
   Node head = {};
   Node *cur = &head;
 
   while (!is_eof(tkn)) {
-    Node *node = declaration(tkn, &tkn, true);
-
-    if (node == NULL) {
-      node = funcdef(tkn, &tkn);
+    if (!is_typename(tkn)) {
+      errorf_tkn(ER_COMPILE, tkn, "Need type name");
     }
 
-    if (node->kind == ND_VOID) {
-      node = NULL;
+    Type *ty = declspec(tkn, &tkn);
+    Node *node = funcdef(tkn, &tkn, ty);
+    if (node == NULL) {
+      node = declaration(tkn, &tkn, ty, true);
     }
 
     cur->next = literal_node;
@@ -1209,20 +1183,15 @@ Node *program(Token *tkn) {
 // function-definition = declaration-specifiers declarator declaration-list? compound-statement
 //
 // declaration-list = declaration |
-//                    declaration-list declaration
 //
-// Implement:
-// funcdef = declspec declarator comp-stmt
+// funcdef -> declarator comp-stmt | None
 //
-static Node *funcdef(Token *tkn, Token **end_tkn) {
+static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty) {
   label_node = NULL;
   goto_node = NULL;
   label_map = calloc(1, sizeof(HashMap));
 
-  Node *node = new_node(ND_FUNC, tkn);
-  Type *ty = declspec(tkn, &tkn);
-  ty = declarator(tkn, &tkn, ty);
-
+  Type *ty = declarator(tkn, &tkn, base_ty);
   if (!equal(tkn, "{")) {
     return NULL;
   }
@@ -1231,6 +1200,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn) {
     errorf_tkn(ER_COMPILE, tkn, "Conflict define");
   }
 
+  Node *node = new_node(ND_FUNC, tkn);
   enter_scope();
   ty->is_prototype = false;
 
@@ -1470,8 +1440,10 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     break_label = ret->break_label = new_unique_label();
     conti_label = ret->conti_label = new_unique_label();
 
-    ret->init = declaration(tkn, &tkn, false);
-    if (ret->init == NULL && !consume(tkn, &tkn, ";")) {
+    if (is_typename(tkn)) {
+      Type *ty = declspec(tkn, &tkn);
+      ret->init = declaration(tkn, &tkn, ty, false);
+    } else if (!consume(tkn, &tkn, ";")) {
       ret->init = expr(tkn, &tkn);
       tkn = skip(tkn, ";");
     }
@@ -1561,24 +1533,24 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   return node;
 }
 
-// compound-statement   = { ( declaration | statement )* }
+// compound-statement = "{" ( declaration | statement )* "}"
+//                    -> "{" (declspec declaration | statement )* "}"
 static Node *comp_stmt(Token *tkn, Token **end_tkn) {
   if (consume(tkn, &tkn, "{")) {
-
     Node *ret = new_node(ND_BLOCK, tkn);
 
     Node head = {};
     Node *cur = &head;
 
     while (!consume(tkn, &tkn, "}")) {
-      cur->next = declaration(tkn, &tkn, false);
-
-      if (cur->next == NULL) {
+      if (is_typename(tkn)) {
+        Type *ty = declspec(tkn, &tkn);
+        cur->next = declaration(tkn, &tkn, ty, false);
+      } else {
         enter_scope();
         cur->next = statement(tkn, &tkn);
         leave_scope();
       }
-
       cur = last_stmt(cur);
     }
 
@@ -1896,16 +1868,16 @@ static Node *mul(Token *tkn, Token **end_tkn) {
 
 // cast-expression = unary-expression | 
 //                   "(" type-name ")" cast-expression
+//
+// The definition of typename is shown in the comments of the function below.
 static Node *cast(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "(") && declspec(tkn->next, NULL) != NULL) {
+  if (equal(tkn, "(") && is_typename(tkn->next)) {
     Type *ty = declspec(tkn->next, &tkn);
-    ty = pointer(tkn, &tkn, ty);
+    ty = abstract_declarator(tkn, &tkn, ty);
 
     tkn = skip(tkn, ")");
-
     return new_cast(cast(tkn, end_tkn), ty);
   }
-
   return unary(tkn, end_tkn);
 }
 
@@ -1918,6 +1890,8 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 //                    "sizeof" "(" type-name ")"
 //
 // unary-operator   = "&" | "*" | "+" | "-" | "~" | "!"
+// typename =  specifier-qualifier-list abstruct-declarator?
+//          -> declspec abstract-declarator
 static Node *unary(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "++")) {
     Node *node = to_assign(tkn, new_add(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
@@ -1963,22 +1937,20 @@ static Node *unary(Token *tkn, Token **end_tkn) {
   }
 
   if (equal(tkn, "sizeof")) {
-    Token *start = tkn;
     tkn = tkn->next;
 
     // type-name
-    if (equal(tkn, "(")) {
-      Type *ty = typename(tkn->next, &tkn);
-      if (ty != NULL) {
-        tkn = skip(tkn, ")");
-        if (end_tkn != NULL) *end_tkn = tkn;
-        return new_num(tkn, ty->var_size);
-      }
+    if (equal(tkn, "(") && is_typename(tkn->next)) {
+      Type *ty = declspec(tkn->next, &tkn);
+      ty = abstract_declarator(tkn, &tkn, ty);
+
+      tkn = skip(tkn, ")");
+      if (end_tkn != NULL) *end_tkn = tkn;
+      return new_num(tkn, ty->var_size);
     }
 
-    Node *node = unary(start->next, end_tkn);
+    Node *node = unary(tkn, end_tkn);
     add_type(node);
-
     return new_num(tkn, node->ty->var_size);
   }
 
