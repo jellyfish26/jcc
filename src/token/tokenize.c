@@ -174,7 +174,7 @@ static char *permit_keywords[] = {
   "return", "if", "else", "for", "do", "while", "break", "continue",
   "switch", "case", "default", "goto", "sizeof", 
   "signed", "unsigned", "void", "_Bool", "char", "short", 
-  "int", "long", "float", "double", "const", "enum", "struct"};
+  "int", "long", "float", "double", "const", "enum", "struct", "union"};
 
 static bool convert_tkn_int(Token *tkn) {
   char *ptr = tkn->loc;

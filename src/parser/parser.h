@@ -124,6 +124,7 @@ typedef enum {
   TY_FUNC,     // Function
   TY_ENUM,     // Enum type
   TY_STRUCT,   // Struct type
+  TY_UNION,    // Union type
 } TypeKind;
 
 

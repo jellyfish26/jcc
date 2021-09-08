@@ -1,19 +1,28 @@
 #include "test.h"
 
-struct A {
+union A {
   int A;
   int B;
 };
 
-struct A g = {2, 3};
+union A g = {2};
 
 int main() {
-  CHECK(8, sizeof(struct A));
+  CHECK(4, sizeof(union A));
 
-  CHECK(3, g.B);
+  CHECK(8, ({
+    union B {
+      int a;
+      long b;
+    };
+    sizeof(union B);
+  }));
+
+  CHECK(2, g.A);
+  CHECK(2, g.B);
 
   CHECK(2, ({
-    struct A tmp;
+    union A tmp;
     tmp.A = 1;
     tmp.B = 2;
     tmp.B;
@@ -21,7 +30,7 @@ int main() {
 
   CHECK(5, ({
     struct B {
-      struct A aa;
+      union A aa;
       int bb;
     };
     struct B tmp;
@@ -31,17 +40,17 @@ int main() {
     tmp.bb + tmp.aa.B;
   }));
 
-  CHECK(1, ({
-    struct A tmp;
+  CHECK(2, ({
+    union A tmp;
     tmp.A = 1;
     tmp.B = 2;
-    struct A *ptr = &tmp;
+    union A *ptr = &tmp;
     ptr->A;
   }));
 
   CHECK(5, ({
     struct B {
-      struct A aa;
+      union A aa;
       int bb;
     };
     struct B tmp;
@@ -50,16 +59,16 @@ int main() {
     tmp.bb = 3;
 
     struct B *ptr = &tmp;
-    ptr->aa.B + ptr->bb;
+    ptr->aa.A + ptr->bb;
   }));
 
   CHECK(5, ({
     struct B {
-      struct A *aa;
+      union A *aa;
       int bb;
     };
     struct B tmp;
-    struct A hello;
+    union A hello;
     hello.A = 1;
     hello.B = 2;
     tmp.aa = &hello;
@@ -70,7 +79,7 @@ int main() {
 
   CHECK(6, ({
     struct B {
-      struct A aa;
+      union A aa;
       int bb;
     };
     struct B tmp;
@@ -83,38 +92,39 @@ int main() {
     ptr->aa.B + ptr->bb;
   }));
 
-  CHECK(3, ({
-    struct B {
+  CHECK(5, ({
+    union B {
+      int b;
       int hoge[5];
     };
-    struct B tmp;
+    union B tmp;
     tmp.hoge[0] = 1;
     tmp.hoge[3] = 2;
+    tmp.b = 3;
 
-    struct B *cat = &tmp;
+    union B *cat = &tmp;
     cat->hoge[0] + tmp.hoge[3];
   }));
 
-  CHECK(6, ({
+  CHECK(5, ({
     struct B {
-      struct A aa;
+      union A aa;
       int bb;
     };
     struct B tmp = {
-      {1, 2},
+      {1},
       3
     };
     tmp.aa.B + tmp.aa.A + tmp.bb;
   }));
 
-  CHECK(9, ({
-    struct B {
+  CHECK(7, ({
+    union B {
       int aa[3];
       int bb;
     };
-    struct B tmp = {
+    union B tmp = {
       {1, 2, 3},
-      3,
     };
     tmp.aa[0] + tmp.aa[1] + tmp.aa[2] + tmp.bb;
   }));

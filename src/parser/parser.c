@@ -246,7 +246,7 @@ Node *to_assign(Token *tkn, Node *rhs) {
 static bool is_typename(Token *tkn) {
   char *keywords[] = {
     "void", "_Bool", "char", "short", "int", "long", "float", "double", "signed", "unsigned",
-    "const", "enum", "struct"
+    "const", "enum", "struct", "union"
   };
 
   for (int i = 0; i < sizeof(keywords) / sizeof(*keywords); i++) {
@@ -372,22 +372,30 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
 // struct-or-union-specifier = struct-or-union identifier |
 //                             struct-or-union identifier? "{" struct-declaration-list "}"
 //
-// struct-or-union = "struct"
+// struct-or-union = "struct" | "union"
 //
 // struct-declaration-list = struct-declaration*
 // struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct -declarator)* ";"
 //
 // struct-declarator = declarator
 static Type *stunspec(Token *tkn, Token **end_tkn) {
-  tkn = skip(tkn, "struct");
+  TypeKind kind;
+  if (consume(tkn, &tkn, "struct")) {
+    kind = TY_STRUCT;
+  } else if (consume(tkn, &tkn, "union")) {
+    kind = TY_UNION;
+  } else {
+    return NULL;
+  }
+
   char *tag = get_ident(tkn);
 
   if (tag != NULL && !equal(tkn->next, "{")) {
     Type *ty = find_tag(tag);
     if (ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This struct tag is not declared");
-    } else if (ty->kind != TY_STRUCT) {
-      errorf_tkn(ER_COMPILE, tkn, "This tag is not an struct tag");
+    } else if (ty->kind != kind) {
+      errorf_tkn(ER_COMPILE, tkn, "This tag is not an %s tag", kind == TY_STRUCT ? "struct" : "union");
     }
 
     if (end_tkn != NULL) *end_tkn = tkn->next;
@@ -395,12 +403,10 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
   }
 
   tkn = skip(tag == NULL ? tkn : tkn->next, "{");
-  
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = TY_STRUCT;
 
   Member head = {};
   Member *cur = &head;
+  Type *ty = calloc(1, sizeof(Type));
 
   while (!consume(tkn, &tkn, "}")) {
     Type *base_ty = declspec(tkn, &tkn);
@@ -426,8 +432,15 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
         member->ty = member_ty;
         member->tkn = member_ty->tkn;
         member->name = member_ty->name;
-        member->offset = ty->var_size;
-        ty->var_size += member_ty->var_size;
+
+        if (kind == TY_STRUCT) {
+          member->offset = ty->var_size;
+          ty->var_size += member_ty->var_size;
+        } else {
+          if (ty->var_size < member_ty->var_size) {
+            ty->var_size = member_ty->var_size;
+          }
+        }
 
         cur->next = member;
         cur = member;
@@ -435,6 +448,7 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     }
   }
   ty->member = head.next;
+  ty->kind = kind;
 
   if (tag != NULL) {
     add_tag(ty, tag);
@@ -484,7 +498,7 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       break;
     }
 
-    if (ty == NULL && equal(tkn, "struct")) {
+    if (ty == NULL && (equal(tkn, "struct") || equal(tkn, "union"))) {
       ty = stunspec(tkn, &tkn);
       break;
     }
@@ -740,6 +754,9 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
       init->children[i] = new_initializer(member->ty, false);
       i++;
     }
+  } else if (ty->kind == TY_UNION) {
+    init->children = calloc(1, sizeof(Initializer *));
+    init->children[0] = new_initializer(ty->member->ty, false);
   }
 
   return init;
@@ -815,7 +832,7 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
   if (tkn->kind == TK_STR) {
     string_initializer(tkn, &tkn, init);
-  } else if (init->ty->kind == TY_ARRAY || init->ty->kind == TY_STRUCT) {
+  } else if (init->ty->kind == TY_ARRAY || init->ty->kind == TY_STRUCT || init->ty->kind == TY_UNION) {
     array_initializer(tkn, &tkn, init);
   } else {
     init->node = assign(tkn, &tkn);
@@ -869,6 +886,8 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
       create_init_node(init->children[i], connect, only_const, member->ty);
       i++;
     }
+  } else if (ty->kind == TY_UNION) {
+    create_init_node(init->children[0], connect, only_const, ty->member->ty);
   }
 
   return;
@@ -2052,8 +2071,8 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     }
 
     Type *ty = equal(tkn, ".") ? node->ty : node->ty->base;
-    if (ty->kind != TY_STRUCT) {
-      errorf_tkn(ER_COMPILE, tkn, "Need struct type");
+    if (ty->kind != TY_STRUCT && ty->kind != TY_UNION) {
+      errorf_tkn(ER_COMPILE, tkn, "Need struct or union type");
     }
 
     char *ident = get_ident(tkn->next);
