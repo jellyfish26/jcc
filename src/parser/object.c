@@ -161,6 +161,9 @@ void leave_scope() {
 }
 
 void add_var(Obj *var, bool set_offset) {
+  if (hashmap_get(&(scope->var), var->name) != NULL) {
+    errorf(ER_COMPILE, "Variable '%s' is already declare", var->name);
+  }
   hashmap_insert(&(scope->var), var->name, var);
 
   if (set_offset) {
@@ -170,6 +173,9 @@ void add_var(Obj *var, bool set_offset) {
 }
 
 void add_tag(Type *ty, char *name) {
+  if (hashmap_get(&(scope->tag), name) != NULL) {
+    errorf_tkn(ER_COMPILE, ty->tkn, "This tag is already declare");
+  }
   hashmap_insert(&(scope->tag), name, ty);
 }
 
@@ -196,15 +202,6 @@ Type *find_tag(char *name) {
 
   return NULL;
 }
-
-bool can_declare_var(char *name) {
-  return hashmap_get(&(scope->var), name) == NULL;
-}
-
-bool can_declare_tag(char *name) {
-  return hashmap_get(&(scope->tag), name) == NULL;
-}
-
 
 static bool check_func_params(Type *lty, Type *rty) {
   if (lty->param_cnt != rty->param_cnt) {
@@ -249,7 +246,7 @@ bool declare_func(Type *ty) {
   // If the number of parameters in the function declaration is zero,
   // we can update the function declaration.
   if (already->params == NULL) {
-    add_var(new_obj(ty, ty->name), false);
+    hashmap_insert(&(scope->var), ty->name, new_obj(ty, ty->name));
     return true;
   }
 
@@ -269,7 +266,7 @@ bool define_func(Type *ty) {
     return false;
   }
 
-  add_var(new_obj(ty, ty->name), false);
+  hashmap_insert(&(scope->var), ty->name, new_obj(ty, ty->name));
   return true;
 }
 

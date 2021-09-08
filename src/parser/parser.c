@@ -143,7 +143,6 @@ Node *new_strlit(Token *tkn) {
   return addr;
 }
 
-
 static bool is_addr_node(Node *node) {
   switch (node->ty->kind) {
     case TY_PTR:
@@ -257,15 +256,11 @@ static bool is_typename(Token *tkn) {
   return false;
 }
 
-// If not ident, return NULL.
 static char *get_ident(Token *tkn) {
   if (tkn->kind != TK_IDENT) {
-    return NULL;
+    errorf_tkn(ER_COMPILE, tkn, "Expected an identifier");
   }
-
-  char *ret = calloc(tkn->len + 1, sizeof(char));
-  memcpy(ret, tkn->loc, tkn->len);
-  return ret;
+  return strndup(tkn->loc, tkn->len);
 }
 
 // type-qualifier = "const"
@@ -286,6 +281,21 @@ static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
   return is_qual;
 };
 
+// The type of array, structure, enum and a initializer end with '}' or ',' and '}'.
+static bool consume_close_brace(Token *tkn, Token **end_tkn) {
+  if (equal(tkn, "}")) {
+    *end_tkn = tkn->next;
+    return true;
+  }
+
+  if (equal(tkn, ",") && equal(tkn->next, "}")) {
+    *end_tkn = tkn->next->next;
+    return true;
+  }
+
+  return false;
+}
+
 // enum-specifier = "enum" idenfitier |
 //                  "enum" identifier? "{" enumerator ("," enumerator)* ","? "}"
 //
@@ -293,21 +303,25 @@ static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
 //              identifier "=" constant-expression
 static Type *enumspec(Token *tkn, Token **end_tkn) {
   tkn = skip(tkn, "enum");
-  char *tag = get_ident(tkn);
 
-  if (tag != NULL && !equal(tkn->next, "{")) {
+  char *tag = NULL;
+  if (tkn->kind == TK_IDENT) {
+    tag = get_ident(tkn);
+    tkn = tkn->next;
+  }
+
+  if (tkn != NULL && !equal(tkn, "{")) {
     Type *ty = find_tag(tag);
+
     if (ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This enum tag is not declared");
     } else if (ty->kind != TY_ENUM) {
       errorf_tkn(ER_COMPILE, tkn, "This tag is not an enum tag");
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn->next;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ty;
   }
-
-  tkn = skip(tag == NULL ? tkn : tkn->next, "{");
 
   Type *enumerator_ty = copy_ty(ty_i32);
 
@@ -315,23 +329,13 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
   Obj *cur = &head;
   int64_t val = -1;
 
-  while (!consume(tkn, &tkn, "}")) {
+  tkn = skip(tkn, "{");
+  while (!consume_close_brace(tkn, &tkn)) {
     if (cur != &head) {
       tkn = skip(tkn, ",");
     }
 
     char *ident = get_ident(tkn);
-    if (cur == &head && ident == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Expected identifier");
-    }
-
-    if (ident == NULL && consume(tkn, &tkn, "}")) {
-      break;
-    }
-
-    if (!can_declare_var(ident)) {
-      errorf_tkn(ER_COMPILE, tkn, "This enumerator already declare");
-    }
 
     if (consume(tkn->next, &tkn, "=")) {
       val = eval_expr(expr(tkn, &tkn));
@@ -387,9 +391,13 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     return NULL;
   }
 
-  char *tag = get_ident(tkn);
+  char *tag = NULL;
+  if (tkn->kind == TK_IDENT) {
+    tag = get_ident(tkn);
+    tkn = tkn->next;
+  }
 
-  if (tag != NULL && !equal(tkn->next, "{")) {
+  if (tag != NULL && !equal(tkn, "{")) {
     Type *ty = find_tag(tag);
     if (ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This struct tag is not declared");
@@ -397,17 +405,16 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "This tag is not an %s tag", kind == TY_STRUCT ? "struct" : "union");
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn->next;
+    if (end_tkn != NULL) *end_tkn = tkn;
     return ty;
   }
-
-  tkn = skip(tag == NULL ? tkn : tkn->next, "{");
 
   Member head = {};
   Member *cur = &head;
   Type *ty = calloc(1, sizeof(Type));
 
-  while (!consume(tkn, &tkn, "}")) {
+  tkn = skip(tkn, "{");
+  while (!consume_close_brace(tkn, &tkn)) {
     if (!is_typename(tkn)) {
       errorf_tkn(ER_COMPILE, tkn, "Need type");
     }
@@ -697,12 +704,12 @@ static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty) {
 // declarator = pointer? ident type-suffix | None
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
-  
-  char *ident = get_ident(tkn);
-  if (ident == NULL) {
+
+  if (tkn->kind != TK_IDENT) {
     return NULL;
   }
 
+  char *ident = get_ident(tkn);
   ty = type_suffix(tkn->next, end_tkn, ty);
   ty->name = ident;
   return ty;
@@ -797,15 +804,12 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   tkn = skip(tkn, "{");
   int idx = 0;
 
-  while (!consume(tkn, &tkn, "}")) {
+  while (!consume_close_brace(tkn, &tkn)) {
     if (idx != 0) {
       tkn = skip(tkn, ",");
     }
-
-    if (!equal(tkn, "}")) {
-      initializer_only(tkn, &tkn, init->children[idx]);
-      idx++;
-    }
+    initializer_only(tkn, &tkn, init->children[idx]);
+    idx++;
   }
   if (end_tkn != NULL) *end_tkn = tkn;
 }
@@ -1099,10 +1103,6 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
       errorf_tkn(ER_COMPILE, tkn, "Conflict declaration");
     }
   } else {
-    if (!can_declare_var(ty->name)) {
-      errorf_tkn(ER_COMPILE, tkn, "This variable already declare");
-    }
-
     obj->is_global = is_global;
     add_var(obj, !is_global);
   }
@@ -1259,14 +1259,14 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty) {
 //                        "return" expr? ";"
 // expression-statement = expression? ";"
 static Node *statement(Token *tkn, Token **end_tkn) {
-  if (get_ident(tkn) && equal(tkn->next, ":")) {
-    if (hashmap_get(label_map, get_ident(tkn)) != NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Duplicate label");
-    }
-    hashmap_insert(label_map, get_ident(tkn), new_unique_label());
-
+  if (tkn->kind == TK_IDENT && equal(tkn->next, ":")) {
     Node *node = new_node(ND_LABEL, tkn);
     node->label = get_ident(tkn);
+
+    if (hashmap_get(label_map, node->label) != NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "Duplicate label");
+    }
+    hashmap_insert(label_map, node->label, new_unique_label());
     tkn = skip(tkn->next, ":");
 
     node->deep = label_node;
@@ -1299,7 +1299,6 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
     return node;
   }
-
 
   // compound-statement
   Node *node = comp_stmt(tkn, &tkn);
@@ -1470,14 +1469,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   // jump-statement
   if (equal(tkn, "goto")) {
     Node *node = new_node(ND_GOTO, tkn);
-    char *ident = get_ident(tkn->next);
-
-    if (ident == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Cannot jump");
-    }
-
-    node->label = ident;
-
+    node->label = get_ident(tkn->next);
     node->deep = goto_node;
     goto_node = node;
 
@@ -2042,12 +2034,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "Need struct or union type");
     }
 
-    char *ident = get_ident(tkn->next);
-    if (ident == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "Need identifier");
-    }
-
-    Member *member = find_member(ty->member, ident);
+    Member *member = find_member(ty->member, get_ident(tkn->next));
     if (member == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This member is not found");
     }
@@ -2096,9 +2083,8 @@ static Node *primary(Token *tkn, Token **end_tkn) {
   }
 
   // identifier
-  char *ident = get_ident(tkn);
-  if (ident != NULL) {
-    Obj *obj = find_var(ident);
+  if (tkn->kind == TK_IDENT) {
+    Obj *obj = find_var(get_ident(tkn));
 
     if (obj == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
@@ -2106,6 +2092,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
 
     Node *node = new_var(tkn, obj);
     add_type(node);
+
     if (end_tkn != NULL) *end_tkn = tkn->next;
     return node;
   }
