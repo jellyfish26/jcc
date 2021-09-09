@@ -95,12 +95,8 @@ struct Node {
   long double fval;   // Floating-value if kind is ND_NUM
 };
 
-Node *new_node(NodeKind kind, Token *tkn);
-Node *new_num(Token *tkn, int64_t val);
 Node *new_cast(Node *expr, Type *ty);
 Node *new_var(Token *tkn, Obj *obj);
-Node *new_assign(Token *tkn, Node *lhs, Node *rhs);
-Node *to_assign(Token *tkn, Node *rhs);
 Node *last_stmt(Node *now);
 
 Node *program(Token *tkn);

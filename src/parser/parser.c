@@ -23,10 +23,6 @@ struct Initializer {
   Node *node;
 };
 
-typedef struct {
-  bool is_const;
-} VarAttr;
-
 static char *break_label;
 static char *conti_label;
 
@@ -82,7 +78,7 @@ static char *new_unique_label() {
   return ptr;
 }
 
-Node *new_node(NodeKind kind, Token *tkn) {
+static Node *new_node(NodeKind kind, Token *tkn) {
   Node *node = calloc(1, sizeof(Node));
   node->tkn = tkn;
   node->kind = kind;
@@ -96,7 +92,7 @@ Node *new_num(Token *tkn, int64_t val) {
   return node;
 }
 
-Node *new_floating(Token *tkn, Type *ty, long double fval) {
+static Node *new_floating(Token *tkn, Type *ty, long double fval) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = ND_NUM;
   node->ty = ty;
@@ -120,7 +116,7 @@ Node *new_var(Token *tkn, Obj *obj) {
   return node;
 }
 
-Node *new_strlit(Token *tkn) {
+static Node *new_strlit(Token *tkn) {
   Initializer *init = new_initializer(tkn->ty, false);
   string_initializer(tkn, NULL, init);
 
@@ -153,13 +149,13 @@ static bool is_addr_node(Node *node) {
   }
 }
 
-static Node *new_binary(NodeKind kind, Token *tkn, Node *lhs) {
+static Node *new_unary(NodeKind kind, Token *tkn, Node *lhs) {
   Node *node = new_node(kind, tkn);
   node->lhs = lhs;
   return node;
 }
 
-Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
+static Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   Node *node = new_node(kind, tkn);
   node->lhs = lhs;
   node->rhs = rhs;
@@ -171,7 +167,7 @@ Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
-Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
+static Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
   Node *node = new_node(ND_ADD, tkn);
   node->lhs = lhs;
   node->rhs = rhs;
@@ -192,7 +188,7 @@ Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
-Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
+static Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
   Node *node = new_node(ND_SUB, tkn);
   node->lhs = lhs;
   node->rhs = rhs;
@@ -219,7 +215,7 @@ Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
-Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
+static Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   // Remove implicit cast 
   if (lhs->kind == ND_CAST) {
     lhs = lhs->lhs;
@@ -237,7 +233,7 @@ Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
-Node *to_assign(Token *tkn, Node *rhs) {
+static Node *to_assign(Token *tkn, Node *rhs) {
   return new_assign(tkn, rhs->lhs, rhs);
 }
 
@@ -262,24 +258,6 @@ static char *get_ident(Token *tkn) {
   }
   return strndup(tkn->loc, tkn->len);
 }
-
-// type-qualifier = "const"
-static bool typequal(Token *tkn, Token **end_tkn, VarAttr *attr) {
-  bool is_qual = false;
-
-  if (equal(tkn, "const")) {
-    if (attr->is_const) {
-      errorf_tkn(ER_COMPILE, tkn, "Duplicate const");
-    }
-
-    attr->is_const = true;
-    tkn = tkn->next;
-    is_qual = true;
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return is_qual;
-};
 
 // The type of array, structure, enum and a initializer end with '}' or ',' and '}'.
 static bool consume_close_brace(Token *tkn, Token **end_tkn) {
@@ -491,12 +469,16 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     OTHER    = 1 << 20,
   };
 
-  VarAttr *attr = calloc(1, sizeof(VarAttr));
-
   int ty_cnt = 0;
+  bool is_const = false;
   Type *ty = NULL;
   while (is_typename(tkn)) {
-    if (typequal(tkn, &tkn, attr)) {
+    if (equal(tkn, "const")) {
+      if (is_const) {
+        errorf_tkn(ER_COMPILE, tkn, "Duplicate const");
+      }
+      is_const = true;
+      tkn = tkn->next;
       continue;
     }
 
@@ -596,15 +578,10 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
     }
     tkn = tkn->next;
   }
+  ty = copy_ty(ty);
+  ty->is_const = is_const;
 
   if (end_tkn != NULL) *end_tkn = tkn;
-
-  ty = copy_ty(ty);
-
-  if (attr->is_const) {
-    ty->is_const = true;
-  }
-
   return ty;
 }
 
@@ -617,15 +594,11 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
 // Implement:
 // pointer = ("*" typequal*)*
 static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
-  VarAttr *attr = calloc(1, sizeof(VarAttr));
-
   while (consume(tkn, &tkn, "*")) {
     ty = pointer_to(ty);
 
-    while (typequal(tkn, &tkn, attr));
-    if (attr->is_const) {
+    if (consume(tkn, &tkn, "const")) {
       ty->is_const = true;
-      attr->is_const = false;
     }
   }
 
@@ -1968,13 +1941,13 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
   while (equal(tkn, "[") || equal(tkn, "(") || equal(tkn, "++") ||
          equal(tkn, "--") || equal(tkn, ".") || equal(tkn, "->")) {
     if (equal(tkn, "[")) {
-      node = new_binary(ND_CONTENT, tkn, new_add(tkn, node, assign(tkn->next, &tkn)));
+      node = new_unary(ND_CONTENT, tkn, new_add(tkn, node, assign(tkn->next, &tkn)));
       tkn = skip(tkn, "]");
       continue;
     }
 
     if (equal(tkn, "(")) {
-      node = new_binary(ND_FUNCCALL, tkn, node);
+      node = new_unary(ND_FUNCCALL, tkn, node);
       node->func = node->lhs->var;
       node->ty = node->lhs->var->ty;
       node->lhs = NULL;
@@ -1989,7 +1962,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
           tkn = skip(tkn, ",");
         }
 
-        cur->next = new_binary(ND_VOID, tkn, assign(tkn, &tkn));
+        cur->next = new_unary(ND_VOID, tkn, assign(tkn, &tkn));
         cur = cur->next;
         argc++;
       }
@@ -2039,10 +2012,10 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "This member is not found");
     }
 
-    if (equal(tkn, ".")) node = new_binary(ND_ADDR, tkn, node);
-    node = new_binary(ND_ADD, tkn, node);
+    if (equal(tkn, ".")) node = new_unary(ND_ADDR, tkn, node);
+    node = new_unary(ND_ADD, tkn, node);
     node->rhs = new_num(tkn, member->offset);
-    node = new_binary(ND_CONTENT, tkn, node);
+    node = new_unary(ND_CONTENT, tkn, node);
 
     add_type(node);
     node->ty = member->ty;
