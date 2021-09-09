@@ -143,5 +143,27 @@ int main() {
     bar.bb + foo.bb + foo.aa[1];
   }));
 
+  CHECK(12, ({
+    union A foo;
+    foo.A = 1;
+    foo.B = 2;
+    union A bar;
+    bar = foo;
+    bar.B = 3;
+    union A hoge = foo = bar;
+    hoge.B + foo.B + bar.B + hoge.A;
+  }));
+
+  CHECK(8, ({
+    union A foo;
+    foo.A = 1;
+    foo.B = 2;
+    union A *bar = &foo;
+    union A hoge;
+    union A *fuga = &hoge;
+    *fuga = *bar;
+    fuga->A + fuga->B + hoge.A + hoge.B;
+  }));
+
   return 0;
 }

@@ -6,6 +6,12 @@ struct A {
 };
 
 struct A g = {2, 3};
+struct C {
+  struct A *aa;
+  int B;
+};
+
+struct C gp = {&g, 2};
 
 int main() {
   CHECK(8, sizeof(struct A));
@@ -168,5 +174,17 @@ int main() {
     hoge.B + foo.B + bar.B + hoge.A;
   }));
 
+  CHECK(6, ({
+    struct A foo;
+    foo.A = 1;
+    foo.B = 2;
+    struct A *bar = &foo;
+    struct A hoge;
+    struct A *fuga = &hoge;
+    *fuga = *bar;
+    fuga->A + fuga->B + hoge.A + hoge.B;
+  }));
+
+  CHECK(4, gp.aa->A + gp.B);
   return 0;
 }
