@@ -16,8 +16,10 @@ struct Initializer {
   Type *ty;
   Token *tkn;
 
+
   // The size of the first array can be omitted.
   bool is_flexible;
+  int size;
   Initializer **children;
 
   Node *node;
@@ -390,6 +392,7 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
   Member head = {};
   Member *cur = &head;
   Type *ty = calloc(1, sizeof(Type));
+  int member_cnt = 0;
 
   tkn = skip(tkn, "{");
   while (!consume_close_brace(tkn, &tkn)) {
@@ -428,10 +431,12 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
 
         cur->next = member;
         cur = member;
+        member_cnt++;
       }
     }
   }
   ty->member = head.next;
+  ty->member_cnt = member_cnt;
   ty->kind = kind;
 
   if (tag != NULL) {
@@ -611,7 +616,7 @@ static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
   int64_t val = 0;
 
   if (!consume(tkn, &tkn, "]")) {
-    val = constant(tkn, &tkn)->val;
+    val = eval_expr(expr(tkn, &tkn));
     tkn = skip(tkn, "]");
   }
 
@@ -627,14 +632,10 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
   ty->kind = TY_FUNC;
   ty->ret_ty = ret_ty;
 
-  if (equal(tkn, "void") && equal(tkn->next, ")")) {
-    if (end_tkn != NULL) *end_tkn = tkn->next->next;
-    return ty;
-  }
-
   Type head = {};
   Type *cur = &head;
 
+  consume(tkn, &tkn, "void");
   while (!consume(tkn, &tkn, ")")) {
     if (cur != &head) {
       tkn = skip(tkn, ",");
@@ -704,6 +705,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
   init->ty = ty;
 
   if (ty->kind == TY_ARRAY) {
+    init->size = ty->array_len;
     if (is_flexible && ty->var_size == 0) {
       init->is_flexible = true;
     } else {
@@ -713,6 +715,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
       }
     }
   } else if (ty->kind == TY_STRUCT) {
+    init->size = ty->member_cnt;
     init->children = calloc(ty->member_cnt, sizeof(Initializer *));
 
     int i = 0;
@@ -721,6 +724,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
       i++;
     }
   } else if (ty->kind == TY_UNION) {
+    init->size = 1;
     init->children = calloc(1, sizeof(Initializer *));
     init->children[0] = new_initializer(ty->member->ty, false);
   }
@@ -728,19 +732,22 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
   return init;
 }
 
-static void fill_flexible_initializer(Token *tkn, Type *ty, Initializer *init) {
-  Initializer *dummy = new_initializer(ty->base, false);
+static int count_array_init_elements(Token *tkn, Type *ty) {
   tkn = skip(tkn, "{");
-  int len = 0;
 
-  while (true) {
-    if (len > 0 && !consume(tkn, &tkn, ",")) break;
-    if (equal(tkn, "}")) break;
+  int cnt = 0;
+  Initializer *dummy = new_initializer(ty->base, false);
+
+  while (!consume_close_brace(tkn, &tkn)) {
+    if (cnt != 0) {
+      tkn = skip(tkn, ",");
+    }
+
     initializer_only(tkn, &tkn, dummy);
-    len++;
+    cnt++;
   }
-
-  *init = *new_initializer(array_to(init->ty->base, len), false);
+  
+  return cnt;
 }
 
 // string_initializer = string literal
@@ -771,7 +778,8 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
 // array_initializer = "{" initializer_only ("," initializer_only)* ","? "}" | "{" "}"
 static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (init->is_flexible) {
-    fill_flexible_initializer(tkn, init->ty, init);
+    int size = count_array_init_elements(tkn, init->ty);
+    *init = *new_initializer(array_to(init->ty->base, size), false);
   }
 
   tkn = skip(tkn, "{");
@@ -781,7 +789,14 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
     if (idx != 0) {
       tkn = skip(tkn, ",");
     }
-    initializer_only(tkn, &tkn, init->children[idx]);
+
+    if (idx < init->size) {
+      initializer_only(tkn, &tkn, init->children[idx]);
+    } else {
+      Initializer *dummy = calloc(1, sizeof(Initializer));
+      initializer_only(tkn, &tkn, dummy);
+      free(dummy);
+    }
     idx++;
   }
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -790,14 +805,16 @@ static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
 // initializer = array_initializer | string_initializer | assign
 static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
   if (tkn->kind == TK_STR) {
-    string_initializer(tkn, &tkn, init);
-  } else if (init->ty->kind == TY_ARRAY || init->ty->kind == TY_STRUCT || init->ty->kind == TY_UNION) {
-    array_initializer(tkn, &tkn, init);
-  } else {
-    init->node = assign(tkn, &tkn);
+    string_initializer(tkn, end_tkn, init);
+    return;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+  if (equal(tkn, "{")) {
+    array_initializer(tkn, end_tkn, init);
+    return;
+  }
+
+  init->node = assign(tkn, end_tkn);
 }
 
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {

@@ -119,5 +119,18 @@ int main() {
     tmp.aa[0] + tmp.aa[1] + tmp.aa[2] + tmp.bb;
   }));
 
+  // Excess elements
+  CHECK(9, ({
+    struct B {
+      int aa[3];
+      int bb;
+    };
+    struct B tmp = {
+      {1, 2, 3, 4},
+      3, 4
+    };
+    tmp.aa[0] + tmp.aa[1] + tmp.aa[2] + tmp.bb;
+  }));
+
   return 0;
 }
