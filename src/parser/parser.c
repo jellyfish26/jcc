@@ -705,30 +705,33 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
   init->ty = ty;
 
   if (ty->kind == TY_ARRAY) {
-    init->size = ty->array_len;
-    if (is_flexible && ty->var_size == 0) {
+    if (is_flexible && ty->array_len == 0) {
       init->is_flexible = true;
-    } else {
-      init->children = calloc(ty->array_len, sizeof(Initializer *));
-      for (int i = 0; i < ty->array_len; i++) {
-        init->children[i] = new_initializer(ty->base, false);
-      }
+      return init;
     }
-  } else if (ty->kind == TY_STRUCT) {
+
+    init->size = ty->array_len;
+    init->children = calloc(ty->array_len, sizeof(Initializer *));
+    for (int i = 0; i < ty->array_len; i++) {
+      init->children[i] = new_initializer(ty->base, false);
+    }
+  }
+
+  if (ty->kind == TY_STRUCT) {
     init->size = ty->member_cnt;
     init->children = calloc(ty->member_cnt, sizeof(Initializer *));
 
     int i = 0;
     for (Member *member = ty->member; member != NULL; member = member->next) {
-      init->children[i] = new_initializer(member->ty, false);
-      i++;
+      init->children[i++] = new_initializer(member->ty, false);
     }
-  } else if (ty->kind == TY_UNION) {
+  }
+
+  if (ty->kind == TY_UNION) {
     init->size = 1;
     init->children = calloc(1, sizeof(Initializer *));
     init->children[0] = new_initializer(ty->member->ty, false);
   }
-
   return init;
 }
 
@@ -824,19 +827,17 @@ static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty) {
 }
 
 static void create_init_node(Initializer *init, Node **connect, bool only_const, Type *ty) {
-  if (init->children == NULL) {
-    Node *node = calloc(1, sizeof(Node));
-    node->kind = ND_INIT;
+  if (init->node != NULL) {
+    Node *node = new_node(ND_INIT, init->node->tkn);
     node->init = init->node;
     node->ty = ty;
 
-    if (init->node != NULL && !is_same_type(ty, init->node->ty)) {
-      node->init = new_cast(init->node, ty);
+    if (!is_same_type(ty, node->init->ty)) {
+      node->init = new_cast(node->init, ty);
     }
 
-    if (only_const && init->node != NULL) {
+    if (only_const) {
       char *label = NULL;
-
       if (is_float_ty(node->init->ty)) {
         node->init = new_floating(node->init->tkn, node->init->ty, eval_double(node->init));
       } else {
@@ -852,21 +853,29 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
     return;
   }
 
+  if (init->children == NULL) {
+    Node *node = new_node(ND_INIT, init->tkn);
+    node->ty = init->ty;
+    (*connect)->lhs = node;
+    *connect = node;
+  }
+
   if (ty->kind == TY_ARRAY) {
     for (int i = 0; i < init->ty->array_len; i++) {
       create_init_node(init->children[i], connect, only_const, ty->base);
     }
-  } else if (ty->kind == TY_STRUCT) {
-    int i = 0;
-    for (Member *member = ty->member; member != NULL; member = member->next) {
-      create_init_node(init->children[i], connect, only_const, member->ty);
-      i++;
-    }
-  } else if (ty->kind == TY_UNION) {
-    create_init_node(init->children[0], connect, only_const, ty->member->ty);
   }
 
-  return;
+  if (ty->kind == TY_STRUCT) {
+    int i = 0;
+    for (Member *member = ty->member; member != NULL; member = member->next) {
+      create_init_node(init->children[i++], connect, only_const, member->ty);
+    }
+  }
+
+  if (ty->kind == TY_UNION) {
+    create_init_node(init->children[0], connect, only_const, ty->member->ty);
+  }
 }
 
 static int64_t eval_expr(Node *node) {
