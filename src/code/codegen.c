@@ -608,7 +608,7 @@ void compile_node(Node *node) {
     return;
   } 
 
-  if (node->kind == ND_BLOCK) {
+  if (node->kind == ND_BLOCK || node->kind == ND_COMMA) {
     for (Node *expr = node->deep; expr != NULL; expr = expr->next) {
       compile_node(expr);
     }
@@ -638,9 +638,6 @@ void compile_node(Node *node) {
       gen_push("rax");
       compile_node(node->rhs);
       gen_store(node->ty);
-      if (node->deep != NULL) {
-        compile_node(node->deep);
-      }
       return;
     case ND_RETURN:
       compile_node(node->lhs);

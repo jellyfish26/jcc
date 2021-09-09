@@ -157,6 +157,12 @@ static Node *new_unary(NodeKind kind, Token *tkn, Node *lhs) {
   return node;
 }
 
+static Node *new_commma(Token *tkn, Node *head) {
+  Node *node = new_node(ND_COMMA, tkn);
+  node->deep = head;
+  return node;
+}
+
 static Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   Node *node = new_node(kind, tkn);
   node->lhs = lhs;
@@ -281,6 +287,7 @@ static bool consume_close_brace(Token *tkn, Token **end_tkn) {
 //
 // enumerator = identifier |
 //              identifier "=" constant-expression
+// constant-expression = conditional-expression
 static Type *enumspec(Token *tkn, Token **end_tkn) {
   tkn = skip(tkn, "enum");
 
@@ -318,7 +325,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
     char *ident = get_ident(tkn);
 
     if (consume(tkn->next, &tkn, "=")) {
-      val = eval_expr(expr(tkn, &tkn));
+      val = eval_expr(conditional(tkn, &tkn));
     } else {
       val++;
     }
@@ -1278,7 +1285,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   // labeled-statement
   if (equal(tkn, "case")) {
     Node *node = new_node(ND_CASE, tkn);
-    node->val = eval_expr(expr(tkn->next, &tkn));
+    node->val = eval_expr(conditional(tkn->next, &tkn));
     tkn = skip(tkn, ":");
 
     enter_scope();
@@ -1554,8 +1561,29 @@ static Node *comp_stmt(Token *tkn, Token **end_tkn) {
 }
 
 // expression = assignment-expression
+//              expression "," assignment-expression
+//
+// expr -> assign ("," assign)*
 static Node *expr(Token *tkn, Token **end_tkn) {
-  return assign(tkn, end_tkn);
+  Node head = {};
+  Node *cur = &head;
+
+  while (true) {
+    if (cur != &head && !consume(tkn, &tkn, ",")) {
+      break;
+    }
+
+    cur->next = assign(tkn, &tkn);
+    cur = cur->next;
+  }
+
+  Node *node = head.next;
+  if (node->next != NULL) {
+    node = new_commma(node->tkn, node);
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return node;
 }
 
 // assignment-expression = conditional-expression
@@ -1886,14 +1914,14 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 static Node *unary(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "++")) {
     Node *node = to_assign(tkn, new_add(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
-    node->deep = node->lhs;
-    return node;
+    node->next = node->lhs;
+    return new_commma(tkn, node);
   }
 
   if (equal(tkn, "--")) {
     Node *node = to_assign(tkn, new_sub(tkn, unary(tkn->next, end_tkn), new_num(tkn, 1)));
-    node->deep = node->lhs;
-    return node;
+    node->next = node->lhs;
+    return new_commma(tkn, node);
   }
 
   // unary-operator
@@ -2009,14 +2037,16 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
     if (equal(tkn, "++")) {
       node = to_assign(tkn, new_add(tkn, node, new_num(tkn, 1)));
-      node->deep = new_sub(tkn, node->lhs, new_num(tkn, 1));
+      node->next = new_sub(tkn, node->lhs, new_num(tkn, 1));
+      node = new_commma(tkn, node);
       tkn = tkn->next;
       continue;
     }
 
     if (equal(tkn, "--")) {
       node = to_assign(tkn, new_sub(tkn, node, new_num(tkn, 1)));
-      node->deep = new_add(tkn, node->lhs, new_num(tkn, 1));
+      node->next = new_add(tkn, node->lhs, new_num(tkn, 1));
+      node = new_commma(tkn, node);
       tkn = tkn->next;
       continue;
     }

@@ -376,6 +376,7 @@ void add_type(Node *node) {
       node->ty = node->func->ty->ret_ty;
       return;
     case ND_BLOCK:
+    case ND_COMMA:
       node->ty = last_stmt(node->deep)->ty;
     case ND_INIT:
       return;

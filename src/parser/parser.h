@@ -37,6 +37,7 @@ typedef enum {
   ND_COND,        // "?:" conditional
   ND_ADDR,        // "&" (Address-of)
   ND_CONTENT,     // "*" (Indirection, dereference)
+  ND_COMMA,       // ","
   ND_ASSIGN,      // Assign
   ND_VAR,         // Variable
   ND_RETURN,      // "return" statement
