@@ -404,25 +404,37 @@ void expand_ternary(Node *node, int label) {
 static void gen_lvar_init(Node *node) {
   gen_addr(node->lhs);
 
-  for (Node *init = node->rhs; init != NULL; init = init->lhs) {
+  for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
     gen_push("rax");
-    if (init->init != NULL) {
-      compile_node(init->init);
-    } else {
-      switch (init->ty->kind) {
-        case TY_FLOAT:
-        case TY_DOUBLE:
-          println("  pxor xmm0, xmm0");
+    if (expr->init != NULL) {
+      switch (expr->ty->kind) {
+        case TY_STRUCT:
+        case TY_UNION:
+          if (expr->init->kind == ND_ASSIGN) {
+            compile_node(expr->init);
+            gen_addr(expr->init->lhs);
+          } else {
+            gen_addr(expr->init);
+          }
+          println("  mov rsi, rax");
+          gen_pop("rdi");
+          println("  mov rcx, %d", expr->ty->var_size);
+          println("  rep movsb");
+          println("  mov rax, rdi");
           break;
-        case TY_LDOUBLE:
-          println("  fldz");
         default:
-          println("  mov rax, 0");
+          compile_node(expr->init);
+          gen_store(expr->ty);
+          println("  mov rax, rdi");
+          println("  add rax, %d", expr->ty->var_size);
       }
+    } else {
+      gen_pop("rdi");
+      println("  xor rax, rax");
+      println("  mov rcx, %d", expr->ty->var_size);
+      println("  rep stosb");
+      println("  mov rax, rdi");
     }
-    gen_store(init->ty);
-    println("  mov rax, rdi");
-    println("  add rax, %d", init->ty->var_size);
   }
 }
 

@@ -157,5 +157,16 @@ int main() {
     dolphin.bb + cat.bb + dolphin.aa.A;
   }));
 
+  CHECK(10, ({
+    struct A foo;
+    foo.A = 1;
+    foo.B = 2;
+    struct A bar;
+    bar = foo;
+    bar.B = 3;
+    struct A hoge = foo = bar;
+    hoge.B + foo.B + bar.B + hoge.A;
+  }));
+
   return 0;
 }
