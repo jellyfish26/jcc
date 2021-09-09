@@ -129,5 +129,19 @@ int main() {
     tmp.aa[0] + tmp.aa[1] + tmp.aa[2] + tmp.bb;
   }));
 
+  CHECK(8, ({
+    union B {
+      int aa[3];
+      int bb;
+    };
+    union B foo = {
+      {1, 2, 3},
+    };
+    union B bar;
+    bar = foo;
+    bar.bb = 5;
+    bar.bb + foo.bb + foo.aa[1];
+  }));
+
   return 0;
 }

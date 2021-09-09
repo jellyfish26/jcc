@@ -132,5 +132,30 @@ int main() {
     tmp.aa[0] + tmp.aa[1] + tmp.aa[2] + tmp.bb;
   }));
 
+  CHECK(6, ({
+    struct A foo;
+    foo.A = 1;
+    foo.B = 2;
+    struct A bar;
+    bar = foo;
+    bar.B = 3;
+    bar.A + bar.B + foo.B;
+  }));
+
+  CHECK(6, ({
+    struct B {
+      struct A aa;
+      int bb;
+    };
+    struct B cat = {
+      {1, 2},
+      3
+    };
+    struct B dolphin;
+    dolphin = cat;
+    dolphin.bb = 2;
+    dolphin.bb + cat.bb + dolphin.aa.A;
+  }));
+
   return 0;
 }

@@ -633,12 +633,29 @@ void compile_node(Node *node) {
     case ND_ADDR:
       gen_addr(node->lhs);
       return;
-    case ND_ASSIGN:
-      gen_addr(node->lhs);
-      gen_push("rax");
-      compile_node(node->rhs);
-      gen_store(node->ty);
+    case ND_ASSIGN: {
+      if (node->ty->kind == TY_STRUCT || node->ty->kind == TY_UNION) {
+        gen_addr(node->lhs);
+        gen_push("rax");
+
+        if (node->rhs->kind == ND_ASSIGN) {
+          gen_addr(node->rhs->lhs);
+        } else {
+          gen_addr(node->rhs);
+        }
+
+        println("  mov rsi, rax");
+        gen_pop("  rdi");
+        println("  mov rcx, %d", node->ty->var_size);
+        println("  rep movsb");
+      } else {
+        gen_addr(node->lhs);
+        gen_push("rax");
+        compile_node(node->rhs);
+        gen_store(node->ty);
+      }
       return;
+    }
     case ND_RETURN:
       compile_node(node->lhs);
       println("  mov rsp, rbp");
