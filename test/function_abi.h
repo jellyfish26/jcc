@@ -34,3 +34,10 @@ long double sd(struct C tmp);
 
 int arr1(int a[5]);
 int arr2(int a[]);
+
+struct D {
+  int a;
+  float b;
+};
+
+float se(struct D tmp);

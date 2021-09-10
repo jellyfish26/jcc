@@ -94,6 +94,14 @@ int arr2(int a[]) {
   return ans;
 }
 
+struct D {
+  int a;
+  float b;
+};
+
+float se(struct D tmp) {
+  return tmp.a + tmp.b;
+}
 
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
@@ -133,6 +141,11 @@ int main() {
     sc(tmp);
   }));
 
+  CHECKLD(3.0, ({
+    struct C tmp = {3.0};
+    sd(tmp);
+  }));
+
   CHECK(15, ({
     int tmp[5] = {1, 2, 3, 4, 5};
     arr1(tmp);
@@ -145,6 +158,11 @@ int main() {
       ans -= tmp[i];
     }
     ans;
+  }));
+
+  CHECKF(5.0, ({
+    struct D tmp = {2, 3.0f};
+    se(tmp);
   }));
 
   return 0;
