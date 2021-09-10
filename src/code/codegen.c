@@ -513,7 +513,6 @@ static void push_argsre(Node *node, bool pass_stack) {
   if (node == NULL) {
     return;
   }
-
   push_argsre(node->next, pass_stack);
 
   if ((pass_stack && !node->pass_by_stack) || (!pass_stack && node->pass_by_stack)) {

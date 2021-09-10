@@ -186,5 +186,31 @@ int main() {
   }));
 
   CHECK(4, gp.aa->A + gp.B);
+  
+  CHECK(8, ({
+    struct D {
+      char a, b;
+      int c;
+    };
+    sizeof(struct D);
+  }));
+
+  CHECK(8, ({
+    struct D {
+      char a, b, c;
+      int d;
+    };
+    sizeof(struct D);
+  }));
+
+  CHECK(16, ({
+    struct D {
+      char a, b;
+      long c;
+    };
+    sizeof(struct D);
+  }));
+
+
   return 0;
 }

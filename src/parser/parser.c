@@ -428,6 +428,11 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
         member->name = member_ty->name;
 
         if (kind == TY_STRUCT) {
+          // Alignment
+          int mod = member_ty->var_size > 8 ? 8 : member_ty->var_size;
+          int remain = (mod - ty->var_size % mod) % mod;
+          ty->var_size += remain;
+
           member->offset = ty->var_size;
           ty->var_size += member_ty->var_size;
         } else {
