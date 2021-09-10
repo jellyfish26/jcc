@@ -125,6 +125,13 @@ Type *extract_ty(Type *ty) {
   return ty;
 }
 
+Type *extract_arr_ty(Type *ty) {
+  while (ty->base != NULL && ty->kind == TY_ARRAY) {
+    ty = ty->base;
+  }
+  return ty;
+}
+
 Obj *new_obj(Type *type, char *name) {
   int name_len = strlen(name);
   Obj *ret = calloc(1, sizeof(Obj));

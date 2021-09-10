@@ -183,6 +183,7 @@ bool is_integer_ty(Type *ty);
 bool is_float_ty(Type *ty);
 bool is_same_type(Type *lty, Type *rty);
 Type *extract_ty(Type *ty);
+Type *extract_arr_ty(Type *ty);
 
 // Variable or Function
 struct Obj {

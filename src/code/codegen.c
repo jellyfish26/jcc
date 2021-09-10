@@ -403,6 +403,7 @@ void expand_ternary(Node *node, int label) {
 
 static void gen_lvar_init(Node *node) {
   gen_addr(node->lhs);
+  int offset = 0;
 
   for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
     gen_push("rax");

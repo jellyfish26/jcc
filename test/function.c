@@ -103,6 +103,11 @@ float se(struct D tmp) {
   return tmp.a + tmp.b;
 }
 
+struct E {
+  char a;
+  long double b;
+};
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
