@@ -532,6 +532,17 @@ static void push_argsre(Node *node, bool pass_stack) {
       println("  sub rsp, 16");
       println("  fstp TBYTE PTR [rsp]");
       break;
+    case TY_STRUCT: {
+      int size = ty->var_size;
+      size += (8 - size % 8) % 8;
+      println("  sub rsp, %d", size);
+      gen_addr(node->lhs);
+      println("  mov rsi, rax");
+      println("  mov rdi, rsp");
+      println("  mov rcx, %d", size / 8);
+      println("  rep movsq");
+      break;
+    }
     default:
       compile_node(node->lhs);
       gen_push("rax");
@@ -557,6 +568,35 @@ static void push_args(Node *node, bool pass_stack) {
       case TY_LDOUBLE:
         arg->pass_by_stack = true;
         break;
+      case TY_STRUCT:
+        if (arg_ty->var_size > 16) {
+          arg->pass_by_stack = true;
+        } else {
+          int flsize = 0, gesize = 0;
+          for (Member *member = arg_ty->member; member != NULL; member = member->next) {
+            switch (member->ty->kind) {
+              case TY_FLOAT:
+              case TY_DOUBLE:
+                flsize += member->ty->var_size;
+                gesize += (8 - gesize % 8) % 8;
+                break;
+              case TY_LDOUBLE:
+                flsize += 80; // Must pass by stack
+                break;
+              default:
+                gesize += member->ty->var_size;
+                flsize += (8 - flsize % 8) % 8;
+            }
+          }
+          flsize += (8 - flsize % 8) % 8, gesize += (8 - gesize % 8) % 8;
+          flsize /= 8, gesize /= 8;
+
+          if (flcnt + flsize < 8 && gecnt + gesize < 6) {
+            flcnt += flsize, gecnt += gesize;
+          } else {
+            arg->pass_by_stack = true;
+          }
+        }
       default:
         if (gecnt >= 6) {
           arg->pass_by_stack = true;
@@ -799,7 +839,7 @@ void compile_node(Node *node) {
     push_args(node, false);
 
     // floating cnt, general cnt, stack cnt
-    // pass by stack if flcnt >= 8 or gecnt >= 6
+    // pass by stack if flcnt >= 9 or gecnt >= 6
     int flcnt = 0, gecnt = 0, stcnt = 0;
 
     for (Node *arg = node->args; arg != NULL; arg = arg->next) {
@@ -819,6 +859,31 @@ void compile_node(Node *node) {
         case TY_LDOUBLE:
           stcnt += 2;
           break;
+        case TY_STRUCT: {
+          int size = ty->var_size;
+          size += (8 - size % 8) % 8;
+
+          if (!arg->pass_by_stack) {
+            for (Member *member = ty->member; member != NULL; member = member->next) {
+              if (member->offset % 8 != 0) {
+                continue;
+              }
+              gen_pop("rax");
+
+              switch (member->ty->kind) {
+                case TY_FLOAT:
+                case TY_DOUBLE:
+                  println("  movq xmm%d, rax", flcnt++);
+                  break;
+                default:
+                  println("  mov %s, rax", argregs64[gecnt++]);
+              }
+            }
+          } else {
+            stcnt += size / 8;
+          }
+          break;
+        }
         default:
           if (gecnt < 6) {
             gen_pop("rax");
@@ -1093,6 +1158,7 @@ void codegen(Node *head, char *filename) {
             println("  mov rax, QWORD PTR [rbp+%d]", stframe);
             stframe += 8;
           }
+          gen_store(param->ty);
           break;
         case TY_FLOAT:
         case TY_DOUBLE: {
@@ -1104,13 +1170,77 @@ void codegen(Node *head, char *filename) {
             println("  movd xmm0, QWORD PTR [rbp+%d]", stframe);
             stframe += 8;
           }
+          gen_store(param->ty);
           break;
         }
         case TY_LDOUBLE:
           println("  fld TBYTE PTR [rbp+%d]", stframe);
           stframe += 16;
+          gen_store(param->ty);
+          break;
+        case TY_STRUCT: {
+          int stsize = 0;
+
+          if (param->ty->var_size > 16) {
+            stsize = param->ty->var_size;
+          } else {
+            int flsize = 0, gesize = 0;
+            for (Member *member = param->ty->member; member != NULL; member = member->next) {
+              switch (member->ty->kind) {
+                case TY_FLOAT:
+                case TY_DOUBLE:
+                  flsize += member->ty->var_size;
+                  gesize += (8 - gesize % 8) % 8;
+                  break;
+                case TY_LDOUBLE:
+                  flsize += 80; // Must pass by stack
+                  break;
+                default:
+                  gesize += member->ty->var_size;
+                  flsize += (8 - flsize % 8) % 8;
+              }
+            }
+            flsize += (8 - flsize % 8) % 8, gesize += (8 - gesize % 8) % 8;
+            flsize /= 8, gesize /= 8;
+
+            if (flcnt + flsize >= 8 || gecnt + gesize >= 6) {
+              stsize = param->ty->var_size;
+            }
+          }
+          stsize += (8 - stsize % 8) % 8;
+
+          if (stsize == 0) {
+            for (Member *member = param->ty->member; member != NULL; member = member->next) {
+              if (member->offset % 8 != 0) {
+                continue;
+              }
+
+              println("  mov rax, QWORD PTR [rsp]");
+              println("  add rax, %d", member->offset);
+              switch (member->ty->kind) {
+                case TY_FLOAT:
+                case TY_DOUBLE:
+                  println("  movq QWORD PTR [rax], xmm%d", flcnt++);
+                  break;
+                default:
+                  println("  mov QWORD PTR [rax], %s", argregs64[gecnt++]);
+              }
+            }
+            gen_pop("rax");
+          } else {
+            gen_push("rsi");
+            gen_push("rcx");
+            println("  mov rdi, QWORD PTR [rsp+16]");
+            println("  lea rsi, [rbp+%d]", stframe);
+            println("  mov rcx, %d", stsize / 8);
+            println("  rep movsq");
+            gen_pop("rcx");
+            gen_pop("rsi");
+            gen_pop("rax");
+            stframe += stsize;
+          }
+        }
       }
-      gen_store(param->ty);
     }
     gen_pop("rdi");
 

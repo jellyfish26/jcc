@@ -2032,7 +2032,9 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
       cur = head.next;
       for (Type *arg_ty = node->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
-        cur->lhs = new_cast(cur->lhs, arg_ty);
+        if (arg_ty->kind != TY_STRUCT) {
+          cur->lhs = new_cast(cur->lhs, arg_ty);
+        }
         cur = cur->next;
       }
 
