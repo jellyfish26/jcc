@@ -76,6 +76,24 @@ long double sd(struct C tmp) {
   return tmp.a;
 }
 
+int arr1(int a[5]) {
+  int ans = 0;
+  for (int i = 0; i < 5; i++) {
+    ans += a[i];
+  }
+  return ans;
+}
+
+int arr2(int a[]) {
+  int ans = 0;
+  a[1] = 2;
+  a[3] = 5;
+  for (int i = 0; i < 5; i++) {
+    ans += a[i];
+  }
+  return ans;
+}
+
 
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
@@ -115,6 +133,19 @@ int main() {
     sc(tmp);
   }));
 
+  CHECK(15, ({
+    int tmp[5] = {1, 2, 3, 4, 5};
+    arr1(tmp);
+  }));
+
+  CHECK(0, ({
+    int tmp[] = {1, 2, 3, 4, 5};
+    int ans = arr2(tmp);
+    for (int i = 0; i < 5; i++) {
+      ans -= tmp[i];
+    }
+    ans;
+  }));
 
   return 0;
 }

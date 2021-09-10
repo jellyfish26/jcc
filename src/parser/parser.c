@@ -1222,6 +1222,12 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty) {
   Obj *cur = &head;
 
   for (Type *param = ty->params; param != NULL; param = param->next) {
+    // In the function parameters, the array is treated as a pointer variable.
+    if (param->kind == TY_ARRAY) {
+      param->kind = TY_PTR;
+      param->var_size = 8;
+    }
+
     cur->next = new_obj(param, param->name);
     cur = cur->next;
     add_var(cur, true);
