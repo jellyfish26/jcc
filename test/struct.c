@@ -269,5 +269,29 @@ int main() {
   CHECKLD(3.1l, ldg.b);
   CHECKLD(4.1l, ldg.a + ldg.b);
 
+  CHECK(16, ({
+    struct D {
+      char a;
+      int b;
+      char c, d;
+      short e;
+    };
+
+    struct D tmp = {.b = 2, 6, .a = 3, .e = 5};
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
+
+  CHECK(6, ({
+    struct D {
+      char a;
+      int b;
+      char c, d;
+      short e;
+    };
+
+    struct D tmp = {.b = 2, 6, .a = 3, .e = 5};
+    tmp.d + tmp.c;
+  }));
+
   return 0;
 }

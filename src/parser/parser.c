@@ -806,19 +806,42 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   if (end_tkn != NULL) *end_tkn = tkn;
 }
 
-// array_initializer = "{" initializer_only ("," initializer_only)* ","? "}" | "{" "}"
-static void array_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
+// initializer-list = "{" designation? initializer_only ("," designation? initializer_only)* ","? "}" | "{" "}"
+// designation = "[" constant-expression "]" "=" |
+//                "." identifier "="
+static void initializer_list(Token *tkn, Token **end_tkn, Initializer *init) {
   if (init->is_flexible) {
     int size = count_array_init_elements(tkn, init->ty);
     *init = *new_initializer(array_to(init->ty->base, size), false);
   }
 
   tkn = skip(tkn, "{");
+  Type *ty = init->ty;
   int idx = 0;
 
   while (!consume_close_brace(tkn, &tkn)) {
     if (idx != 0) {
       tkn = skip(tkn, ",");
+    }
+
+    if (ty->kind == TY_ARRAY && consume(tkn, &tkn, "[")) {
+      int val = eval_expr(conditional(tkn, &tkn));
+      tkn = skip(tkn, "]");
+      tkn = skip(tkn, "=");
+      idx = val;
+    }
+
+    if (ty->kind == TY_STRUCT && consume(tkn, &tkn, ".")) {
+      char *ident = get_ident(tkn);
+      int i = 0;
+      for (Member *member = ty->member; member != NULL; member = member->next) {
+        if (strcmp(ident, member->name) == 0) {
+          break;
+        }
+        i++;
+      }
+      tkn = skip(tkn->next, "=");
+      idx = i;
     }
 
     if (idx < init->size) {
@@ -841,7 +864,7 @@ static void initializer_only(Token *tkn, Token **end_tkn, Initializer *init) {
   }
 
   if (equal(tkn, "{")) {
-    array_initializer(tkn, end_tkn, init);
+    initializer_list(tkn, end_tkn, init);
     return;
   }
 
@@ -1934,7 +1957,7 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 //                    unary-operator cast-expression |
 //                    "sizeof" unary-expression |
 //                    "sizeof" "(" type-name ")"
-//                    "_Alignof" unary-expression (GNU-extension)|
+//                    "_Alignof" unary-expression (GNU-extension) |
 //                    "_Alignof" "(" type-name ")"
 //
 // unary-operator   = "&" | "*" | "+" | "-" | "~" | "!"
