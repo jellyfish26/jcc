@@ -63,6 +63,11 @@ int main() {
     se(tmp);
   }));
 
+  CHECKLD(4.1l, ({
+    struct E tmp = {1, 3.1l};
+    sf(tmp);
+  }));
+
   return 0;
 }
 

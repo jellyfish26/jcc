@@ -108,6 +108,10 @@ struct E {
   long double b;
 };
 
+long double sf(struct E tmp) {
+  return tmp.a + tmp.b;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -168,6 +172,11 @@ int main() {
   CHECKF(5.0, ({
     struct D tmp = {2, 3.0f};
     se(tmp);
+  }));
+
+  CHECKLD(4.1l, ({
+    struct E tmp = {1, 3.1l};
+    sf(tmp);
   }));
 
   return 0;

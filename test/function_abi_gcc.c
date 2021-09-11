@@ -89,3 +89,7 @@ int foo(int a, int b) {
 float se(struct D tmp) {
   return tmp.a + tmp.b;
 }
+
+long double sf(struct E tmp) {
+  return tmp.a + tmp.b;
+}

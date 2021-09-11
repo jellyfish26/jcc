@@ -41,3 +41,10 @@ struct D {
 };
 
 float se(struct D tmp);
+
+struct E {
+  char a;
+  long double b;
+};
+
+long double sf(struct E tmp);
