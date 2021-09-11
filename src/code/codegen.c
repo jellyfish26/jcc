@@ -403,10 +403,16 @@ void expand_ternary(Node *node, int label) {
 
 static void gen_lvar_init(Node *node) {
   gen_addr(node->lhs);
-  int offset = 0;
 
+  int bytes = 0;
   for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
     gen_push("rax");
+    int padding = align_to(bytes, expr->ty->align) - bytes;
+    if (padding != 0) {
+      println("  add QWORD PTR [rsp], %d", padding);
+      bytes += padding;
+    }
+
     if (expr->init != NULL) {
       switch (expr->ty->kind) {
         case TY_STRUCT:
@@ -436,6 +442,7 @@ static void gen_lvar_init(Node *node) {
       println("  rep stosb");
       println("  mov rax, rdi");
     }
+    bytes += expr->ty->var_size;
   }
 }
 
@@ -449,8 +456,15 @@ static void gen_gvar_init(Node *node) {
     return;
   }
 
-
+  int bytes = 0;
   for (Node *init = node->rhs; init != NULL; init = init->lhs) {
+    int padding = align_to(bytes, init->ty->align) - bytes;
+    if (padding != 0) {
+      println("  .zero %d", padding);
+      bytes += padding;
+    }
+    bytes += init->ty->var_size;
+
     if (init->init == NULL) {
       println("  .zero %d", init->ty->var_size);
       continue;

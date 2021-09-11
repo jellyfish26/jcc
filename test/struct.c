@@ -12,6 +12,12 @@ struct C {
 };
 
 struct C gp = {&g, 2};
+struct LD {
+  char a;
+  long double b;
+};
+
+struct LD ldg = {1, 3.1l};
 
 int main() {
   CHECK(8, sizeof(struct A));
@@ -243,6 +249,25 @@ int main() {
     };
     sizeof(struct E);
   }));
+
+  CHECKL(1, ({
+    struct LD tmp = {1, 3.1l};
+    tmp.a;
+  }));
+
+  CHECKLD(3.1l, ({
+    struct LD tmp = {1, 3.1l};
+    tmp.b;
+  }));
+
+  CHECKLD(4.1l, ({
+    struct LD tmp = {1, 3.1l};
+    tmp.a + tmp.b;
+  }));
+
+  CHECK(1, ldg.a);
+  CHECKLD(3.1l, ldg.b);
+  CHECKLD(4.1l, ldg.a + ldg.b);
 
   return 0;
 }
