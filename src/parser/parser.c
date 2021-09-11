@@ -1934,6 +1934,8 @@ static Node *cast(Token *tkn, Token **end_tkn) {
 //                    unary-operator cast-expression |
 //                    "sizeof" unary-expression |
 //                    "sizeof" "(" type-name ")"
+//                    "_Alignof" unary-expression (GNU-extension)|
+//                    "_Alignof" "(" type-name ")"
 //
 // unary-operator   = "&" | "*" | "+" | "-" | "~" | "!"
 // typename =  specifier-qualifier-list abstruct-declarator?
@@ -1982,7 +1984,8 @@ static Node *unary(Token *tkn, Token **end_tkn) {
     return new_calc(ND_EQ, tkn, cast(tkn->next, end_tkn), new_num(tkn, 0));
   }
 
-  if (equal(tkn, "sizeof")) {
+  if (equal(tkn, "sizeof") || equal(tkn, "_Alignof")) {
+    bool is_sizeof = equal(tkn, "sizeof");
     tkn = tkn->next;
 
     // type-name
@@ -1992,12 +1995,12 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 
       tkn = skip(tkn, ")");
       if (end_tkn != NULL) *end_tkn = tkn;
-      return new_num(tkn, ty->var_size);
+      return new_num(tkn, is_sizeof ? ty->var_size : ty->align);
     }
 
     Node *node = unary(tkn, end_tkn);
     add_type(node);
-    return new_num(tkn, node->ty->var_size);
+    return new_num(tkn, is_sizeof ? node->ty->var_size : node->ty->align);
   }
 
   return postfix(tkn, end_tkn);
