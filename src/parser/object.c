@@ -29,6 +29,7 @@ static Type *new_ty(TypeKind kind, bool is_unsigned, int size) {
   ty->kind = kind;
   ty->is_unsigned = is_unsigned;
   ty->var_size = size;
+  ty->align = size;
   return ty;
 }
 
@@ -63,13 +64,14 @@ Type *pointer_to(Type *base) {
   return ty;
 }
 
-Type *array_to(Type *type, int array_len) {
-  Type *ret = calloc(1, sizeof(Type));
-  ret->kind = TY_ARRAY;
-  ret->base = type;
-  ret->var_size = array_len * type->var_size;
-  ret->array_len = array_len;
-  return ret;
+Type *array_to(Type *base, int array_len) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = TY_ARRAY;
+  ty->base = base;
+  ty->var_size = array_len * base->var_size;
+  ty->array_len = array_len;
+  ty->align = base->align;
+  return ty;
 }
 
 bool is_integer_ty(Type *ty) {

@@ -96,10 +96,10 @@ struct Node {
   long double fval;   // Floating-value if kind is ND_NUM
 };
 
+int align_to(int bytes, int align);
 Node *new_cast(Node *expr, Type *ty);
 Node *new_var(Token *tkn, Obj *obj);
 Node *last_stmt(Node *now);
-
 Node *program(Token *tkn);
 
 //
@@ -141,6 +141,7 @@ struct Type {
   Type *base;
 
   int var_size;  // Variable size
+  int align;     // Alignment
   int array_len; // Array length if kind is TY_ARRAY
 
   // Function type

@@ -534,10 +534,6 @@ static bool has_only_float(Type *ty, int begin, int end, int offset) {
   return ret;
 }
 
-static int align8_size(int size) {
-  return size + (8 - size % 8) % 8;
-}
-
 static void push_argsre(Node *node, bool pass_stack) {
   if (node == NULL) {
     return;
@@ -562,7 +558,7 @@ static void push_argsre(Node *node, bool pass_stack) {
       println("  fstp TBYTE PTR [rsp]");
       break;
     case TY_STRUCT: {
-      println("  sub rsp, %d", align8_size(ty->var_size));
+      println("  sub rsp, %d", align_to(ty->var_size, 8));
       gen_addr(node->lhs);
       println("  mov rsi, rax");
       println("  mov rdi, rsp");
@@ -876,7 +872,7 @@ void compile_node(Node *node) {
           break;
         case TY_STRUCT: {
           if (arg->pass_by_stack) {
-            stcnt += align8_size(ty->var_size) / 8;
+            stcnt += align_to(ty->var_size, 8) / 8;
             break;
           }
 

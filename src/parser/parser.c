@@ -80,6 +80,10 @@ static char *new_unique_label() {
   return ptr;
 }
 
+int align_to(int bytes, int align) {
+  return bytes + (align - bytes % align) % align;
+}
+
 static Node *new_node(NodeKind kind, Token *tkn) {
   Node *node = calloc(1, sizeof(Node));
   node->tkn = tkn;
@@ -359,13 +363,14 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
   return ty;
 }
 
+
 // struct-or-union-specifier = struct-or-union identifier |
 //                             struct-or-union identifier? "{" struct-declaration-list "}"
 //
 // struct-or-union = "struct" | "union"
 //
 // struct-declaration-list = struct-declaration*
-// struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct -declarator)* ";"
+// struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct-declarator)* ";"
 //
 // struct-declarator = declarator
 static Type *stunspec(Token *tkn, Token **end_tkn) {
@@ -386,6 +391,7 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
 
   if (tag != NULL && !equal(tkn, "{")) {
     Type *ty = find_tag(tag);
+
     if (ty == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This struct tag is not declared");
     } else if (ty->kind != kind) {
@@ -396,9 +402,11 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     return ty;
   }
 
+
+  // Construct struct or union member.
+  Type *ty = calloc(1, sizeof(Type));
   Member head = {};
   Member *cur = &head;
-  Type *ty = calloc(1, sizeof(Type));
   int member_cnt = 0;
 
   tkn = skip(tkn, "{");
@@ -417,39 +425,47 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       is_first = false;
 
       Type *member_ty = declarator(tkn, &tkn, copy_ty(base_ty));
-      if (member_ty != NULL) {
-        if (find_member(head.next, member_ty->name) != NULL) {
-          errorf_tkn(ER_COMPILE, tkn, "Duplicate member");
-        }
-
-        Member *member = calloc(1, sizeof(Member));
-        member->ty = member_ty;
-        member->tkn = member_ty->tkn;
-        member->name = member_ty->name;
-
-        if (kind == TY_STRUCT) {
-          // Alignment
-          int mod = extract_arr_ty(member_ty)->var_size;
-          int remain = (mod - ty->var_size % mod) % mod;
-          ty->var_size += remain;
-
-          member->offset = ty->var_size;
-          ty->var_size += member_ty->var_size;
-        } else {
-          if (ty->var_size < member_ty->var_size) {
-            ty->var_size = member_ty->var_size;
-          }
-        }
-
-        cur->next = member;
-        cur = member;
-        member_cnt++;
+      if (member_ty == NULL) {
+        continue;
       }
+
+      if (find_member(head.next, member_ty->name) != NULL) {
+        errorf_tkn(ER_COMPILE, tkn, "Duplicate member");
+      }
+
+      Member *member = calloc(1, sizeof(Member));
+      member->ty = member_ty;
+      member->tkn = member_ty->tkn;
+      member->name = member_ty->name;
+
+      cur->next = member;
+      cur = member;
+      member_cnt++;
     }
   }
   ty->member = head.next;
   ty->member_cnt = member_cnt;
   ty->kind = kind;
+
+  // Initializer size, offset and align.
+  int bytes = 0, align = 0;
+  for (Member *member = head.next; member != NULL; member = member->next) {
+    if (kind == TY_UNION) {
+      if (bytes < member->ty->var_size) {
+        bytes = member->ty->var_size;
+      }
+    } else {
+      bytes = align_to(bytes, member->ty->align);
+      member->offset = bytes;
+      bytes += member->ty->var_size;
+    }
+
+    if (align < member->ty->align) {
+      align = member->ty->align;
+    }
+  }
+  ty->var_size = bytes;
+  ty->align = align;
 
   if (tag != NULL) {
     add_tag(ty, tag);

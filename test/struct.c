@@ -219,5 +219,30 @@ int main() {
     sizeof(struct D);
   }));
 
+  CHECK(12, ({
+    struct D {
+      char a;
+      int b;
+      char c, d;
+      short e;
+    };
+    sizeof(struct D);
+  }));
+
+  CHECK(16, ({
+    struct D {
+      char a;
+      int b;
+      char c, d;
+      short e;
+    };
+
+    struct E {
+      char a;
+      struct D b;
+    };
+    sizeof(struct E);
+  }));
+
   return 0;
 }
