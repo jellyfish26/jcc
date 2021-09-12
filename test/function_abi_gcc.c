@@ -102,3 +102,11 @@ long double sg(struct E tmp, long double a, int b) {
 float si(struct D tmp, int a, int b, float c) {
   return se(tmp) + a + b + c;
 }
+
+int sj(struct F tmp) {
+  return tmp.a + tmp.b;
+}
+
+int sk(struct F tmp) {
+  return tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+}

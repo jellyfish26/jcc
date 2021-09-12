@@ -78,6 +78,23 @@ int main() {
     si(tmp, 2, 3, 3.0f);
   }));
 
+  CHECK(48, ({
+    struct F tmp;
+    tmp.a = 2;
+    tmp.b = 50;
+    sj(tmp);
+  }));
+
+  CHECK(288, ({
+    struct F tmp;
+    tmp.a = 2;
+    tmp.b = 50;
+    tmp.c = 1;
+    tmp.d = -1;
+    tmp.e = 240;
+    sk(tmp);
+  }));
+
   return 0;
 }
 

@@ -120,6 +120,21 @@ float si(struct D tmp, int a, int b, float c) {
   return se(tmp) + a + b + c;
 }
 
+struct F {
+  char a: 2;
+  int b: 30;
+  char c: 2, d: 2;
+  short e: 12;
+};
+
+int sj(struct F tmp) {
+  return tmp.a + tmp.b;
+}
+
+int sk(struct F tmp) {
+  return tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -195,6 +210,23 @@ int main() {
   CHECKF(13.0f, ({
     struct D tmp = {2, 3.0f};
     si(tmp, 2, 3, 3.0f);
+  }));
+
+  CHECK(48, ({
+    struct F tmp;
+    tmp.a = 2;
+    tmp.b = 50;
+    sj(tmp);
+  }));
+
+  CHECK(288, ({
+    struct F tmp;
+    tmp.a = 2;
+    tmp.b = 50;
+    tmp.c = 1;
+    tmp.d = -1;
+    tmp.e = 240;
+    sk(tmp);
   }));
 
   return 0;

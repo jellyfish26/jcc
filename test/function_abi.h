@@ -50,3 +50,13 @@ struct E {
 long double sf(struct E tmp);
 long double sg(struct E tmp, long double a, int b);
 float si(struct D tmp, int a, int b, float c);
+
+struct F {
+  char a: 2;
+  int b: 30;
+  char c: 2, d: 2;
+  short e: 12;
+};
+
+int sj(struct F tmp);
+int sk(struct F tmp);

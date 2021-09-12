@@ -177,7 +177,8 @@ void add_var(Obj *var, bool set_offset) {
 
   if (set_offset) {
     int sz = var->ty->var_size;
-    var->offset = (offset += sz);
+    offset = align_to(offset + sz, 8);
+    var->offset = offset;
   }
 }
 
