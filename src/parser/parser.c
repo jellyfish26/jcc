@@ -857,17 +857,24 @@ static void initializer_list(Token *tkn, Token **end_tkn, Initializer *init) {
       idx = val;
     }
 
-    if (ty->kind == TY_STRUCT && consume(tkn, &tkn, ".")) {
+    if ((ty->kind == TY_STRUCT || ty->kind == TY_UNION) && consume(tkn, &tkn, ".")) {
       char *ident = get_ident(tkn);
       int i = 0;
+      Type *member_ty;
       for (Member *member = ty->member; member != NULL; member = member->next) {
+        member_ty = member->ty;
         if (strcmp(ident, member->name) == 0) {
           break;
         }
         i++;
       }
       tkn = skip(tkn->next, "=");
-      idx = i;
+      if (ty->kind == TY_UNION) {
+        idx = 0;
+        init->children[0]->ty = member_ty;
+      } else {
+        idx = i;
+      }
     }
 
     if (idx < init->size) {
@@ -951,7 +958,7 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
   }
 
   if (ty->kind == TY_UNION) {
-    create_init_node(init->children[0], connect, only_const, ty->member->ty);
+    create_init_node(init->children[0], connect, only_const, init->children[0]->ty);
   }
 }
 

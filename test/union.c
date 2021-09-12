@@ -7,6 +7,14 @@ union A {
 
 union A g = {2};
 
+union C {
+  int a: 3;
+  int b: 8;
+};
+
+union C ca = {-3};
+union C cb = {.b = 11};
+
 int main() {
   CHECK(4, sizeof(union A));
 
@@ -185,6 +193,39 @@ int main() {
     tmp.a = -3;
     tmp.a + tmp.b;
   }));
+
+  CHECK(2, ({
+    union B {
+      int a: 3;
+      int b: 8;
+    };
+    union B tmp = {-3};
+    tmp.a + tmp.b;
+  }));
+
+  CHECK(11, ({
+    union B {
+      int a: 3;
+      int b: 8;
+    };
+    union B tmp = {.b = 11};
+    tmp.b;
+  }));
+
+  CHECK(10, ({
+    union B {
+      int a: 3;
+      int b: 8;
+    };
+    union B tmp = {.b = 11};
+    tmp.a = -3;
+    tmp.a + tmp.b;
+  }));
+
+  CHECK(-3, ca.a);
+  CHECK(5, ca.b);
+  CHECK(11, cb.b);
+  CHECK(14, cb.a + cb.b);
 
   return 0;
 }

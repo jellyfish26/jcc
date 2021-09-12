@@ -423,6 +423,14 @@ void expand_ternary(Node *node, int label) {
 static void gen_lvar_init(Node *node) {
   gen_addr(node->lhs);
 
+  // zero fill
+  gen_push("rax");
+  println("  mov %%rax, %%rdi");
+  println("  xor %%rax, %%rax");
+  println("  mov $%d, %%rcx", node->lhs->ty->var_size);
+  println("  rep stosb");
+  gen_pop("rax");
+
   int bytes = 0, bit_offset = 0;
   for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
     gen_push("rax");
@@ -504,7 +512,6 @@ static void gen_gvar_init(Node *node) {
   int64_t *bit = calloc(1, sizeof(int64_t));
   for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
     if (expr->ty->bit_field > 0) {
-      printf("aaa\n");
       if (bit_offset + expr->ty->bit_field > expr->ty->var_size * 8) {
         for (int i = 0; i < align_to(bit_offset, 8) / 8; i++) {
           println("  .byte %d", *((int8_t *)bit + i));
@@ -596,6 +603,10 @@ static void gen_gvar_init(Node *node) {
 
   for (int i = 0; i < align_to(bit_offset, 8) / 8; i++) {
     println("  .byte %d", *((int8_t *)bit + i));
+  }
+  bytes += align_to(bit_offset, 8) / 8;
+  if (bytes < obj->ty->var_size) {
+    println("  .zero %d", obj->ty->var_size - bytes);
   }
 }
 
