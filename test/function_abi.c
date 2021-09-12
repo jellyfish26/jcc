@@ -95,6 +95,21 @@ int main() {
     sk(tmp);
   }));
 
+  CHECK(14, ({
+    union G tmp;
+    tmp.b = 11;
+    ua(tmp);
+  }));
+
+  CHECK(10, ({
+    union G tmp;
+    tmp.b = 11;
+    tmp.a = -3;
+    ua(tmp);
+  }));
+
+
+
   return 0;
 }
 

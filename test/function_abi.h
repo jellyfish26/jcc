@@ -60,3 +60,12 @@ struct F {
 
 int sj(struct F tmp);
 int sk(struct F tmp);
+
+union G {
+  int a: 3;
+  int b: 8;
+};
+
+int ua(union G tmp);
+
+

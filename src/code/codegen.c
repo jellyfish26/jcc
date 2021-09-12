@@ -4,6 +4,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -422,9 +423,34 @@ void expand_ternary(Node *node, int label) {
 static void gen_lvar_init(Node *node) {
   gen_addr(node->lhs);
 
-  int bytes = 0;
+  int bytes = 0, bit_offset = 0;
   for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
     gen_push("rax");
+    if (expr->ty->bit_field > 0) {
+      if (bit_offset + expr->ty->bit_field > expr->ty->var_size * 8) {
+        println("  addq $%d, (%%rsp)", align_to(bit_offset, 8) / 8);
+        bytes += align_to(bit_offset, 8) / 8;
+        bit_offset = 0;
+      }
+      bit_offset += expr->ty->bit_field;
+
+      if (expr->init != NULL) {
+        compile_node(expr->init);
+      } else {
+        println("  xor %%rax, %%rax");
+      }
+
+      gen_store(expr->ty);
+      println("  mov %%rdi, %%rax");
+      continue;
+    }
+
+    if (align_to(bit_offset, 8) != 0) {
+      println("  addq $%d, (%%rsp)", align_to(bit_offset, 8) / 8);
+      bytes += align_to(bit_offset, 8) / 8;
+      bit_offset = 0;
+    }
+
     int padding = align_to(bytes, expr->ty->align) - bytes;
     if (padding != 0) {
       println("  addq $%d, (%%rsp)", padding);
@@ -474,40 +500,67 @@ static void gen_gvar_init(Node *node) {
     return;
   }
 
-  int bytes = 0;
-  for (Node *init = node->rhs; init != NULL; init = init->lhs) {
-    int padding = align_to(bytes, init->ty->align) - bytes;
+  int bytes = 0, bit_offset = 0;
+  int64_t *bit = calloc(1, sizeof(int64_t));
+  for (Node *expr = node->rhs; expr != NULL; expr = expr->lhs) {
+    if (expr->ty->bit_field > 0) {
+      printf("aaa\n");
+      if (bit_offset + expr->ty->bit_field > expr->ty->var_size * 8) {
+        for (int i = 0; i < align_to(bit_offset, 8) / 8; i++) {
+          println("  .byte %d", *((int8_t *)bit + i));
+        }
+        bytes += align_to(bit_offset, 8) / 8;
+        bit_offset = 0;
+        *bit = 0;
+      }
+
+      int64_t val = expr->init->val;
+      val &= ((1LL<<expr->ty->bit_field) - 1);
+      val <<= expr->ty->bit_offset;
+      *bit |= val;
+      bit_offset += expr->ty->bit_field;
+      continue;
+    }
+
+    for (int i = 0; i < align_to(bit_offset, 8) / 8; i++) {
+      println("  .byte %d", *((int8_t *)bit + i));
+    }
+    bytes += align_to(bit_offset, 8) / 8;
+    bit_offset = 0;
+    *bit = 0;
+
+    int padding = align_to(bytes, expr->ty->align) - bytes;
     if (padding != 0) {
       println("  .zero %d", padding);
       bytes += padding;
     }
-    bytes += init->ty->var_size;
+    bytes += expr->ty->var_size;
 
-    if (init->init == NULL) {
-      println("  .zero %d", init->ty->var_size);
+    if (expr->init == NULL) {
+      println("  .zero %d", expr->ty->var_size);
       continue;
     }
 
-    if (init->ty->kind == TY_FLOAT) {
+    if (expr->ty->kind == TY_FLOAT) {
       float *ptr = calloc(1, sizeof(float));
-      *ptr = (float)init->init->fval;
+      *ptr = (float)expr->init->fval;
       println("  .long %d", *(int*)ptr);
       free(ptr);
       continue;
     }
 
-    if (init->ty->kind == TY_DOUBLE) {
+    if (expr->ty->kind == TY_DOUBLE) {
       double *ptr = calloc(1, sizeof(double));
-      *ptr = (double)init->init->fval;
+      *ptr = (double)expr->init->fval;
       println("  .long %d", *(int*)ptr);
       println("  .long %d", *((int*)ptr + 1));
       free(ptr);
       continue;
     }
 
-    if (init->ty->kind == TY_LDOUBLE) {
+    if (expr->ty->kind == TY_LDOUBLE) {
       long double *ptr = calloc(1, sizeof(double));
-      *ptr = init->init->fval;
+      *ptr = expr->init->fval;
       for (int i = 0; i < 4; i++) {
         println("  .long %d", *((int*)ptr + i));
       }
@@ -516,7 +569,7 @@ static void gen_gvar_init(Node *node) {
     }
 
     char *asm_ty;
-    switch (init->ty->var_size) {
+    switch (expr->ty->var_size) {
       case 1:
         asm_ty = ".byte";
         break;
@@ -533,12 +586,16 @@ static void gen_gvar_init(Node *node) {
         return;
     }
 
-    char *ptr_label = init->init->var->name;
+    char *ptr_label = expr->init->var->name;
     if (ptr_label == NULL) {
-      println("  %s %d", asm_ty, init->init->val);
+      println("  %s %d", asm_ty, expr->init->val);
     } else {
-      println("  %s %s%+d", asm_ty, ptr_label, init->init->val);
+      println("  %s %s%+d", asm_ty, ptr_label, expr->init->val);
     }
+  }
+
+  for (int i = 0; i < align_to(bit_offset, 8) / 8; i++) {
+    println("  .byte %d", *((int8_t *)bit + i));
   }
 }
 
@@ -1225,7 +1282,8 @@ void codegen(Node *head, char *filename) {
           stframe += 16;
           gen_store(param->ty);
           break;
-        case TY_STRUCT: {
+        case TY_STRUCT:
+        case TY_UNION: {
           int stsize = 0;
 
           if (param->ty->var_size > 16 || param->ty->member->ty->kind == TY_LDOUBLE) {

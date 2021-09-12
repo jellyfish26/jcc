@@ -19,6 +19,24 @@ struct LD {
 
 struct LD ldg = {1, 3.1l};
 
+struct E {
+  unsigned char a: 2;
+  int b: 30;
+  char c: 2, d: 2;
+  short e: 12;
+};
+
+struct E ea = {2, 50, 1, -1, 240};
+
+struct F {
+  int a: 2;
+  int b: 10;
+  unsigned int c: 5;
+  int d;
+};
+
+struct F fa = {2, 100, 16, -100};
+
 int main() {
   CHECK(8, sizeof(struct A));
 
@@ -342,6 +360,37 @@ int main() {
     tmp.d = -1;
     tmp.e = 240;
     tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
+
+  CHECK(292, ({
+    struct D {
+      unsigned char a: 2;
+      int b: 30;
+      char c: 2, d: 2;
+      short e: 12;
+    };
+    struct D tmp = {2, 50, 1, -1, 240};
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
+
+  CHECK(293, ({
+    struct D {
+      unsigned char a: 2;
+      int b: 30;
+      char c: 2, d: 2;
+      short e: 12;
+    };
+    struct D tmp = {.b = 50, 1, .e = 240, .a = 2};
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
+
+  CHECK(292, ea.a + ea.b + ea.c + ea.d + ea.e);
+
+  CHECK(8, sizeof(struct F));
+  CHECK(14, fa.a + fa.b + fa.c + fa.d);
+  CHECK(14, ({
+    struct F tmp = {2, 100, 16, -100};
+    tmp.a + tmp.b + tmp.c + tmp.d;
   }));
 
   return 0;

@@ -135,6 +135,15 @@ int sk(struct F tmp) {
   return tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
 }
 
+union G {
+  int a: 3;
+  int b: 8;
+};
+
+int ua(union G tmp) {
+  return tmp.a + tmp.b;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -227,6 +236,19 @@ int main() {
     tmp.d = -1;
     tmp.e = 240;
     sk(tmp);
+  }));
+
+  CHECK(14, ({
+    union G tmp;
+    tmp.b = 11;
+    ua(tmp);
+  }));
+
+  CHECK(10, ({
+    union G tmp;
+    tmp.b = 11;
+    tmp.a = -3;
+    ua(tmp);
   }));
 
   return 0;

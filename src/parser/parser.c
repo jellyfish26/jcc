@@ -481,6 +481,8 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       bit_offset += member->ty->bit_field;
       continue;
     }
+    bytes += align_to(bit_offset, 8) / 8;
+    bit_offset = 0;
 
     bytes = align_to(bytes, member->ty->align);
     member->offset = bytes;

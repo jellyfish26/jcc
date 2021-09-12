@@ -110,3 +110,7 @@ int sj(struct F tmp) {
 int sk(struct F tmp) {
   return tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
 }
+
+int ua(union G tmp) {
+  return tmp.a + tmp.b;
+}
