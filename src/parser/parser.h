@@ -141,7 +141,6 @@ struct Type {
   Type *base;
 
   int var_size;  // Variable size
-  int align;     // Alignment
   int array_len; // Array length if kind is TY_ARRAY
 
   // Function type
@@ -156,6 +155,9 @@ struct Type {
   // Struct type
   int member_cnt;
   Member *member;
+  int align;      // Alignment
+  int bit_field;  // Bit field
+  int bit_offset; // Bit offset 
 };
 
 // Must call init_type function before use.

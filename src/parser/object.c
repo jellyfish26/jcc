@@ -397,7 +397,7 @@ void add_type(Node *node) {
 
 Member *find_member(Member *head, char *name) {
   for (Member *member = head; member != NULL; member = member->next) {
-    if (memcmp(member->name, name, strlen(name)) == 0) {
+    if (member->name != NULL && memcmp(member->name, name, strlen(name)) == 0) {
       return member;
     }
   }

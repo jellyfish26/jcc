@@ -90,6 +90,11 @@ static void gen_load(Type *ty) {
   } else {
     println("  mov rax, QWORD PTR [rax]");
   }
+
+  if (ty->bit_field > 0) {
+    println("  shl rax, %d", 64 - ty->bit_offset - ty->bit_field);
+    println("  %s rax, %d", ty->is_unsigned ? "shr" : "sar", 64 - ty->bit_field);
+  }
 }
 
 // Store the value of the rax register at the address pointed to by the top of the stack.
@@ -105,6 +110,20 @@ static void gen_store(Type *ty) {
   } else if (ty->kind == TY_LDOUBLE) {
     println("  fstp TBYTE PTR [rdi]");
     return;
+  }
+
+  if (ty->bit_field > 0) {
+    gen_push("rdi");
+    gen_push("rdx");
+    println("  mov rdx, %ld", (1LL<<ty->bit_field) - 1);
+    println("  and rax, rdx");
+    println("  shl rax, %d", ty->bit_offset);
+    println("  mov rdi, QWORD PTR [rdi]");
+    println("  mov rdx, %ld", (-1LL) - (((1LL<<ty->bit_field)- 1)<<ty->bit_offset));
+    println("  and rdi, rdx");
+    println("  or rax, rdi");
+    gen_pop("rdx");
+    gen_pop("rdi");
   }
 
   if (ty->var_size == 1) {

@@ -165,5 +165,26 @@ int main() {
     fuga->A + fuga->B + hoge.A + hoge.B;
   }));
 
+  CHECK(14, ({
+    union B {
+      int a: 3;
+      int b: 8;
+    };
+    union B tmp;
+    tmp.b = 11;
+    tmp.a + tmp.b;
+  }));
+
+  CHECK(10, ({
+    union B {
+      int a: 3;
+      int b: 8;
+    };
+    union B tmp;
+    tmp.b = 11;
+    tmp.a = -3;
+    tmp.a + tmp.b;
+  }));
+
   return 0;
 }

@@ -363,7 +363,6 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
   return ty;
 }
 
-
 // struct-or-union-specifier = struct-or-union identifier |
 //                             struct-or-union identifier? "{" struct-declaration-list "}"
 //
@@ -372,7 +371,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
 // struct-declaration-list = struct-declaration*
 // struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct-declarator)* ";"
 //
-// struct-declarator = declarator
+// struct-declarator = declarator | declarator ":" constant-expression
 static Type *stunspec(Token *tkn, Token **end_tkn) {
   TypeKind kind;
   if (consume(tkn, &tkn, "struct")) {
@@ -425,6 +424,16 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       is_first = false;
 
       Type *member_ty = declarator(tkn, &tkn, copy_ty(base_ty));
+
+      if (consume(tkn, &tkn, ":")) {
+        if (member_ty == NULL) {
+          member_ty = copy_ty(base_ty);
+        }
+        member_ty->bit_field = eval_expr(conditional(tkn, &tkn));
+      } else {
+        member_ty->bit_field = -1;
+      }
+
       if (member_ty == NULL) {
         continue;
       }
@@ -448,22 +457,37 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
   ty->kind = kind;
 
   // Initializer size, offset and align.
-  int bytes = 0, align = 0;
+  int bytes = 0, align = 0, bit_offset = 0;
   for (Member *member = head.next; member != NULL; member = member->next) {
+    if (align < member->ty->align) {
+      align = member->ty->align;
+    }
+
     if (kind == TY_UNION) {
       if (bytes < member->ty->var_size) {
         bytes = member->ty->var_size;
       }
-    } else {
-      bytes = align_to(bytes, member->ty->align);
-      member->offset = bytes;
-      bytes += member->ty->var_size;
+      continue;
     }
 
-    if (align < member->ty->align) {
-      align = member->ty->align;
+    if (member->ty->bit_field != -1) {
+      if (member->ty->bit_field == 0 || bit_offset + member->ty->bit_field > member->ty->var_size * 8) {
+        bytes += align_to(bit_offset, 8) / 8;
+        bit_offset = 0;
+      }
+
+      member->ty->bit_offset = bit_offset;
+      member->offset = bytes;
+      bit_offset += member->ty->bit_field;
+      continue;
     }
+
+    bytes = align_to(bytes, member->ty->align);
+    member->offset = bytes;
+    bytes += member->ty->var_size;
+    bit_offset = 0;
   }
+  bytes += align_to(bit_offset, 8) / 8;
   ty->var_size = bytes;
   ty->align = align;
 
@@ -2127,8 +2151,8 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     node = new_unary(ND_ADD, tkn, node);
     node->rhs = new_num(tkn, member->offset);
     node = new_unary(ND_CONTENT, tkn, node);
-
     add_type(node);
+
     node->ty = member->ty;
     tkn = tkn->next->next;
   }

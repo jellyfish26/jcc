@@ -293,5 +293,56 @@ int main() {
     tmp.d + tmp.c;
   }));
 
+  CHECK(6, ({
+    struct D {
+      char a: 2;
+      int b: 30;
+      char c: 2, d: 2;
+      short e: 12;
+    };
+    sizeof(struct D);
+  }));
+
+  CHECK(-2, ({
+    struct D {
+      char a: 2;
+      int b: 30;
+      char c: 2, d: 2;
+      short e: 12;
+    };
+    struct D tmp;
+    tmp.a = 2;
+    tmp.a;
+  }));
+
+  CHECK(48, ({
+    struct D {
+      char a: 2;
+      int b: 30;
+      char c: 2, d: 2;
+      short e: 12;
+    };
+    struct D tmp;
+    tmp.a = 2;
+    tmp.b = 50;
+    tmp.b + tmp.a;
+  }));
+
+  CHECK(288, ({
+    struct D {
+      char a: 2;
+      int b: 30;
+      char c: 2, d: 2;
+      short e: 12;
+    };
+    struct D tmp;
+    tmp.a = 2;
+    tmp.b = 50;
+    tmp.c = 1;
+    tmp.d = -1;
+    tmp.e = 240;
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
+
   return 0;
 }
