@@ -68,11 +68,6 @@ int main() {
     sf(tmp);
   }));
 
-  CHECKLD(4.1l, ({
-    struct E tmp = {1, 3.1l};
-    sf(tmp);
-  }));
-
   CHECKLD(9.1l, ({
     struct E tmp = {1, 3.1l};
     sg(tmp, 2.0l, 3);

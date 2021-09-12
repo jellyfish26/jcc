@@ -25,15 +25,15 @@ static void println(char *fmt, ...) {
 void compile_node(Node *node);
 
 static void gen_push(const char *reg) {
-  println("  push %s", reg);
+  println("  push %%%s", reg);
 }
 
 static void gen_pop(const char *reg) {
-  println("  pop %s", reg);
+  println("  pop %%%s", reg);
 }
 
 static void gen_emptypop(int num) {
-  println("  add rsp, %d", num * 8);
+  println("  add $%d, %%rsp", num * 8);
 }
 
 // Compute the address of a given node.
@@ -43,12 +43,12 @@ static void gen_addr(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       if (node->var->is_global) {
-        println("  mov rax, offset %s", node->var->name);
+        println("  mov $%s, %%rax", node->var->name);
         return;
       }
 
-      println("  mov rax, rbp");
-      println("  sub rax, %d", node->var->offset);
+      println("  mov %%rbp, %%rax");
+      println("  sub $%d, %%rax", node->var->offset);
       return;
     case ND_CONTENT:
       compile_node(node->lhs);
@@ -66,13 +66,13 @@ static void gen_load(Type *ty) {
   }
 
   if (ty->kind == TY_FLOAT) {
-    println("  movss xmm0, DWORD PTR [rax]");
+    println("  movss (%%rax), %%xmm0");
     return;
   } else if (ty->kind == TY_DOUBLE) {
-    println("  movsd xmm0, QWORD PTR [rax]");
+    println("  movsd (%%rax), %%xmm0");
     return;
   } else if (ty->kind == TY_LDOUBLE) {
-    println("  fld TBYTE PTR [rax]");
+    println("  fldt (%%rax)");
     return;
   }
 
@@ -82,18 +82,18 @@ static void gen_load(Type *ty) {
   // they may contain garbage in the lower 32bits,
   // so we are always extended to int.
   if (ty->var_size == 1) {
-    println("  %sx eax, BYTE PTR [rax]", unsi);
+    println("  %sxb (%%rax), %%eax", unsi);
   } else if (ty->var_size == 2) {
-    println("  %sx eax, WORD PTR [rax]", unsi);
+    println("  %sxw (%%rax), %%eax", unsi);
   } else if (ty->var_size == 4) {
-    println("  mov eax, DWORD PTR [rax]");
+    println("  mov (%%rax), %%eax");
   } else {
-    println("  mov rax, QWORD PTR [rax]");
+    println("  mov (%%rax), %%rax");
   }
 
   if (ty->bit_field > 0) {
-    println("  shl rax, %d", 64 - ty->bit_offset - ty->bit_field);
-    println("  %s rax, %d", ty->is_unsigned ? "shr" : "sar", 64 - ty->bit_field);
+    println("  shl $%d, %%rax", 64 - ty->bit_offset - ty->bit_field);
+    println("  %s $%d, %%rax", ty->is_unsigned ? "shr" : "sar", 64 - ty->bit_field);
   }
 }
 
@@ -102,245 +102,244 @@ static void gen_store(Type *ty) {
   gen_pop("rdi");
 
   if (ty->kind == TY_FLOAT) {
-    println("  movss DWORD PTR [rdi], xmm0");
+    println("  movss %%xmm0, (%%rdi)");
     return;
   } else if (ty->kind == TY_DOUBLE) {
-    println("  movsd QWORD PTR [rdi], xmm0");
+    println("  movsd %%xmm0, (%%rdi)");
     return;
   } else if (ty->kind == TY_LDOUBLE) {
-    println("  fstp TBYTE PTR [rdi]");
+    println("  fstpt (%%rdi)");
     return;
   }
 
   if (ty->bit_field > 0) {
     gen_push("rdi");
     gen_push("rdx");
-    println("  mov rdx, %ld", (1LL<<ty->bit_field) - 1);
-    println("  and rax, rdx");
-    println("  shl rax, %d", ty->bit_offset);
-    println("  mov rdi, QWORD PTR [rdi]");
-    println("  mov rdx, %ld", (-1LL) - (((1LL<<ty->bit_field)- 1)<<ty->bit_offset));
-    println("  and rdi, rdx");
-    println("  or rax, rdi");
+    println("  movabs $%ld, %%rdx", (1LL<<ty->bit_field) - 1);
+    println("  and %%rdx, %%rax");
+    println("  shl $%d, %%rax", ty->bit_offset);
+    println("  mov (%%rdi), %%rdi");
+    println("  movabs $%ld, %%rdx", (-1LL) - (((1LL<<ty->bit_field)- 1)<<ty->bit_offset));
+    println("  and %%rdx, %%rdi");
+    println("  or %%rdi, %%rax");
     gen_pop("rdx");
     gen_pop("rdi");
   }
 
   if (ty->var_size == 1) {
-    println("  mov BYTE PTR [rdi], al");
+    println("  mov %%al, (%%rdi)");
   } else if (ty->var_size == 2) {
-    println("  mov WORD PTR [rdi], ax");
+    println("  mov %%ax, (%%rdi)");
   } else if (ty->var_size == 4) {
-    println("  mov DWORD PTR [rdi], eax");
+    println("  mov %%eax, (%%rdi)");
   } else {
-    println("  mov QWORD PTR [rdi], rax");
+    println("  mov %%rax, (%%rdi)");
   }
 }
 
-static char *argregs8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
-static char *argregs16[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
-static char *argregs32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
-static char *argregs64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *argregs8[] =  {"%dil", "%sil", "%dl",  "%cl",  "%r8b", "%r9b"};
+static char *argregs16[] = {"%di",  "%si",  "%dx",  "%cx",  "%r8w", "%r9w"};
+static char *argregs32[] = {"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"};
+static char *argregs64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8",  "%r9"};
 
-static char i32i8[]  = "movsx eax, al";
-static char i32u8[]  = "movzx eax, al";
-static char i32i16[] = "movsx eax, ax";
-static char i32u16[] = "movzx eax, ax";
-static char i64i32[] = "movsxd rax, eax";
-static char i64u32[] = "mov eax, eax";
+static char i32i8[]  = "movsx %al, %eax";
+static char i32u8[]  = "movzx %al, %eax";
+static char i32i16[] = "movsx %ax, %eax";
+static char i32u16[] = "movzx %ax, %eax";
+static char i64i32[] = "movsxd %eax, %rax";
+static char i64u32[] = "mov %eax, %eax";
 
-static char i8f32[]  = "cvttss2si eax, xmm0\n  movsx eax, al";
-static char u8f32[]  = "cvttss2si eax, xmm0\n  movzx eax, al";
-static char i16f32[] = "cvttss2si eax, xmm0\n  movsx eax, ax";
-static char u16f32[] = "cvttss2si eax, xmm0\n  movzx eax, ax";
-static char i32f32[] = "cvttss2si eax, xmm0";
-static char u32f32[] = "cvttss2si rax, xmm0\n  mov eax, eax";
-static char i64f32[] = "cvttss2si rax, xmm0";
+static char i8f32[]  = "cvttss2si %xmm0, %eax\n  movsx %al, %eax";
+static char u8f32[]  = "cvttss2si %xmm0, %eax\n  movzx %al, %eax";
+static char i16f32[] = "cvttss2si %xmm0, %eax\n  movsx %ax, %eax";
+static char u16f32[] = "cvttss2si %xmm0, %eax\n  movzx %ax, %eax";
+static char i32f32[] = "cvttss2si %xmm0, %eax";
+static char u32f32[] = "cvttss2si %xmm0, %rax\n  mov %eax, %eax";
+static char i64f32[] = "cvttss2si %xmm0, %rax";
 static char u64f32[] = 
-    "sub rsp, 8\n"
-  "  movss DWORD PTR [rsp+4], xmm0\n"
-  "  mov DWORD PTR [rsp], 1593835520\n"
-  "  comiss xmm0, DWORD PTR [rsp]\n"
+    "sub $8, %rsp\n"
+  "  movss %xmm0, 4(%rsp)\n"
+  "  movl $1593835520, (%rsp)\n"
+  "  comiss (%rsp), %xmm0\n"
   "  jnb 1f\n"
-  "  movss xmm0, DWORD PTR [rsp+4]\n"
-  "  cvttss2si rax, xmm0\n"
+  "  comiss 4(%rsp), %xmm0\n"
+  "  cvttss2si %xmm0, %rax\n"
   "  jmp 2f\n"
   "1:\n"
-  "  movss xmm0, DWORD PTR [rsp+4]\n"
-  "  movss xmm1, DWORD PTR [rsp]\n"
-  "  subss xmm0, xmm1\n"
-  "  cvttss2si rax, xmm0\n"
-  "  movabs rdx, -9223372036854775808\n"
-  "  xor rax, rdx\n"
+  "  movss 4(%rsp), %xmm0\n"
+  "  movss (%rsp), %xmm1\n"
+  "  subss %xmm1, %xmm0\n"
+  "  cvttss2si %xmm0, %rax\n"
+  "  movabs $-9223372036854775808, %rdx\n"
+  "  xor %rdx, %rax\n"
   "2:\n"
-  "  add rsp, 8";
+  "  add $8, %rsp";
 
-static char f32i8[]  = "movsx eax, al\n  cvtsi2ss xmm0, eax";
-static char f32u8[]  = "movzx eax, al\n  cvtsi2ss xmm0, eax";
-static char f32i16[] = "movsx eax, ax\n  cvtsi2ss xmm0, eax";
-static char f32u16[] = "movzx eax, ax\n  cvtsi2ss xmm0, eax";
-static char f32i32[] = "cvtsi2ss xmm0, eax";
-static char f32u32[] = "mov eax, eax\n  cvtsi2ss xmm0, rax";
-static char f32i64[] = "cvtsi2ss xmm0, rax";
+static char f32i8[]  = "movsx %al, %eax\n  cvtsi2ss %eax, %xmm0";
+static char f32u8[]  = "movzx %al, %eax\n  cvtsi2ss %eax, %xmm0";
+static char f32i16[] = "movsx %ax, %eax\n  cvtsi2ss %eax, %xmm0";
+static char f32u16[] = "movzx %ax, %eax\n  cvtsi2ss %eax, %xmm0";
+static char f32i32[] = "cvtsi2ss %eax, %xmm0";
+static char f32u32[] = "mov %eax, %eax\n  cvtsi2ss %rax, %xmm0";
+static char f32i64[] = "cvtsi2ss %rax, %xmm0";
 static char f32u64[] = 
-    "test rax, rax\n"
-  "  pxor xmm0, xmm0\n"
+    "test %rax, %rax\n"
+  "  pxor %xmm0, %xmm0\n"
   "  js 1f\n"
-  "  cvtsi2ss xmm0, rax\n"
+  "  cvtsi2ss %rax, %xmm0\n"
   "  jmp 2f\n"
   "1:\n"
-  "  mov rdx, rax\n"
-  "  shr rdx\n"
-  "  and eax, 1\n"
-  "  or rdx, rax\n"
-  "  cvtsi2ss xmm0, rdx\n"
-  "  addss xmm0, xmm0\n"
+  "  mov %rax, %rdx\n"
+  "  shr %rdx\n"
+  "  and $1, %eax\n"
+  "  or %rax, %rdx\n"
+  "  cvtsi2ss %rdx, %xmm0\n"
+  "  addss %xmm0, %xmm0\n"
   "2:";
 
-static char i8f64[]  = "cvttsd2si eax, xmm0\n  movsx eax, al";
-static char u8f64[]  = "cvttsd2si eax, xmm0\n  movzx eax, al";
-static char i16f64[] = "cvttsd2si eax, xmm0\n  movsx eax, ax";
-static char u16f64[] = "cvttsd2si eax, xmm0\n  movzx eax, ax";
-static char i32f64[] = "cvttsd2si eax, xmm0";
-static char u32f64[] = "cvttsd2si rax, xmm0\n  mov eax, eax";
-static char i64f64[] = "cvttsd2si rax, xmm0";
+static char i8f64[]  = "cvttsd2si %xmm0, %eax\n  movsx %al, %eax";
+static char u8f64[]  = "cvttsd2si %xmm0, %eax\n  movzx %al, %eax";
+static char i16f64[] = "cvttsd2si %xmm0, %eax\n  movsx %ax, %eax";
+static char u16f64[] = "cvttsd2si %xmm0, %eax\n  movzx %ax, %eax";
+static char i32f64[] = "cvttsd2si %xmm0, %eax";
+static char u32f64[] = "cvttsd2si %xmm0, %rax\n  mov %eax, %eax";
+static char i64f64[] = "cvttsd2si %xmm0, %rax";
 static char u64f64[] = 
-    "sub rsp, 16\n"
-  "  movsd QWORD PTR [rsp+8], xmm0\n"
-  "  mov DWORD PTR [rsp], 0\n"
-  "  mov DWORD PTR [rsp+4], 1138753536\n"
-  "  comisd xmm0, QWORD PTR [rsp]\n"
+    "sub $16, %rsp\n"
+  "  movsd %xmm0, 8(%rsp)\n"
+  "  movl $0, (%rsp)\n"
+  "  movl $1138753536, 4(%rsp)\n"
+  "  comisd (%rsp), %xmm0\n"
   "  jnb 1f\n"
-  "  movsd xmm0, QWORD PTR [rsp+8]\n"
-  "  cvttsd2si rax, xmm0\n"
+  "  movsd 8(%rsp), %xmm0\n"
+  "  cvttsd2si %xmm0, %rax\n"
   "  jmp 2f\n"
   "1:\n"
-  "  movsd xmm0, QWORD PTR [rsp+8]\n"
-  "  movsd xmm1, QWORD PTR [rsp]\n"
-  "  subsd xmm0, xmm1\n"
-  "  cvttsd2si rax, xmm0\n"
-  "  movabs rdx, -9223372036854775808\n"
-  "  xor rax, rdx\n"
+  "  movsd 8(%rsp), %xmm0\n"
+  "  movsd (%rsp), %xmm1\n"
+  "  subsd %xmm1, %xmm0\n"
+  "  cvttsd2si %xmm0, %rax\n"
+  "  movabs $-9223372036854775808, %rdx\n"
+  "  xor %rdx, %rax\n"
   "2:\n"
-  "  add rsp, 16";
+  "  add $16, %rsp";
 
-static char f32f64[] = "cvtsd2ss xmm0, xmm0";
+static char f32f64[] = "cvtsd2ss %xmm0, %xmm0";
 
-static char f64i8[]  = "movsx eax, al\n  cvtsi2sd xmm0, eax";
-static char f64u8[]  = "movzx eax, al\n  cvtsi2sd xmm0, eax";
-static char f64i16[] = "movsx eax, ax\n  cvtsi2sd xmm0, eax";
-static char f64u16[] = "movzx eax, ax\n  cvtsi2sd xmm0, eax";
-static char f64i32[] = "cvtsi2sd xmm0, eax";
-static char f64u32[] = "mov eax, eax\n  cvtsi2sd xmm0, rax";
-static char f64i64[] = "cvtsi2sd xmm0, rax";
+static char f64i8[]  = "movsx %al, %eax\n  cvtsi2sd %eax, %xmm0";
+static char f64u8[]  = "movzx %al, %eax\n  cvtsi2sd %eax, %xmm0";
+static char f64i16[] = "movsx %ax, %eax\n  cvtsi2sd %eax, %xmm0";
+static char f64u16[] = "movzx %ax, %eax\n  cvtsi2sd %eax, %xmm0";
+static char f64i32[] = "cvtsi2sd %eax, %xmm0";
+static char f64u32[] = "mov %eax, %eax\n  cvtsi2sd %rax, %xmm0";
+static char f64i64[] = "cvtsi2sd %rax, %xmm0";
 static char f64u64[] = 
-    "test rax, rax\n"
-  "  pxor xmm0, xmm0\n"
+    "test %rax, %rax\n"
+  "  pxor %xmm0, %xmm0\n"
   "  js 1f\n"
-  "  cvtsi2sd xmm0, rax\n"
+  "  cvtsi2sd %rax, %xmm0\n"
   "  jmp 2f\n"
   "1:\n"
-  "  mov rdx, rax\n"
-  "  shr rdx\n"
-  "  and eax, 1\n"
-  "  or rdx, rax\n"
-  "  cvtsi2sd xmm0, rdx\n"
-  "  addsd xmm0, xmm0\n"
+  "  mov %rax, %rdx\n"
+  "  shr %rdx\n"
+  "  and $1, %eax\n"
+  "  or %rax, %rdx\n"
+  "  cvtsi2sd %rdx, %xmm0\n"
+  "  addsd %xmm0, %xmm0\n"
   "2:";
-static char f64f32[] = "cvtss2sd xmm0, xmm0";
+static char f64f32[] = "cvtss2sd %xmm0, %xmm0";
 
 #define F80_TO_INT_1 \
-    "sub rsp, 16\n" \
-  "  fnstcw WORD PTR [rsp+12]\n" \
-  "  movzx eax, WORD PTR [rsp+12]\n" \
-  "  or ah, 12\n" \
-  "  mov WORD PTR [rsp+8], ax\n" \
-  "  fldcw WORD PTR [rsp+8]\n"
+    "sub $16, %rsp\n" \
+  "  fnstcw 12(%rsp)\n" \
+  "  movzwl 12(%rsp), %eax\n" \
+  "  orb $12, %ah\n" \
+  "  mov %ax, 8(%rsp)\n" \
+  "  fldcw 8(%rsp)\n"
 
 #define F80_TO_INT_2 \
-  "  fldcw WORD PTR [rsp+12]\n"
+  "  fldcw 12(%rsp)\n"
 
 #define F80_TO_INT_3 \
-  "  add rsp, 16"
+  "  add $16, %rsp"
 
-static char i8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  mov al, BYTE PTR [rsp]\n  movsx eax, al\n" F80_TO_INT_3;
-static char u8f80[]  = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  movzx eax, BYTE PTR [rsp]\n" F80_TO_INT_3;
-static char i16f80[] = F80_TO_INT_1 "  fistp WORD PTR [rsp]\n" F80_TO_INT_2 "  xor rax, rax\n  mov ax, WORD PTR [rsp]\n" F80_TO_INT_3;
-static char u16f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  movzx eax, WORD PTR [rsp]\n" F80_TO_INT_3;
-static char i32f80[] = F80_TO_INT_1 "  fistp DWORD PTR [rsp]\n" F80_TO_INT_2 "  mov eax, DWORD PTR [rsp]\n" F80_TO_INT_3;
-static char u32f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  movzx rax, DWORD PTR [rsp]\n" F80_TO_INT_3;
-static char i64f80[] = F80_TO_INT_1 "  fistp QWORD PTR [rsp]\n" F80_TO_INT_2 "  mov rax, QWORD PTR [rsp]\n" F80_TO_INT_3;
+static char i8f80[]  = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  mov (%rsp), %al\n  movsx %al, %eax\n" F80_TO_INT_3;
+static char u8f80[]  = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  movzxb (%rsp), %eax\n" F80_TO_INT_3;
+static char i16f80[] = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  xor %rax, %rax\n  mov (%rsp), %ax\n" F80_TO_INT_3;
+static char u16f80[] = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  movzxw (%rsp), %eax\n" F80_TO_INT_3;
+static char i32f80[] = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  mov (%rsp), %eax\n" F80_TO_INT_3;
+static char u32f80[] = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  movzxl (%rsp), %rax\n" F80_TO_INT_3;
+static char i64f80[] = F80_TO_INT_1 "  fistpq (%rsp)\n" F80_TO_INT_2 "  mov (%rsp), %rax\n" F80_TO_INT_3;
 
 static char u64f80[] =
-    "sub rsp, 32\n"
-  "  fstp TBYTE PTR [rsp+16]\n"
-  "  mov DWORD PTR [rsp], 0\n"
-  "  mov DWORD PTR [rsp+4], -2147483648\n"
-  "  mov DWORD PTR [rsp+8], 16446\n"
-  "  mov DWORD PTR [rsp+12], 0\n"
-  "  fld TBYTE PTR [rsp]\n"
-  "  fld TBYTE PTR [rsp+16]\n"
-  "  fcomip st, st(1)\n"
-  "  fstp st(0)\n"
+    "sub $32, %rsp\n"
+  "  fstpt 16(%rsp)\n"
+  "  movl $0, (%rsp)\n"
+  "  movl $-2147483648, 4(%rsp)\n"
+  "  movl $16446, 8(%rsp)\n"
+  "  movl $0, 12(%rsp)\n"
+  "  fldt (%rsp)\n"
+  "  fldt 16(%rsp)\n"
+  "  fcomip %st(1), %st\n"
+  "  fstp %st(0)\n"
   "  jnb 1f\n"
-  "  fld TBYTE PTR [rsp+16]\n"
+  "  fldt 16(%rsp)\n"
   "  " F80_TO_INT_1
-  "  fistp QWORD PTR [rsp]\n"
+  "  fistpq (%rsp)\n"
   F80_TO_INT_2
-  "  mov rax, QWORD PTR [rsp]\n"
+  "  mov (%rsp), %rax\n"
   F80_TO_INT_3 "\n"
   "  jmp 2f\n"
   "1:"
-  "  fld TBYTE PTR [rsp+16]\n"
-  "  fld TBYTE PTR [rsp]\n"
-  "  fsubp st(1), st\n"
+  "  fldt 16(%rsp)\n"
+  "  fldt (%rsp)\n"
+  "  fsubrp %st, %st(1)\n"
   "  " F80_TO_INT_1
-  "  fistp QWORD PTR [rsp]\n"
+  "  fistpq (%rsp)\n"
   F80_TO_INT_2
-  "  mov rax, QWORD PTR [rsp]\n"
+  "  mov (%rsp), %rax\n"
   F80_TO_INT_3 "\n"
-  "  movabs rdi, -9223372036854775808\n"
-  "  xor rax, rdi\n"
+  "  movabs $-9223372036854775808, %rdi\n"
+  "  xor %rdi, %rax\n"
   "2:\n"
-  "  add rsp, 32";
+  "  add $32, %rsp";
 
 static char f32f80[] = 
-    "sub rsp, 4\n"
-  "  fstp DWORD PTR [rsp+4]\n"
-  "  movss xmm0, DWORD PTR [rsp+4]\n"
-  "  add rsp, 8\n";
+    "sub $4, %rsp\n"
+  "  fstps 4(%rsp)\n"
+  "  movss 4(%rsp), %xmm0\n"
+  "  add $8, %rsp\n";
 
 static char f64f80[] = 
-    "sub rsp, 8\n"
-  "  fstp QWORD PTR [rsp+8]\n"
-  "  movsd xmm0, QWORD PTR [rsp+8]\n"
-  "  add rsp, 8\n";
+    "sub $8, %rsp\n"
+  "  fstpl 8(%rsp)\n"
+  "  movsd 8(%rsp), %xmm0\n"
+  "  add $8, %rsp\n";
 
-static char f80i8[]  = "sub rsp, 2\n  movsx ax, al\n  mov WORD PTR [rsp], ax\n  fild WORD PTR [rsp]\n  add rsp, 2";
-static char f80u8[]  = "sub rsp, 2\n  movzx ax, al\n  mov WORD PTR [rsp], ax\n  fild WORD PTR [rsp]\n  add rsp, 2";
-static char f80i16[] = "sub rsp, 2\n  mov WORD PTR [rsp], ax\n  fild WORD PTR [rsp]\n  add rsp, 2";
-static char f80u16[] = "sub rsp, 4\n  movzx DWORD PTR [rsp], ax\n  fild DWORD PTR [rsp]\n  add rsp, 4";
-static char f80i32[] = "sub rsp, 4\n  mov DWORD PTR [rsp], eax\n  fild DWORD PTR [rsp]\n  add rsp, 4";
-static char f80u32[] = "sub rsp, 8\n  movzx QWORD PTR [rsp], eax\n  fild QWORD PTR [rsp]\n  add rsp, 8";
-static char f80i64[] = "sub rsp, 8\n  mov QWORD PTR [rsp], rax\n  fild QWORD PTR [rsp]\n  add rsp, 8";
-
-static char f80f32[] = "sub rsp, 4\n  movss DWORD PTR [rsp], xmm0\n  fld DWORD PTR [rsp]\n  add rsp, 4";
-static char f80f64[] = "sub rsp, 8\n  movsd QWORD PTR [rsp], xmm0\n  fld QWORD PTR [rsp]\n  add rsp, 8";
+static char f80i8[]  = "sub $4, %rsp\n  movsx %al, %eax\n  mov %eax, (%rsp)\n  fildl (%rsp)\n  add $4, %rsp";
+static char f80u8[]  = "sub $4, %rsp\n  movzx %al, %eax\n  mov %eax, (%rsp)\n  fildl (%rsp)\n  add $4, %rsp";
+static char f80i16[] = "sub $4, %rsp\n  mov %ax, (%rsp)\n  fildl (%rsp)\n  add $4, %rsp";
+static char f80u16[] = "sub $4, %rsp\n  movzxl %ax, (%rsp)\n  fildl (%rsp)\n  add $4, %rsp";
+static char f80i32[] = "sub $4, %rsp\n  mov %eax, (%rsp)\n  fildl (%rsp)\n  add $4, %rsp";
+static char f80u32[] = "sub $8, %rsp\n  movzxq %eax, (%rsp)\n  fildq (%rsp)\n  add $8, %rsp";
+static char f80i64[] = "sub $8, %rsp\n  mov %rax, (%rsp)\n  fildq (%rsp)\n  add $8, %rsp";
+static char f80f32[] = "sub $4, %rsp\n  movss %xmm0, (%rsp)\n  flds (%rsp)\n  add $4, %rsp";
+static char f80f64[] = "sub $8, %rsp\n  movsd %xmm0, (%rsp)\n  fldl (%rsp)\n  add $8, %rsp";
 
 static char f80u64[] =
-    "sub rsp, 32\n"
-  "  mov DWORD PTR [rsp], 0\n"
-  "  mov DWORD PTR [rsp+4], -2147483648\n"
-  "  mov DWORD PTR [rsp+8], 16447\n"
-  "  mov DWORD PTR [rsp+12], 0\n"
-  "  mov QWORD PTR [rsp+16], rax\n"
-  "  fild QWORD PTR [rsp+16]\n"
-  "  cmp QWORD PTR [rsp+16], 0\n"
+    "sub $32, %rsp\n"
+  "  movl $0, (%rsp)\n"
+  "  movl $-2147483648, 4(%rsp)\n"
+  "  movl $16447, 8(%rsp)\n"
+  "  movl $0, 12(%rsp)\n"
+  "  mov %rax, 16(%rsp)\n"
+  "  fildq 16(%rsp)\n"
+  "  cmpq $0, 16(%rsp)\n"
   "  jns 1f\n"
-  "  fld TBYTE PTR [rsp]\n"
-  "  faddp st(1), st\n"
+  "  fldt (%rsp)\n"
+  "  faddp %st, %st(1)\n"
   "1:\n"
-  "  add rsp, 32";
+  "  add $32, %rsp";
 
 static char *cast_table[][11] = {
 // i8     i16     i32     i64     u8     u16     u32     u64     f32     f64     f80    to/from
@@ -409,7 +408,7 @@ int branch_label = 0;
 
 void expand_ternary(Node *node, int label) {
   compile_node(node->cond);
-  println("  cmp rax, 0");
+  println("  cmp $0, %%rax");
   println("  je .Lfalse%d", label);
 
   compile_node(node->lhs);
@@ -428,7 +427,7 @@ static void gen_lvar_init(Node *node) {
     gen_push("rax");
     int padding = align_to(bytes, expr->ty->align) - bytes;
     if (padding != 0) {
-      println("  add QWORD PTR [rsp], %d", padding);
+      println("  addq $%d, (%%rsp)", padding);
       bytes += padding;
     }
 
@@ -442,24 +441,24 @@ static void gen_lvar_init(Node *node) {
           } else {
             gen_addr(expr->init);
           }
-          println("  mov rsi, rax");
+          println("  mov %%rax, %%rsi");
           gen_pop("rdi");
-          println("  mov rcx, %d", expr->ty->var_size);
+          println("  mov $%d, %%rcx", expr->ty->var_size);
           println("  rep movsb");
-          println("  mov rax, rdi");
+          println("  mov %%rdi, %%rax");
           break;
         default:
           compile_node(expr->init);
           gen_store(expr->ty);
-          println("  mov rax, rdi");
-          println("  add rax, %d", expr->ty->var_size);
+          println("  mov %%rdi, %%rax");
+          println("  add $%d, %%rax", expr->ty->var_size);
       }
     } else {
       gen_pop("rdi");
-      println("  xor rax, rax");
-      println("  mov rcx, %d", expr->ty->var_size);
+      println("  xor %%rax, %%rax");
+      println("  mov $%d, %%rcx", expr->ty->var_size);
       println("  rep stosb");
-      println("  mov rax, rdi");
+      println("  mov %%rdi, %%rax");
     }
     bytes += expr->ty->var_size;
   }
@@ -582,20 +581,20 @@ static void push_argsre(Node *node, bool pass_stack) {
     case TY_FLOAT:
     case TY_DOUBLE:
       compile_node(node->lhs);
-      println("  movq rax, xmm0");
+      println("  movd %%xmm0, %%rax");
       gen_push("rax");
       break;
     case TY_LDOUBLE:
       compile_node(node->lhs);
-      println("  sub rsp, 16");
-      println("  fstp TBYTE PTR [rsp]");
+      println("  sub $16, %%rsp");
+      println("  fstpt (%%rsp)");
       break;
     case TY_STRUCT: {
-      println("  sub rsp, %d", align_to(ty->var_size, 8));
+      println("  sub $%d, %%rsp", align_to(ty->var_size, 8));
       gen_addr(node->lhs);
-      println("  mov rsi, rax");
-      println("  mov rdi, rsp");
-      println("  mov rcx, %d", ty->var_size);
+      println("  mov %%rax, %%rsi");
+      println("  mov %%rsp, %%rdi");
+      println("  mov $%d, %%rcx", ty->var_size);
       println("  rep movsb");
       break;
     }
@@ -662,37 +661,37 @@ void compile_node(Node *node) {
       case TY_SHORT:
       case TY_INT:
       case TY_LONG:
-        println("  mov rax, %ld", node->val);
+        println("  mov $%ld, %%rax", node->val);
         break;
       case TY_FLOAT: {
         float *ptr = calloc(1, sizeof(float));
         *ptr = (float)node->fval;
-        println("  sub rsp, 4");
-        println("  mov DWORD PTR [rsp], %d", *(int*)ptr);
-        println("  movss xmm0, DWORD PTR [rsp]");
-        println("  add rsp, 4");
+        println("  sub $4, %%rsp");
+        println("  movl $%d, (%%rsp)", *(int*)ptr);
+        println("  movss (%%rsp), %%xmm0");
+        println("  add $4, %%rsp");
         break;
       }
       case TY_DOUBLE: {
         double *ptr = calloc(1, sizeof(double));
         *ptr = (double)node->fval;
-        println("  sub rsp, 8");
-        println("  mov DWORD PTR [rsp], %d", *(int*)ptr);
-        println("  mov DWORD PTR [rsp+4], %d", *((int*)ptr + 1));
-        println("  movsd xmm0, QWORD PTR [rsp]");
-        println("  add rsp, 8");
+        println("  sub $8, %%rsp");
+        println("  movl $%d, (%%rsp)", *(int*)ptr);
+        println("  movl $%d, 4(%%rsp)", *((int*)ptr + 1));
+        println("  movsd (%%rsp), %%xmm0");
+        println("  add $8, %%rsp");
         break;
       }
       case TY_LDOUBLE: {
         long double *ptr = calloc(1, sizeof(long double));
         *ptr = (long double)node->fval;
-        println("  sub rsp, 16");
-        println("  mov DWORD PTR [rsp], %d", *(int*)ptr);
-        println("  mov DWORD PTR [rsp+4], %d", *((int*)ptr + 1));
-        println("  mov DWORD PTR [rsp+8], %d", *((int*)ptr + 2));
-        println("  mov DWORD PTR [rsp+12], %d", *((int*)ptr + 3));
-        println("  fld TBYTE PTR [rsp]");
-        println("  add rsp, 16");
+        println("  sub $16, %%rsp");
+        println("  movl $%d, (%%rsp)", *(int*)ptr);
+        println("  movl $%d, 4(%%rsp)", *((int*)ptr + 1));
+        println("  movl $%d, 8(%%rsp)", *((int*)ptr + 2));
+        println("  movl $%d, 12(%%rsp)", *((int*)ptr + 3));
+        println("  fldt (%%rsp)");
+        println("  add $16, %%rsp");
       }
     }
     return;
@@ -719,7 +718,7 @@ void compile_node(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       if (node->var->ty->kind == TY_ENUM) {
-        println("  mov rax, %ld", node->var->val);
+        println("  mov $%ld, %%rax", node->var->val);
       } else {
         gen_addr(node);
         gen_load(node->ty);
@@ -739,9 +738,9 @@ void compile_node(Node *node) {
           gen_addr(node->rhs);
         }
 
-        println("  mov rsi, rax");
+        println("  mov %%rax, %%rsi");
         gen_pop("  rdi");
-        println("  mov rcx, %d", node->ty->var_size);
+        println("  mov $%d, %%rcx", node->ty->var_size);
         println("  rep movsb");
       } else {
         gen_addr(node->lhs);
@@ -753,14 +752,14 @@ void compile_node(Node *node) {
     }
     case ND_RETURN:
       compile_node(node->lhs);
-      println("  mov rsp, rbp");
+      println("  mov %%rbp, %%rsp");
       gen_pop("rbp");
       println("  ret");
       return;
     case ND_IF: {
       int now_label = branch_label++;
       compile_node(node->cond);
-      println("  cmp rax, 0");
+      println("  cmp $0, %rax");
       println("  je .Lelse%d", now_label);
 
       // "true"
@@ -792,7 +791,7 @@ void compile_node(Node *node) {
       // judege expr
       if (node->cond != NULL) {
         compile_node(node->cond);
-        println("  cmp rax, 0");
+        println("  cmp $0, %%rax");
         println("  je %s", node->break_label);
       }
 
@@ -813,7 +812,7 @@ void compile_node(Node *node) {
       compile_node(node->then);
 
       compile_node(node->cond);
-      println("  cmp rax, 0");
+      println("  cmp $0, %%rax");
       println("  jne %s", node->conti_label);
 
       println("%s:", node->break_label);
@@ -825,7 +824,7 @@ void compile_node(Node *node) {
 
       int cnt = 0;
       for (Node *expr = node->case_stmt; expr != NULL; expr = expr->case_stmt) {
-        println("  cmp rax, %ld", expr->val);
+        println("  cmp $%ld, %%rax", expr->val);
         println("  je .Lcase%d_%d", now_label, cnt++);
       }
 
@@ -870,7 +869,7 @@ void compile_node(Node *node) {
       return;
     case ND_BITWISENOT:
       compile_node(node->lhs);
-      println("  not rax");
+      println("  not %%rax");
       return;
     default:
       break;
@@ -894,8 +893,7 @@ void compile_node(Node *node) {
         case TY_DOUBLE:
           if (flcnt < 8) {
             gen_pop("rax");
-            println("  movq xmm%d, rax", flcnt);
-            flcnt++;
+            println("  movq %%rax, %%xmm%d", flcnt++);
           } else {
             stcnt++;
           }
@@ -914,32 +912,32 @@ void compile_node(Node *node) {
 
           gen_pop("rax");
           if (f1) {
-            println("  movq xmm%d, rax", flcnt++);
+            println("  movq %%rax, %%xmm%d", flcnt++);
           } else {
-            println("  mov %s, rax", argregs64[gecnt++]);
+            println("  mov %%rax, %s", argregs64[gecnt++]);
           }
 
           if (f2 && ty->var_size > 8) {
             gen_pop("rax");
-            println("  movq xmm%d, rax", flcnt++);
+            println("  movq %%rax, %%xmm%d", flcnt++);
           } else if (ty->var_size > 8) {
             gen_pop("rax");
-            println("  mov %s, rax", argregs64[gecnt++]);
+            println("  mov %%rax, %s", argregs64[gecnt++]);
           }
           break;
         }
         default:
           if (gecnt < 6) {
             gen_pop("rax");
-            println("  mov %s, rax", argregs64[gecnt++]);
+            println("  mov %%rax, %s", argregs64[gecnt++]);
           } else {
             stcnt++;
           }
       }
     }
 
-    println("  mov r10, offset %s", node->func->name);
-    println("  call r10");
+    println("  mov $%s, %%r10", node->func->name);
+    println("  call *%%r10");
     gen_emptypop(stcnt);
     return;
   }
@@ -953,32 +951,32 @@ void compile_node(Node *node) {
         println("  faddp");
         return;
       case ND_SUB:
-        println("  fsubp");
+        println("  fsubrp");
         return;
       case ND_MUL:
         println("  fmulp");
         return;
       case ND_DIV:
-        println("  fdivp");
+        println("  fdivrp");
         return;
       case ND_EQ:
       case ND_NEQ:
       case ND_LC:
       case ND_LEC:
         println("  fcomip");
-        println("  fstp st(0)");
+        println("  fstp %%st(0)");
 
         if (node->kind == ND_EQ) {
-          println("  sete al");
+          println("  sete %%al");
         } else if (node->kind == ND_NEQ) {
-          println("  setne al");
+          println("  setne %%al");
         } else if (node->kind == ND_LC) {
-          println("  seta al");
+          println("  seta %%al");
         } else {
-          println("  setae al");
+          println("  setae %%al");
         }
 
-        println("  movzx rax, al");
+        println("  movzx %%al, %%rax");
         return;
     }
   }
@@ -987,49 +985,49 @@ void compile_node(Node *node) {
     char *suffix = (node->lhs->ty->kind == TY_FLOAT) ? "s" : "d";
 
     compile_node(node->lhs);
-    println(" movd rax, xmm0");
+    println("  movq %%xmm0, %%rax");
     gen_push("rax");
 
     compile_node(node->rhs);
-    println("  movap%s xmm1, xmm0", suffix);
+    println("  movsd %%xmm0, %%xmm1");
     gen_pop("rax");
-    println("  movd xmm0, rax");
+    println("  movd %%rax, %%xmm0");
 
 
     switch (node->kind) {
       case ND_ADD:
-        println("  adds%s xmm0, xmm1", suffix);
+        println("  adds%s %%xmm1, %%xmm0", suffix);
         return;
       case ND_SUB:
-        println("  subs%s xmm0, xmm1", suffix);
+        println("  subs%s %%xmm1, %%xmm0", suffix);
         return;
       case ND_MUL:
-        println("  muls%s xmm0, xmm1", suffix);
+        println("  muls%s %%xmm1, %%xmm0", suffix);
         return;
       case ND_DIV:
-        println("  divs%s xmm0, xmm1", suffix);
+        println("  divs%s %%xmm1, %%xmm0", suffix);
         return;
       case ND_EQ:
       case ND_NEQ:
       case ND_LC:
       case ND_LEC:
-        println("  ucomis%s xmm1, xmm0", suffix);
+        println("  ucomis%s %%xmm0, %%xmm1", suffix);
 
         if (node->kind == ND_EQ) {
-          println("  sete al");
-          println("  setnp dl");
-          println("  and al, dl");
+          println("  sete %%al");
+          println("  setnp %%dl");
+          println("  and %%dl, %%al");
         } else if (node->kind == ND_NEQ) {
-          println("  setne al");
-          println("  setp dl");
-          println("  or al, dl");
+          println("  setne %%al");
+          println("  setp %%dl");
+          println("  or %%dl, %%al");
         } else if (node->kind == ND_LC) {
-          println("  seta al");
+          println("  seta %%al");
         } else {
-          println("  setnb al");
+          println("  setnb %%al");
         }
 
-        println("  movzx rax, al");
+        println("  movzx %%al, %%rax");
         return;
     }
   }
@@ -1039,33 +1037,33 @@ void compile_node(Node *node) {
   gen_push("rax");
 
   compile_node(node->rhs);
-  println("  mov rdi, rax");
+  println("  mov %rax, %%rdi");
   gen_pop("rax");
 
   // Default register is 32bit
-  char *rax = "eax", *rdi = "edi", *rdx = "edx";
+  char *rax = "%eax", *rdi = "%edi", *rdx = "%edx";
 
   if (node->lhs->ty->kind == TY_LONG || node->lhs->ty->base != NULL) {
-    rax = "rax";
-    rdi = "rdi";
-    rdx = "rdx";
+    rax = "%rax";
+    rdi = "%rdi";
+    rdx = "%rdx";
   }
 
   // calculation
   switch (node->kind) {
     case ND_ADD:
-      println("  add %s, %s", rax, rdi);
+      println("  add %s, %s", rdi, rax);
       break;
     case ND_SUB:
-      println("  sub %s, %s", rax, rdi);
+      println("  sub %s, %s", rdi, rax);
       break;
     case ND_MUL:
-      println("  imul %s, %s", rax, rdi);
+      println("  imul %s, %s", rdi, rax);
       break;
     case ND_DIV:
     case ND_REMAINDER:
       if (node->ty->is_unsigned) {
-        println("  mov rdx, 0");
+        println("  mov $0. %%rdx");
         println("  div %s", rdi);
       } else {
         if (node->lhs->ty->var_size == 8) {
@@ -1077,77 +1075,77 @@ void compile_node(Node *node) {
       }
 
       if (node->kind == ND_REMAINDER) {
-        println("  mov rax, rdx");
+        println("  mov %%rdx, %%rax");
       }
       break;
     case ND_LEFTSHIFT:
-      println("  mov rcx, rdi");
-      println("  sal %s, cl", rax);
+      println("  mov %%rdi, %%rcx");
+      println("  sal %%cl, %s", rax);
       break;
     case ND_RIGHTSHIFT:
-      println("  mov rcx, rdi");
+      println("  mov %%rdi, %%rcx");
       if (node->lhs->ty->is_unsigned) {
-        println("  shr %s, cl", rax);
+        println("  shr %%cl, %s", rax);
       } else {
-        println("  sar %s, cl", rax);
+        println("  sar %%cl, %s", rax);
       }
       break;
     case ND_EQ:
     case ND_NEQ:
     case ND_LC:
     case ND_LEC:
-      println("  cmp %s, %s", rax, rdi);
+      println("  cmp %s, %s", rdi, rax);
 
       if (node->kind == ND_EQ) {
-        println("  sete al");
+        println("  sete %%al");
       } else if (node->kind == ND_NEQ) {
-        println("  setne al");
+        println("  setne %%al");
       } else if (node->kind == ND_LC) {
         if (node->lhs->ty->is_unsigned) {
-          println("  setb al");
+          println("  setb %%al");
         } else {
-          println("  setl al");
+          println("  setl %%al");
         }
       } else {
         if (node->lhs->ty->is_unsigned) {
-          println("  setbe al");
+          println("  setbe %%al");
         } else {
-          println("  setle al");
+          println("  setle %%al");
         }
       }
 
-      println("  movzx rax, al");
+      println("  movzx %%al, %%rax");
       break;
     case ND_BITWISEAND:
-      println("  and %s, %s", rax, rdi);
+      println("  and %s, %s", rdi, rax);
       break;
     case ND_BITWISEXOR:
-      println("  xor %s, %s", rax, rdi);
+      println("  xor %s, %s", rdi, rax);
       break;
     case ND_BITWISEOR:
-      println("  or %s, %s", rax, rdi);
+      println("  or %s, %s", rdi, rax);
       break;
     case ND_LOGICALAND:
-      println("  cmp %s, 0", rax);
+      println("  cmp $0, %s", rax);
       println("  je 1f");
-      println("  cmp %s, 0", rdi);
+      println("  cmp $0, %s", rdi);
       println("  je 1f");
-      println("  mov rax, 1");
+      println("  mov $1, %%rax");
       println("  jmp 2f");
       println("1:");
-      println("  mov rax, 0");
+      println("  mov $0, %%rax");
       println("2:");
       break;
     case ND_LOGICALOR:
-      println("  cmp %s, 0", rax);
+      println("  cmp $0, %s", rax);
       println("  jne 1f");
-      println("  cmp %s, 0", rdi);
+      println("  cmp $0, %s", rdi);
       println("  je 2f");
       println("1:");
-      println("  mov rax, 1");
+      println("  mov $1, %%rax");
       println("  jmp 3f");
       println("2:");
-      println("  mov rax, 0");
+      println("  mov $0, %%rax");
       println("3:");
       break;
     default:
@@ -1157,7 +1155,6 @@ void compile_node(Node *node) {
 
 void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
-  println(".intel_syntax noprefix");
 
   for (Node *node = head; node != NULL; node = node->next) {
     if (node->kind != ND_FUNC) {
@@ -1167,7 +1164,6 @@ void codegen(Node *head, char *filename) {
 
     Obj *func = node->func;
     if (func->ty->is_prototype) {
-      println(".type %s, @function", func->name);
       continue;
     }
 
@@ -1178,8 +1174,8 @@ void codegen(Node *head, char *filename) {
 
     // Prologue
     gen_push("rbp");
-    println("  mov rbp, rsp");
-    println("  sub rsp, %d", func->vars_size);
+    println("  mov %%rsp, %%rbp");
+    println("  sub $%d, %%rsp", func->vars_size);
 
     // Set arguments
     int flcnt = 0, gecnt = 0, stframe = 16;
@@ -1196,31 +1192,36 @@ void codegen(Node *head, char *filename) {
         case TY_LONG:
         case TY_PTR:
           if (gecnt == 0) {
-            println("  mov rax, QWORD PTR [rsp+8]");
+            println("  mov 8(%%rsp), %%rax");
             gecnt++;
           } else if (gecnt < 6) {
-            println("  mov rax, %s", argregs64[gecnt++]);
+            println("  mov %s, %%rax", argregs64[gecnt++]);
           } else {
-            println("  mov rax, QWORD PTR [rbp+%d]", stframe);
+            println("  mov %d(%%rbp), %%rax", stframe);
             stframe += 8;
           }
           gen_store(param->ty);
           break;
         case TY_FLOAT:
-        case TY_DOUBLE: {
-          char *suffix = (param->ty->kind == TY_FLOAT) ? "s" : "d";
-
           if (flcnt < 8) {
-            println("  movap%s xmm0, xmm%d", suffix, flcnt++);
+            println("  movss %%xmm%d, %%xmm0", flcnt++);
           } else {
-            println("  movd xmm0, QWORD PTR [rbp+%d]", stframe);
+            println("  movd %d(%%rbp), %%xmm0", stframe);
             stframe += 8;
           }
           gen_store(param->ty);
           break;
-        }
+        case TY_DOUBLE: 
+          if (flcnt < 8) {
+            println("  movsd %%xmm%d, %%xmm0", flcnt++);
+          } else {
+            println("  movq %d(%%rbp), %%xmm0", stframe);
+            stframe += 8;
+          }
+          gen_store(param->ty);
+          break;
         case TY_LDOUBLE:
-          println("  fld TBYTE PTR [rbp+%d]", stframe);
+          println("  fldt %d(%%rbp)", stframe);
           stframe += 16;
           gen_store(param->ty);
           break;
@@ -1252,30 +1253,30 @@ void codegen(Node *head, char *filename) {
                 mvsize = 8;
               }
 
-              println("  mov rax, QWORD PTR [rsp]");
-              println("  add rax, %d", 8 * i);
+              println("  mov (%%rsp), %%rax");
+              println("  add $%d, %%rax", 8 * i);
               if (i == 0 ? f1 : f2) {
                 switch (mvsize) {
                   case 4:
-                    println(" movd DWORD PTR [rax], xmm%d", flcnt++);
+                    println("  movd %%xmm%d, (%%rax)", flcnt++);
                     break;
                   default:
-                    println(" movq QWORD PTR [rax], xmm%d", flcnt++);
+                    println("  movq %%xmm%d, (%%rax)", flcnt++);
                 }
               } else {
-                println("  mov rdi, QWORD PTR [rsp+8]");
+                println("  mov 8(%%rsp), %%rdi");
                 switch (mvsize) {
                   case 1:
-                    println("  mov BYTE PTR [rax], %s", argregs8[gecnt++]);
+                    println("  mov %s, (%%rax)", argregs8[gecnt++]);
                     break;
                   case 2:
-                    println("  mov WORD PTR [rax], %s", argregs16[gecnt++]);
+                    println("  mov %s, (%%rax)", argregs16[gecnt++]);
                     break;
                   case 4:
-                    println("  mov DWORD PTR [rax], %s", argregs32[gecnt++]);
+                    println("  mov %s, (%%rax)", argregs32[gecnt++]);
                     break;
                   default:
-                    println("  mov QWORD PTR [rax], %s", argregs64[gecnt++]);
+                    println("  mov %s, (%%rax)", argregs64[gecnt++]);
                 }
               }
             }
@@ -1283,9 +1284,9 @@ void codegen(Node *head, char *filename) {
           } else {
             gen_push("rsi");
             gen_push("rcx");
-            println("  mov rdi, QWORD PTR [rsp+16]");
-            println("  lea rsi, [rbp+%d]", stframe);
-            println("  mov rcx, %d", stsize);
+            println("  mov 16(%%rsp), %%rdi");
+            println("  lea %d(%%rbp), %%rsi", stframe);
+            println("  mov $%d, %%rcx", stsize);
             println("  rep movsb");
             gen_pop("rcx");
             gen_pop("rsi");
@@ -1299,7 +1300,7 @@ void codegen(Node *head, char *filename) {
 
     compile_node(node->deep);
 
-    println("  mov rsp, rbp");
+    println("  mov %%rbp, %%rsp");
     gen_pop("rbp");
     println("  ret");
   }
