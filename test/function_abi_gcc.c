@@ -1,5 +1,6 @@
 #include "test.h"
 #include "function_abi.h"
+#include <stdio.h>
 
 int add2(int a, int b) {
   return a + b;
@@ -92,4 +93,12 @@ float se(struct D tmp) {
 
 long double sf(struct E tmp) {
   return tmp.a + tmp.b;
+}
+
+long double sg(struct E tmp, long double a, int b) {
+  return sf(tmp) + a + b;
+}
+
+float si(struct D tmp, int a, int b, float c) {
+  return se(tmp) + a + b + c;
 }

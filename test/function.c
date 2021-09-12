@@ -112,6 +112,14 @@ long double sf(struct E tmp) {
   return tmp.a + tmp.b;
 }
 
+long double sg(struct E tmp, long double a, int b) {
+  return sf(tmp) + a + b;
+}
+
+float si(struct D tmp, int a, int b, float c) {
+  return se(tmp) + a + b + c;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -177,6 +185,16 @@ int main() {
   CHECKLD(4.1l, ({
     struct E tmp = {1, 3.1l};
     sf(tmp);
+  }));
+
+  CHECKLD(9.1l, ({
+    struct E tmp = {1, 3.1l};
+    sg(tmp, 2.0l, 3);
+  }));
+
+  CHECKF(13.0f, ({
+    struct D tmp = {2, 3.0f};
+    si(tmp, 2, 3, 3.0f);
   }));
 
   return 0;

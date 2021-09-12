@@ -48,3 +48,5 @@ struct E {
 };
 
 long double sf(struct E tmp);
+long double sg(struct E tmp, long double a, int b);
+float si(struct D tmp, int a, int b, float c);

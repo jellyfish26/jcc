@@ -582,7 +582,7 @@ static void push_argsre(Node *node, bool pass_stack) {
     case TY_FLOAT:
     case TY_DOUBLE:
       compile_node(node->lhs);
-      println("  movd rax, xmm0");
+      println("  movq rax, xmm0");
       gen_push("rax");
       break;
     case TY_LDOUBLE:
@@ -894,7 +894,7 @@ void compile_node(Node *node) {
         case TY_DOUBLE:
           if (flcnt < 8) {
             gen_pop("rax");
-            println("  movd xmm%d, rax", flcnt);
+            println("  movq xmm%d, rax", flcnt);
             flcnt++;
           } else {
             stcnt++;
@@ -931,15 +931,15 @@ void compile_node(Node *node) {
         default:
           if (gecnt < 6) {
             gen_pop("rax");
-            println("  mov %s, rax", argregs64[gecnt]);
-            gecnt++;
+            println("  mov %s, rax", argregs64[gecnt++]);
           } else {
             stcnt++;
           }
       }
     }
 
-    println("  call %s", node->func->name);
+    println("  mov r10, offset %s", node->func->name);
+    println("  call r10");
     gen_emptypop(stcnt);
     return;
   }
@@ -1167,11 +1167,13 @@ void codegen(Node *head, char *filename) {
 
     Obj *func = node->func;
     if (func->ty->is_prototype) {
+      println(".type %s, @function", func->name);
       continue;
     }
 
-    println(".global %s", func->name);
+    println(".globl %s", func->name);
     println(".text");
+    println(".type %s, @function", func->name);
     println("%s:", func->name);
 
     // Prologue
@@ -1261,6 +1263,7 @@ void codegen(Node *head, char *filename) {
                     println(" movq QWORD PTR [rax], xmm%d", flcnt++);
                 }
               } else {
+                println("  mov rdi, QWORD PTR [rsp+8]");
                 switch (mvsize) {
                   case 1:
                     println("  mov BYTE PTR [rax], %s", argregs8[gecnt++]);
@@ -1287,7 +1290,7 @@ void codegen(Node *head, char *filename) {
             gen_pop("rcx");
             gen_pop("rsi");
             gen_pop("rax");
-            stframe += stsize;
+            stframe += align_to(stsize, 8);
           }
         }
       }

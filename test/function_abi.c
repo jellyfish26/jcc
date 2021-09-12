@@ -68,6 +68,21 @@ int main() {
     sf(tmp);
   }));
 
+  CHECKLD(4.1l, ({
+    struct E tmp = {1, 3.1l};
+    sf(tmp);
+  }));
+
+  CHECKLD(9.1l, ({
+    struct E tmp = {1, 3.1l};
+    sg(tmp, 2.0l, 3);
+  }));
+
+  CHECKF(13.0f, ({
+    struct D tmp = {2, 3.0f};
+    si(tmp, 2, 3, 3.0f);
+  }));
+
   return 0;
 }
 

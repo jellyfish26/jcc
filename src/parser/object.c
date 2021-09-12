@@ -300,9 +300,9 @@ static bool comp_type(Type *left, Type *right) {
 }
 
 static void implicit_cast(Node **lhs, Node **rhs) {
-  Type *type = comp_type((*lhs)->ty, (*rhs)->ty) ? (*rhs)->ty : (*lhs)->ty;
-  *lhs = new_cast(*lhs, type);
-  *rhs = new_cast(*rhs, type);
+  Type *ty = comp_type(extract_ty((*lhs)->ty), extract_ty((*rhs)->ty)) ? (*rhs)->ty : (*lhs)->ty;
+  *lhs = new_cast(*lhs, extract_ty(ty));
+  *rhs = new_cast(*rhs, extract_ty(ty));
 }
 
 void add_type(Node *node) {
@@ -342,11 +342,11 @@ void add_type(Node *node) {
     case ND_LEC:
     case ND_LOGICALAND:
     case ND_LOGICALOR:
-      if (node->lhs->ty->kind >= TY_PTR) {
+      if (extract_ty(node->lhs->ty)->kind >= TY_PTR) {
         node->ty = node->lhs->ty;
         return;
       }
-      if (node->rhs->ty->kind >= TY_PTR) {
+      if (extract_ty(node->rhs->ty)->kind >= TY_PTR) {
         node->ty = node->rhs->ty;
         return;
       }
