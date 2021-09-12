@@ -25,6 +25,10 @@ struct Initializer {
   Node *node;
 };
 
+typedef struct {
+  bool is_static;
+} VarAttr;
+
 static char *break_label;
 static char *conti_label;
 
@@ -32,10 +36,13 @@ static HashMap *label_map;
 static Node *label_node;
 static Node *goto_node;
 
-static Node *literal_node;
+// Since variables with static attribute and string literals
+// need to be treated as global variables,
+// they are all stored in the tmp_node variable.
+static Node *tmp_node;
 
 // Prototype
-static Type *declspec(Token *tkn, Token **end_tkn);
+static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr);
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty);
 static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty);
@@ -48,10 +55,10 @@ static int64_t eval_expr(Node *node);
 static int64_t eval_expr2(Node *node, char **label);
 static int64_t eval_addr(Node *node, char **label);
 static long double eval_double(Node *node);
-static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty);
+static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr);
 static Node *comp_stmt(Token *tkn, Token **end_tkn);
 static Initializer *initializer(Token *tkn, Token **end_tkn, Type *ty);
-static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global);
+static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, VarAttr *attr);
 static Node *topmost(Token *tkn, Token **end_tkn);
 static Node *statement(Token *tkn, Token **end_tkn);
 static Node *expr(Token *tkn, Token **end_tkn);
@@ -73,7 +80,7 @@ static Node *postfix(Token *tkn, Token **end_tkn);
 static Node *primary(Token *tkn, Token **end_tkn);
 static Node *constant(Token *tkn, Token **end_tkn);
 
-static char *new_unique_label() {
+char *new_unique_label() {
   static int cnt = 0;
   char *ptr = calloc(10, sizeof(char));
   sprintf(ptr, ".Luni%d", cnt++);
@@ -122,6 +129,11 @@ Node *new_var(Token *tkn, Obj *obj) {
   return node;
 }
 
+static void add_tmp_node(Node *node) {
+  node->next = tmp_node;
+  tmp_node = node;
+}
+
 static Node *new_strlit(Token *tkn) {
   Initializer *init = new_initializer(tkn->ty, false);
   string_initializer(tkn, NULL, init);
@@ -136,13 +148,30 @@ static Node *new_strlit(Token *tkn) {
   node->lhs->var->is_global = true;
   node->rhs = head.lhs;
 
-  node->next = literal_node;
-  literal_node = node;
+  add_tmp_node(node);
 
   Node *addr = new_node(ND_ADDR, tkn);
   addr->lhs = node->lhs;
 
   return addr;
+}
+
+static Node *new_static_var(Node *var_node) {
+  var_node->next = tmp_node;
+  tmp_node = var_node;
+
+  Node *node = new_node(ND_VAR, var_node->tkn);
+  if (var_node->kind == ND_INIT) {
+    node->var = var_node->lhs->var;
+  } else {
+    node->var = var_node->var;
+  }
+
+  node->var->is_global = true;
+  node->var->name = new_unique_label();
+  node->ty = node->var->ty;
+
+  return node;
 }
 
 static bool is_addr_node(Node *node) {
@@ -252,7 +281,7 @@ static Node *to_assign(Token *tkn, Node *rhs) {
 static bool is_typename(Token *tkn) {
   char *keywords[] = {
     "void", "_Bool", "char", "short", "int", "long", "float", "double", "signed", "unsigned",
-    "const", "enum", "struct", "union"
+    "const", "enum", "struct", "union", "auto", "static"
   };
 
   for (int i = 0; i < sizeof(keywords) / sizeof(*keywords); i++) {
@@ -414,9 +443,11 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "Need type");
     }
 
-    Type *base_ty = declspec(tkn, &tkn);
-    bool is_first = true;
+    VarAttr *attr = calloc(1, sizeof(VarAttr));
+    Type *base_ty = declspec(tkn, &tkn, attr);
+    free(attr);
 
+    bool is_first = true;
     while (!consume(tkn, &tkn, ";")) {
       if (!is_first) {
         tkn = skip(tkn, ",");
@@ -508,7 +539,7 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
 //                  enum-specifier |
 //                  struct-or-union-specifier
 // type-qualifier = "const"
-static Type *declspec(Token *tkn, Token **end_tkn) {
+static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
   // If typename is 'long', we have a duplicate when the long bit
@@ -538,6 +569,16 @@ static Type *declspec(Token *tkn, Token **end_tkn) {
       }
       is_const = true;
       tkn = tkn->next;
+      continue;
+    }
+
+    // Ignore these keywords
+    if (consume(tkn, &tkn, "auto")) {
+      continue;
+    }
+
+    if (consume(tkn, &tkn, "static")) {
+      attr->is_static = true;
       continue;
     }
 
@@ -695,8 +736,10 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
       tkn = skip(tkn, ",");
     }
 
-    Type *param_ty = declspec(tkn, &tkn);
+    VarAttr *attr = calloc(1, sizeof(attr));
+    Type *param_ty = declspec(tkn, &tkn, attr);
     param_ty = declarator(tkn, &tkn, param_ty);
+    free(attr);
 
     cur->next = param_ty;
     cur = param_ty;
@@ -1160,7 +1203,7 @@ static long double eval_double(Node *node) {
 //
 // declaration -> init-declarator ("," init-declarator)* ";"?
 // declspec is replaced as base_ty argument.
-static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_global) {
+static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_global, VarAttr *attr) {
   Node head = {};
   Node *cur = &head;
 
@@ -1168,7 +1211,7 @@ static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_glo
     if (cur != &head) {
       tkn = skip(tkn, ",");
     }
-    cur->next = initdecl(tkn, &tkn, base_ty, is_global);
+    cur->next = initdecl(tkn, &tkn, base_ty, is_global, attr);
     cur = cur->next;
   }
 
@@ -1177,25 +1220,29 @@ static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_glo
 }
 
 // init-declarator = declarator ("=" initializer)?
-static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
+static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, VarAttr *attr) {
   ty = declarator(tkn, &tkn, ty);
   Obj *obj = new_obj(ty, ty->name);
 
   if (ty->kind == TY_FUNC) {
-    if (!declare_func(ty)) {
+    if (!declare_func(ty, attr->is_static)) {
       errorf_tkn(ER_COMPILE, tkn, "Conflict declaration");
     }
-  } else {
-    obj->is_global = is_global;
-    add_var(obj, !is_global);
-  }
 
-  if (ty->kind == TY_FUNC) {
     Node *node = new_node(ND_FUNC, tkn);
     node->func = obj;
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return node;
+  }
+
+  obj->is_global = is_global;
+
+  if (attr->is_static) {
+    add_var(obj, false);
+    is_global = true;
+  } else {
+    add_var(obj, !is_global);
   }
 
   if (equal(tkn, "=")) {
@@ -1220,11 +1267,21 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global) {
     }
 
     if (end_tkn != NULL) *end_tkn = tkn;
-    return node;
+
+    if (attr->is_static) {
+      return new_static_var(node);
+    } else {
+      return node;
+    }
   }
 
   if (end_tkn != NULL) *end_tkn = tkn;
-  return new_var(tkn, obj);
+
+  if (attr->is_static) {
+    return new_static_var(new_var(tkn, obj));
+  } else {
+    return new_var(tkn, obj);
+  }
 }
 
 Node *last_stmt(Node *now) {
@@ -1247,18 +1304,19 @@ Node *program(Token *tkn) {
       errorf_tkn(ER_COMPILE, tkn, "Need type name");
     }
 
-    Type *ty = declspec(tkn, &tkn);
-    Node *node = funcdef(tkn, &tkn, ty);
+    VarAttr *attr = calloc(1, sizeof(VarAttr));
+    Type *ty = declspec(tkn, &tkn, attr);
+    Node *node = funcdef(tkn, &tkn, ty, attr);
     if (node == NULL) {
-      node = declaration(tkn, &tkn, ty, true);
+      node = declaration(tkn, &tkn, ty, true, attr);
     }
 
-    cur->next = literal_node;
+    cur->next = tmp_node;
     cur = last_stmt(cur);
     cur->next = node;
     cur = last_stmt(cur);
 
-    literal_node = NULL;
+    tmp_node = NULL;
   }
   return head.next;
 }
@@ -1269,7 +1327,7 @@ Node *program(Token *tkn) {
 //
 // funcdef -> declarator comp-stmt | None
 //
-static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty) {
+static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) {
   label_node = NULL;
   goto_node = NULL;
   label_map = calloc(1, sizeof(HashMap));
@@ -1279,7 +1337,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty) {
     return NULL;
   }
 
-  if (!define_func(ty)) {
+  if (!define_func(ty, attr->is_static)) {
     errorf_tkn(ER_COMPILE, tkn, "Conflict define");
   }
 
@@ -1529,8 +1587,9 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     conti_label = ret->conti_label = new_unique_label();
 
     if (is_typename(tkn)) {
-      Type *ty = declspec(tkn, &tkn);
-      ret->init = declaration(tkn, &tkn, ty, false);
+      VarAttr *attr = calloc(1, sizeof(VarAttr));
+      Type *ty = declspec(tkn, &tkn, attr);
+      ret->init = declaration(tkn, &tkn, ty, false, attr);
     } else if (!consume(tkn, &tkn, ";")) {
       ret->init = expr(tkn, &tkn);
       tkn = skip(tkn, ";");
@@ -1625,8 +1684,9 @@ static Node *comp_stmt(Token *tkn, Token **end_tkn) {
 
     while (!consume(tkn, &tkn, "}")) {
       if (is_typename(tkn)) {
-        Type *ty = declspec(tkn, &tkn);
-        cur->next = declaration(tkn, &tkn, ty, false);
+        VarAttr *attr = calloc(1, sizeof(VarAttr));
+        Type *ty = declspec(tkn, &tkn, attr);
+        cur->next = declaration(tkn, &tkn, ty, false, attr);
       } else {
         enter_scope();
         cur->next = statement(tkn, &tkn);
@@ -1974,7 +2034,8 @@ static Node *mul(Token *tkn, Token **end_tkn) {
 // The definition of typename is shown in the comments of the function below.
 static Node *cast(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "(") && is_typename(tkn->next)) {
-    Type *ty = declspec(tkn->next, &tkn);
+    VarAttr *attr = calloc(1, sizeof(VarAttr));
+    Type *ty = declspec(tkn->next, &tkn, attr);
     ty = abstract_declarator(tkn, &tkn, ty);
 
     tkn = skip(tkn, ")");
@@ -2046,7 +2107,8 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 
     // type-name
     if (equal(tkn, "(") && is_typename(tkn->next)) {
-      Type *ty = declspec(tkn->next, &tkn);
+      VarAttr *attr = calloc(1, sizeof(VarAttr));
+      Type *ty = declspec(tkn->next, &tkn, attr);
       ty = abstract_declarator(tkn, &tkn, ty);
 
       tkn = skip(tkn, ")");

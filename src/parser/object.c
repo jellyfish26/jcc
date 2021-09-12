@@ -231,12 +231,19 @@ static bool check_func_params(Type *lty, Type *rty) {
   return true;
 }
 
-bool declare_func(Type *ty) {
+bool declare_func(Type *ty, bool is_static) {
   ty->is_prototype = true;
   Obj *already = find_var(ty->name);
 
   if (already == NULL) {
-    add_var(new_obj(ty, ty->name), false);
+    Obj *obj = new_obj(ty, ty->name);
+    obj->is_static = is_static;
+    add_var(obj, false);
+
+    if (is_static) {
+      obj->name = new_unique_label();
+    }
+
     return true;
   }
 
@@ -256,19 +263,33 @@ bool declare_func(Type *ty) {
   // If the number of parameters in the function declaration is zero,
   // we can update the function declaration.
   if (already->params == NULL) {
-    hashmap_insert(&(scope->var), ty->name, new_obj(ty, ty->name));
+    Obj *obj = new_obj(ty, ty->name);
+    obj->is_static = already->is_static | is_static;
+    hashmap_insert(&(scope->var), ty->name, obj);
+
+    if (obj->is_static) {
+      obj->name = new_unique_label();
+    }
+
     return true;
   }
 
   return check_func_params(ty, already->ty);
 }
 
-bool define_func(Type *ty) {
+bool define_func(Type *ty, bool is_static) {
   ty->is_prototype = false;
   Obj *alrady = find_var(ty->name);
 
   if (alrady == NULL) {
-    add_var(new_obj(ty, ty->name), false);
+    Obj *obj = new_obj(ty, ty->name);
+    obj->is_static = is_static;
+    add_var(obj, false);
+
+    if (is_static) {
+      obj->name = new_unique_label();
+    }
+
     return true;
   }
 
@@ -276,7 +297,14 @@ bool define_func(Type *ty) {
     return false;
   }
 
-  hashmap_insert(&(scope->var), ty->name, new_obj(ty, ty->name));
+  Obj *obj = new_obj(ty, ty->name);
+  obj->is_static = alrady->is_static | is_static;
+  hashmap_insert(&(scope->var), ty->name, obj);
+
+  if (obj->is_static) {
+    obj->name = new_unique_label();
+  }
+
   return true;
 }
 

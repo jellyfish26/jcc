@@ -144,6 +144,21 @@ int ua(union G tmp) {
   return tmp.a + tmp.b;
 }
 
+int instatic() {
+  static int a = 0;
+  return ++a;
+}
+
+int inauto() {
+  auto int a = 0;
+  return ++a;
+}
+
+static int fnstatic() {
+  int a = 2;
+  return a++;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -249,6 +264,24 @@ int main() {
     tmp.b = 11;
     tmp.a = -3;
     ua(tmp);
+  }));
+
+  CHECK(3, ({
+    instatic();
+    instatic();
+    instatic();
+  }));
+
+  CHECK(1, ({
+    inauto();
+    inauto();
+    inauto();
+  }));
+
+  CHECK(2, ({
+    fnstatic();
+    fnstatic();
+    fnstatic();
   }));
 
   return 0;

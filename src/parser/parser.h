@@ -96,6 +96,7 @@ struct Node {
   long double fval;   // Floating-value if kind is ND_NUM
 };
 
+char *new_unique_label();
 int align_to(int bytes, int align);
 Node *new_cast(Node *expr, Type *ty);
 Node *new_var(Token *tkn, Obj *obj);
@@ -199,6 +200,9 @@ struct Obj {
   // Local variable
   int offset;
 
+  // Variable attribute
+  bool is_static;
+
   // Function
   Obj *params;
   Obj *next;
@@ -218,8 +222,8 @@ Obj *find_var(char *name);
 Type *find_tag(char *name);
 Obj *find_obj(char *name);
 int init_offset();
-bool declare_func(Type *ty);
-bool define_func(Type *ty);
+bool declare_func(Type *ty, bool is_static);
+bool define_func(Type *ty, bool is_static);
 
 struct Member {
   Type *ty;

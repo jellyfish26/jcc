@@ -172,7 +172,7 @@ static char *permit_panct[] = {
 
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "do", "while", "break", "continue",
-  "switch", "case", "default", "goto", "sizeof", "_Alignof",
+  "switch", "case", "default", "goto", "sizeof", "_Alignof", "static", "auto",
   "signed", "unsigned", "void", "_Bool", "char", "short", 
   "int", "long", "float", "double", "const", "enum", "struct", "union"};
 
