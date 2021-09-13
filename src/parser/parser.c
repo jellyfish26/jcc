@@ -392,15 +392,140 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
   return ty;
 }
 
+// construct-members -> "{" struct-declaration-list* "}"
+// struct-declaration-list = struct-declaration*
+// struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct-declarator)* ";"
+// struct-declarator       = declarator (":" constant-expression)?
+static void construct_members(Token *tkn, Token **end_tkn, Type *ty) {
+  Member head = {};
+  Member *cur = &head;
+  int num_members = 0;
+
+  tkn = skip(tkn, "{");
+  while (!consume_close_brace(tkn, &tkn)) {
+    if (!is_typename(tkn)) {
+      errorf_tkn(ER_COMPILE, tkn, "Need type");
+    }
+
+    VarAttr *attr = calloc(1, sizeof(VarAttr));
+    Type *base_ty = declspec(tkn, &tkn, attr);
+    free(attr);  // Not use attribute
+
+    bool need_comma = false;
+    while (!consume(tkn, &tkn, ";")) {
+      if (need_comma) {
+        tkn = skip(tkn, ",");
+      }
+      need_comma = true;
+
+      Type *mem_ty = declarator(tkn, &tkn, copy_ty(base_ty));
+
+      if (consume(tkn, &tkn, ":")) {
+        if (mem_ty == NULL) {
+          mem_ty = copy_ty(base_ty);
+        }
+
+        mem_ty->bit_field = eval_expr(conditional(tkn, &tkn));
+      } else {
+        // If the bit field is 0, the behavior is to fill the extra field,
+        // which distinguishes it from members with no specified bit field.
+        mem_ty->bit_field = -1;
+      }
+
+      if (mem_ty == NULL) {
+        continue;
+      }
+
+      check_member(head.next, mem_ty->name, mem_ty->tkn);
+      Member *member = calloc(1, sizeof(Member));
+      member->ty = mem_ty;
+      member->tkn = mem_ty->tkn;
+      member->name = mem_ty->name;
+
+      cur->next = member;
+      cur = member;
+      num_members++;
+    }
+  }
+
+  ty->num_members = num_members;
+  ty->members = head.next;
+  if (end_tkn != NULL) *end_tkn = tkn;
+}
+
+static Type *struct_specifier(Token *tkn, Token **end_tkn, char *tag) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = TY_STRUCT;
+  construct_members(tkn, &tkn, ty);
+
+  // Initialize size, offset, and align
+  int bytes = 0, align = 0, bit_offset = 0;
+  for (Member *member = ty->members; member != NULL; member = member->next) {
+    if (align < member->ty->align) {
+      align = member->ty->align;
+    }
+
+    int bit_field = member->ty->bit_field;
+    if (bit_field != -1) {
+      if (bit_field == 0 || bit_offset + bit_field > member->ty->var_size * 8) {
+        bytes += align_to(bit_offset, 8) / 8;
+        bit_offset = 0;
+      }
+
+      member->ty->bit_offset = bit_offset;
+      member->offset = bytes;
+      bit_offset += bit_field;
+      continue;
+    }
+
+    bytes = align_to(bytes + align_to(bit_offset, 8) / 8, member->ty->align);
+    bit_offset = 0;
+
+    member->offset = bytes;
+    bytes += member->ty->var_size;
+  }
+  ty->var_size = bytes + align_to(bit_offset, 8) / 8;
+  ty->align = align;
+
+  if (tag != NULL) {
+    add_tag(ty, tag);
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn;
+  return ty;
+}
+
+static Type *union_specifier(Token *tkn, Token **end_tkn, char *tag) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = TY_UNION;
+  construct_members(tkn, &tkn, ty);
+
+  int bytes = 0, align = 0;
+  for (Member *member = ty->members; member != NULL; member = member->next) {
+    if (align < member->ty->align) {
+      align = member->ty->align;
+    }
+
+    if (bytes < member->ty->var_size) {
+      bytes = member->ty->var_size;
+    }
+  }
+  ty->var_size = bytes;
+  ty->align = align;
+
+  if (tag != NULL) {
+    add_tag(ty, tag);
+  }
+
+  if (end_tkn != NULL) *end_tkn = tkn; 
+  return ty;
+}
+
 // struct-or-union-specifier = struct-or-union identifier |
 //                             struct-or-union identifier? "{" struct-declaration-list "}"
 //
 // struct-or-union = "struct" | "union"
 //
-// struct-declaration-list = struct-declaration*
-// struct-declaration      = specifier-qualifier-list (declspec) struct-declarator ("," struct-declarator)* ";"
-//
-// struct-declarator = declarator | declarator ":" constant-expression
 static Type *stunspec(Token *tkn, Token **end_tkn) {
   TypeKind kind;
   if (consume(tkn, &tkn, "struct")) {
@@ -430,106 +555,11 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     return ty;
   }
 
-
-  // Construct struct or union member.
-  Type *ty = calloc(1, sizeof(Type));
-  Member head = {};
-  Member *cur = &head;
-  int member_cnt = 0;
-
-  tkn = skip(tkn, "{");
-  while (!consume_close_brace(tkn, &tkn)) {
-    if (!is_typename(tkn)) {
-      errorf_tkn(ER_COMPILE, tkn, "Need type");
-    }
-
-    VarAttr *attr = calloc(1, sizeof(VarAttr));
-    Type *base_ty = declspec(tkn, &tkn, attr);
-    free(attr);
-
-    bool is_first = true;
-    while (!consume(tkn, &tkn, ";")) {
-      if (!is_first) {
-        tkn = skip(tkn, ",");
-      }
-      is_first = false;
-
-      Type *member_ty = declarator(tkn, &tkn, copy_ty(base_ty));
-
-      if (consume(tkn, &tkn, ":")) {
-        if (member_ty == NULL) {
-          member_ty = copy_ty(base_ty);
-        }
-        member_ty->bit_field = eval_expr(conditional(tkn, &tkn));
-      } else {
-        member_ty->bit_field = -1;
-      }
-
-      if (member_ty == NULL) {
-        continue;
-      }
-
-      if (find_member(head.next, member_ty->name) != NULL) {
-        errorf_tkn(ER_COMPILE, tkn, "Duplicate member");
-      }
-
-      Member *member = calloc(1, sizeof(Member));
-      member->ty = member_ty;
-      member->tkn = member_ty->tkn;
-      member->name = member_ty->name;
-
-      cur->next = member;
-      cur = member;
-      member_cnt++;
-    }
+  if (kind == TY_STRUCT) {
+    return struct_specifier(tkn, end_tkn, tag);
+  } else {
+    return union_specifier(tkn, end_tkn, tag);
   }
-  ty->member = head.next;
-  ty->member_cnt = member_cnt;
-  ty->kind = kind;
-
-  // Initializer size, offset and align.
-  int bytes = 0, align = 0, bit_offset = 0;
-  for (Member *member = head.next; member != NULL; member = member->next) {
-    if (align < member->ty->align) {
-      align = member->ty->align;
-    }
-
-    if (kind == TY_UNION) {
-      if (bytes < member->ty->var_size) {
-        bytes = member->ty->var_size;
-      }
-      continue;
-    }
-
-    if (member->ty->bit_field != -1) {
-      if (member->ty->bit_field == 0 || bit_offset + member->ty->bit_field > member->ty->var_size * 8) {
-        bytes += align_to(bit_offset, 8) / 8;
-        bit_offset = 0;
-      }
-
-      member->ty->bit_offset = bit_offset;
-      member->offset = bytes;
-      bit_offset += member->ty->bit_field;
-      continue;
-    }
-    bytes += align_to(bit_offset, 8) / 8;
-    bit_offset = 0;
-
-    bytes = align_to(bytes, member->ty->align);
-    member->offset = bytes;
-    bytes += member->ty->var_size;
-    bit_offset = 0;
-  }
-  bytes += align_to(bit_offset, 8) / 8;
-  ty->var_size = bytes;
-  ty->align = align;
-
-  if (tag != NULL) {
-    add_tag(ty, tag);
-  }
-
-  if (end_tkn != NULL) *end_tkn = tkn;
-  return ty;
 }
 
 // declaration-specifiers = type-specifier declaration-specifiers?
@@ -815,11 +845,11 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
   }
 
   if (ty->kind == TY_STRUCT) {
-    init->size = ty->member_cnt;
-    init->children = calloc(ty->member_cnt, sizeof(Initializer *));
+    init->size = ty->num_members;
+    init->children = calloc(ty->num_members, sizeof(Initializer *));
 
     int i = 0;
-    for (Member *member = ty->member; member != NULL; member = member->next) {
+    for (Member *member = ty->members; member != NULL; member = member->next) {
       init->children[i++] = new_initializer(member->ty, false);
     }
   }
@@ -827,7 +857,7 @@ static Initializer *new_initializer(Type *ty, bool is_flexible) {
   if (ty->kind == TY_UNION) {
     init->size = 1;
     init->children = calloc(1, sizeof(Initializer *));
-    init->children[0] = new_initializer(ty->member->ty, false);
+    init->children[0] = new_initializer(ty->members->ty, false);
   }
   return init;
 }
@@ -904,7 +934,7 @@ static void initializer_list(Token *tkn, Token **end_tkn, Initializer *init) {
       char *ident = get_ident(tkn);
       int i = 0;
       Type *member_ty;
-      for (Member *member = ty->member; member != NULL; member = member->next) {
+      for (Member *member = ty->members; member != NULL; member = member->next) {
         member_ty = member->ty;
         if (strcmp(ident, member->name) == 0) {
           break;
@@ -995,7 +1025,7 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
 
   if (ty->kind == TY_STRUCT) {
     int i = 0;
-    for (Member *member = ty->member; member != NULL; member = member->next) {
+    for (Member *member = ty->members; member != NULL; member = member->next) {
       create_init_node(init->children[i++], connect, only_const, member->ty);
     }
   }
@@ -2213,7 +2243,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "Need struct or union type");
     }
 
-    Member *member = find_member(ty->member, get_ident(tkn->next));
+    Member *member = find_member(ty->members, get_ident(tkn->next));
     if (member == NULL) {
       errorf_tkn(ER_COMPILE, tkn, "This member is not found");
     }

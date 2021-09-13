@@ -432,3 +432,9 @@ Member *find_member(Member *head, char *name) {
   }
   return NULL;
 }
+
+void check_member(Member *head, char *name, Token *represent) {
+  if (find_member(head, name) != NULL) {
+    errorf_tkn(ER_COMPILE, represent, "Duplicate member");
+  }
+}

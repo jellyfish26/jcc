@@ -77,15 +77,15 @@ static void gen_load(Type *ty) {
     return;
   }
 
-  char *unsi = ty->is_unsigned ? "movz" : "movs";
+  char *unsi = ty->is_unsigned ? "movzx" : "movsx";
 
   // When char and short size values are loaded with mov instructions,
   // they may contain garbage in the lower 32bits,
   // so we are always extended to int.
   if (ty->var_size == 1) {
-    println("  %sxb (%%rax), %%eax", unsi);
+    println("  %sb (%%rax), %%eax", unsi);
   } else if (ty->var_size == 2) {
-    println("  %sxw (%%rax), %%eax", unsi);
+    println("  %sw (%%rax), %%eax", unsi);
   } else if (ty->var_size == 4) {
     println("  mov (%%rax), %%eax");
   } else {
@@ -612,7 +612,7 @@ static void gen_gvar_init(Node *node) {
 
 static bool has_only_float(Type *ty, int begin, int end, int offset) {
   if (ty->kind == TY_STRUCT) {
-    for (Member *member = ty->member; member != NULL; member = member->next) {
+    for (Member *member = ty->members; member != NULL; member = member->next) {
       if (!has_only_float(member->ty, begin, end, member->offset)) {
         return false;
       }
@@ -634,6 +634,7 @@ static bool has_only_float(Type *ty, int begin, int end, int offset) {
   return ret;
 }
 
+// Recursive
 static void push_argsre(Node *node, bool pass_stack) {
   if (node == NULL) {
     return;
@@ -692,7 +693,7 @@ static void push_args(Node *node, bool pass_stack) {
         arg->pass_by_stack = true;
         break;
       case TY_STRUCT: {
-        if (arg_ty->var_size > 16 || arg_ty->member->ty->kind == TY_LDOUBLE) {
+        if (arg_ty->var_size > 16 || arg_ty->members->ty->kind == TY_LDOUBLE) {
           arg->pass_by_stack = true;
           break;
         }
@@ -724,45 +725,50 @@ void compile_node(Node *node) {
   }
 
   if (node->kind == ND_NUM) {
-    switch (node->ty->kind) {
+    TypeKind num_kind = node->ty->kind;
+
+    switch (num_kind) {
       case TY_CHAR:
       case TY_SHORT:
       case TY_INT:
       case TY_LONG:
-        println("  mov $%ld, %%rax", node->val);
-        break;
-      case TY_FLOAT: {
-        float *ptr = calloc(1, sizeof(float));
-        *ptr = (float)node->fval;
-        println("  sub $4, %%rsp");
-        println("  movl $%d, (%%rsp)", *(int*)ptr);
-        println("  movss (%%rsp), %%xmm0");
-        println("  add $4, %%rsp");
-        break;
-      }
-      case TY_DOUBLE: {
-        double *ptr = calloc(1, sizeof(double));
-        *ptr = (double)node->fval;
-        println("  sub $8, %%rsp");
-        println("  movl $%d, (%%rsp)", *(int*)ptr);
-        println("  movl $%d, 4(%%rsp)", *((int*)ptr + 1));
-        println("  movsd (%%rsp), %%xmm0");
-        println("  add $8, %%rsp");
-        break;
-      }
+        println("  movabs $%ld, %%rax", node->val);
+        return;
+      case TY_FLOAT:
+      case TY_DOUBLE:
       case TY_LDOUBLE: {
-        long double *ptr = calloc(1, sizeof(long double));
-        *ptr = (long double)node->fval;
-        println("  sub $16, %%rsp");
-        println("  movl $%d, (%%rsp)", *(int*)ptr);
-        println("  movl $%d, 4(%%rsp)", *((int*)ptr + 1));
-        println("  movl $%d, 8(%%rsp)", *((int*)ptr + 2));
-        println("  movl $%d, 12(%%rsp)", *((int*)ptr + 3));
-        println("  fldt (%%rsp)");
-        println("  add $16, %%rsp");
+        void *ptr = calloc(1, 16);
+        int sz = 4;
+
+        if (num_kind == TY_FLOAT) {
+          *(float*)ptr = (float)node->fval;
+          sz = 1;
+        } else if (num_kind == TY_DOUBLE) {
+          *(double*)ptr = (double)node->fval;
+          sz = 2;
+        } else {
+          *(long double*)ptr = (long double)node->fval;
+          sz = 4;
+        }
+
+        // insert value to stack
+        println("  sub $%d, %%rsp", 4 * sz);
+        for (int i = 0; i < sz; i++) {
+          println("  movl $%d, %d(%%rsp)", *((int*)ptr + i), 4 * i);
+        }
+
+        // load to register (xmm0 or st)
+        if (num_kind == TY_FLOAT)
+          println("  movss (%%rsp), %%xmm0");
+        else if (num_kind == TY_DOUBLE)
+          println("  movsd (%%rsp), %%xmm0");
+        else
+          println("  fldt (%%rsp)");
+
+        println("  add $%d, %%rsp", 4 * sz);
+        return;
       }
     }
-    return;
   }
 
   if (node->kind == ND_CAST) {
@@ -786,7 +792,7 @@ void compile_node(Node *node) {
   switch (node->kind) {
     case ND_VAR:
       if (node->var->ty->kind == TY_ENUM) {
-        println("  mov $%ld, %%rax", node->var->val);
+        println("  movabs $%ld, %%rax", node->var->val);
       } else {
         gen_addr(node);
         gen_load(node->ty);
@@ -1297,7 +1303,7 @@ void codegen(Node *head, char *filename) {
         case TY_UNION: {
           int stsize = 0;
 
-          if (param->ty->var_size > 16 || param->ty->member->ty->kind == TY_LDOUBLE) {
+          if (param->ty->var_size > 16 || param->ty->members->ty->kind == TY_LDOUBLE) {
             stsize = param->ty->var_size;
           } else {
             bool f1 = has_only_float(param->ty, 0, 8, 0);

@@ -154,8 +154,8 @@ struct Type {
   Type *next;
 
   // Struct type
-  int member_cnt;
-  Member *member;
+  int num_members;
+  Member *members;
   int align;      // Alignment
   int bit_field;  // Bit field
   int bit_offset; // Bit offset 
@@ -235,3 +235,4 @@ struct Member {
 };
 
 Member *find_member(Member *head, char *name);
+void check_member(Member *head, char *name, Token *represent);
