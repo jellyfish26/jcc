@@ -114,3 +114,33 @@ int sk(struct F tmp) {
 int ua(union G tmp) {
   return tmp.a + tmp.b;
 }
+
+struct A retsta() {
+  struct A tmp = {1, 2, 3};
+  return tmp;
+}
+
+struct B retstb() {
+  struct B tmp = {{1, 2, 3, 4, 5, 6}};
+  return tmp;
+}
+
+struct C retstc() {
+  struct C tmp = {2.2l};
+  return tmp;
+}
+
+struct D retstd() {
+  struct D tmp = {2, 3.0f};
+  return tmp;
+}
+
+struct E retste() {
+  struct E tmp = {2, 3.0l};
+  return tmp;
+}
+
+struct F retstf() {
+  struct F tmp = {2, 50, 1, -1, 240};
+  return tmp;
+}

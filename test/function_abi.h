@@ -69,3 +69,9 @@ union G {
 int ua(union G tmp);
 
 
+struct A retsta();
+struct B retstb();
+struct C retstc();
+struct D retstd();
+struct E retste();
+struct F retstf();

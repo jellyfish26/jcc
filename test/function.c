@@ -159,6 +159,36 @@ static int fnstatic() {
   return a++;
 }
 
+struct A retsta() {
+  struct A tmp = {1, 2, 3};
+  return tmp;
+}
+
+struct B retstb() {
+  struct B tmp = {{1, 2, 3, 4, 5, 6}};
+  return tmp;
+}
+
+struct C retstc() {
+  struct C tmp = {2.2l};
+  return tmp;
+}
+
+struct D retstd() {
+  struct D tmp = {2, 3.0f};
+  return tmp;
+}
+
+struct E retste() {
+  struct E tmp = {2, 3.0l};
+  return tmp;
+}
+
+struct F retstf() {
+  struct F tmp = {2, 50, 1, -1, 240};
+  return tmp;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -282,6 +312,52 @@ int main() {
     fnstatic();
     fnstatic();
     fnstatic();
+  }));
+
+  // Not working
+  // CHECK(6, ({
+  //   struct A tmp = retsta();
+  //   tmp.a + tmp.b + tmp.c;
+  // }));
+
+  CHECK(6, ({
+    struct A tmp;
+    tmp = retsta();
+    tmp.a + tmp.b + tmp.c;
+  }));
+
+  CHECK(21, ({
+    struct B tmp;
+    tmp = retstb();
+    int ans = 0;
+    for (int i = 0; i < 6; i++) {
+      ans += tmp.a[i];
+    }
+    ans;
+  }));
+
+  CHECKLD(2.2L, ({
+    struct C tmp;
+    tmp = retstc();
+    tmp.a;
+  }));
+
+  CHECKF(5.0f, ({
+    struct D tmp;
+    tmp = retstd();
+    tmp.a + tmp.b;
+  }));
+
+  CHECKLD(5.0l, ({
+    struct E tmp;
+    tmp = retste();
+    tmp.a + tmp.b;
+  }));
+
+  CHECK(288, ({
+    struct F tmp;
+    tmp = retstf();
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
   }));
 
   return 0;

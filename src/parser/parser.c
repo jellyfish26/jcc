@@ -41,6 +41,8 @@ static Node *goto_node;
 // they are all stored in the tmp_node variable.
 static Node *tmp_node;
 
+static Type *func_ty;  // Type of function being explore.
+
 // Prototype
 static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr);
 static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty);
@@ -766,7 +768,7 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
       tkn = skip(tkn, ",");
     }
 
-    VarAttr *attr = calloc(1, sizeof(attr));
+    VarAttr *attr = calloc(1, sizeof(VarAttr));
     Type *param_ty = declspec(tkn, &tkn, attr);
     param_ty = declarator(tkn, &tkn, param_ty);
     free(attr);
@@ -1370,6 +1372,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
   if (!define_func(ty, attr->is_static)) {
     errorf_tkn(ER_COMPILE, tkn, "Conflict define");
   }
+  func_ty = ty;
 
   Node *node = new_node(ND_FUNC, tkn);
   enter_scope();
@@ -1397,6 +1400,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
   node->deep = comp_stmt(tkn, &tkn);
   leave_scope();
   node->func->vars_size = init_offset();
+  node->func->ty->var_size = node->func->vars_size;
 
   // Relocate label
   for (Node *stmt = label_node; stmt != NULL; stmt = stmt->deep) {
@@ -1686,12 +1690,18 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
   // jump-statement
   if (equal(tkn, "return")) {
-    Node *ret = new_node(ND_RETURN, tkn);
-    ret->lhs = assign(tkn->next, &tkn);
+    Node *node = new_node(ND_RETURN, tkn);
+    node->lhs = assign(tkn->next, &tkn);
+    add_type(node);
+    node->ty = func_ty;
+
+    if (!is_same_type(func_ty->ret_ty, node->lhs->ty)) {
+      node->lhs = new_cast(node->lhs, func_ty->ret_ty);
+    }
     tkn = skip(tkn, ";");
 
     if (end_tkn != NULL) *end_tkn = tkn;
-    return ret;
+    return node;
   }
 
   // expression-statement
@@ -2205,7 +2215,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
       cur = head.next;
       for (Type *arg_ty = node->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
-        if (arg_ty->kind != TY_STRUCT) {
+        if (arg_ty->kind != TY_STRUCT && arg_ty->kind != TY_UNION) {
           cur->lhs = new_cast(cur->lhs, arg_ty);
         }
         cur = cur->next;

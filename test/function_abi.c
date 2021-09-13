@@ -108,7 +108,45 @@ int main() {
     ua(tmp);
   }));
 
+  CHECK(6, ({
+    struct A tmp;
+    tmp = retsta();
+    tmp.a + tmp.b + tmp.c;
+  }));
 
+  CHECK(21, ({
+    struct B tmp;
+    tmp = retstb();
+    int ans = 0;
+    for (int i = 0; i < 6; i++) {
+      ans += tmp.a[i];
+    }
+    ans;
+  }));
+
+  CHECKLD(2.2L, ({
+    struct C tmp;
+    tmp = retstc();
+    tmp.a;
+  }));
+
+  CHECKF(5.0f, ({
+    struct D tmp;
+    tmp = retstd();
+    tmp.a + tmp.b;
+  }));
+
+  CHECKLD(5.0l, ({
+    struct E tmp;
+    tmp = retste();
+    tmp.a + tmp.b;
+  }));
+
+  CHECK(288, ({
+    struct F tmp;
+    tmp = retstf();
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
 
   return 0;
 }

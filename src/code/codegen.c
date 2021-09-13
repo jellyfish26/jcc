@@ -54,7 +54,11 @@ static void gen_addr(Node *node) {
     case ND_CONTENT:
       compile_node(node->lhs);
       return;
+    case ND_FUNCCALL:
+      compile_node(node);
+      return;
     default:
+      printf("%d\n", node->kind);
       errorf_tkn(ER_COMPILE, node->tkn, "Not a variable.");
   }
 }
@@ -673,11 +677,28 @@ static void push_argsre(Node *node, bool pass_stack) {
   }
 }
 
-static void push_args(Node *node, bool pass_stack) {
-  // floating cnt, general cnt
-  // pass by stack if flcnt >= 8 or gecnt >= 6
-  int flcnt = 0, gecnt = 0;
+// Returns a bool value indicating whether or not the structure type is passing by stack.
+//
+// When f80_to_register is true, it returns false for the long double type alone.
+// Normally, a structure containing a long double type will exchange data through stack,
+// but when returning from a function,
+// a structure with only one long double type will exchange data through st registers.
+static bool is_struct_pass_by_stack(Type *ty, int flcnt, int gecnt, bool f80_to_register) {
+  if (ty->var_size == 16 && ty->members->ty->kind == TY_LDOUBLE && f80_to_register) {
+    return false;
+  }
 
+  if (ty->var_size > 16 || ty->members->ty->kind == TY_LDOUBLE) {
+    return true;
+  }
+
+  bool f1 = has_only_float(ty, 0, 8, 0);
+  bool f2 = has_only_float(ty, 8, 16, 0);
+
+  return flcnt + f1 + f2 >= 8 || gecnt + !f1 + !f2 >= 6;
+}
+
+static void push_args(Node *node, bool pass_stack, int flcnt, int gecnt) {
   for (Node *arg = node->args; arg != NULL; arg = arg->next) {
     Type *arg_ty = extract_ty(arg->lhs->ty);
 
@@ -692,8 +713,9 @@ static void push_args(Node *node, bool pass_stack) {
       case TY_LDOUBLE:
         arg->pass_by_stack = true;
         break;
-      case TY_STRUCT: {
-        if (arg_ty->var_size > 16 || arg_ty->members->ty->kind == TY_LDOUBLE) {
+      case TY_STRUCT:
+      case TY_UNION: {
+        if (is_struct_pass_by_stack(arg_ty, flcnt, gecnt, false)) {
           arg->pass_by_stack = true;
           break;
         }
@@ -701,13 +723,9 @@ static void push_args(Node *node, bool pass_stack) {
         bool f1 = has_only_float(arg_ty, 0, 8, 0);
         bool f2 = has_only_float(arg_ty, 8, 16, 0);
 
-        if (flcnt + f1 + f2 < 8 && gecnt + !f1 + !f2 < 6) {
-          flcnt += f1 + f2;
-          gecnt += !f1 + !f2;
-        } else {
-          arg->pass_by_stack = true;
-          break;
-        }
+        flcnt += f1 + f2;
+        gecnt += !f1 + !f2;
+        break;
       }
       default:
         if (gecnt >= 6) {
@@ -825,7 +843,47 @@ void compile_node(Node *node) {
       return;
     }
     case ND_RETURN:
-      compile_node(node->lhs);
+      if (node->ty->ret_ty->kind == TY_STRUCT || node->ty->ret_ty->kind == TY_UNION) {
+        gen_addr(node->lhs);
+        bool ld1 = is_struct_pass_by_stack(node->ty->ret_ty, 0, 0, true);
+        bool ld2 = is_struct_pass_by_stack(node->ty->ret_ty, 0, 0, false);
+
+        // one long double
+        if (ld1 != ld2) {
+          println("  fldt (%%rax)");
+        } else if (ld1) {
+          println("  mov %%rax, %%rsi");
+          println("  mov -%d(%%rbp), %%rdi", node->ty->var_size + 8);
+          println("  mov $%d, %%rcx", node->ty->ret_ty->var_size);
+          println("  rep movsb");
+          println("  mov -%d(%%rbp), %%rax", node->ty->var_size + 8);
+        } else {
+          bool f1 = has_only_float(node->ty->ret_ty, 0, 8, 0);
+          bool f2 = has_only_float(node->ty->ret_ty, 8, 16, 0);
+
+          int gecnt = 0, flcnt = 0;
+
+          println("  mov %%rax, %%rdi");
+
+          if (f1) {
+            println("  movq (%%rdi), %%xmm0");
+            flcnt++;
+          } else {
+            println("  movq (%%rdi), %%rax");
+            gecnt++;
+          }
+
+          if (node->ty->ret_ty->var_size > 8) {
+            if (f2) {
+              println("  movq 8(%%rdi), %%xmm%d", flcnt);
+            } else {
+              println("  movq 8(%%rdi), %s", gecnt == 0 ? "%rax" : "%rdx");
+            }
+          }
+        }
+      } else {
+        compile_node(node->lhs);
+      }
       println("  mov %%rbp, %%rsp");
       gen_pop("rbp");
       println("  ret");
@@ -952,12 +1010,21 @@ void compile_node(Node *node) {
   if (node->kind == ND_FUNCCALL) {
     Type *ty = node->func->ty;
 
-    push_args(node, true);
-    push_args(node, false);
-
     // floating cnt, general cnt, stack cnt
     // pass by stack if flcnt >= 9 or gecnt >= 6
     int flcnt = 0, gecnt = 0, stcnt = 0;
+
+    Type *ret_ty = ty->ret_ty;
+    if (ret_ty->kind == TY_STRUCT || ret_ty->kind == TY_UNION) {
+      if (is_struct_pass_by_stack(ret_ty, flcnt, gecnt, true)) {
+        println("  sub $%d, %%rsp", align_to(ret_ty->var_size, 8));
+        println("  mov %%rsp, %s", argregs64[gecnt++]);
+        stcnt += align_to(ret_ty->var_size, 8) / 8;
+      }
+    }
+
+    push_args(node, true, flcnt, gecnt);
+    push_args(node, false, flcnt, gecnt);
 
     for (Node *arg = node->args; arg != NULL; arg = arg->next) {
       Type *ty = extract_ty(arg->lhs->ty);
@@ -1013,6 +1080,41 @@ void compile_node(Node *node) {
     println("  mov $%s, %%r10", node->func->name);
     println("  call *%%r10");
     gen_emptypop(stcnt);
+
+    if (ty->ret_ty->kind == TY_STRUCT || ty->ret_ty->kind == TY_UNION) {
+      bool ld1 = is_struct_pass_by_stack(ty->ret_ty, 0, 0, true);
+      bool ld2 = is_struct_pass_by_stack(ty->ret_ty, 0, 0, false);
+
+      println("  sub $16, %%rsp");
+      if (ld1 != ld2) {
+        println("  fstpt (%%rsp)");
+        println("  mov %%rsp, %%rax");
+      } else if (!ld1) {
+        bool f1 = has_only_float(ty->ret_ty, 0, 8, 0);
+        bool f2 = has_only_float(ty->ret_ty, 8, 16, 0);
+
+        int flcnt = 0, gecnt = 0;
+
+        if (f1) {
+          println("  movq %%xmm0, (%%rsp)");
+          flcnt++;
+        } else {
+          println("  movq %%rax, (%%rsp)");
+          gecnt++;
+        }
+
+        if (ty->ret_ty->var_size > 8) {
+          if (f2) {
+            println("  movq %%xmm%d, 8(%%rsp)", flcnt);
+          } else {
+            println("  movq %s, 8(%%rsp)", gecnt == 0 ? "%rax" : "%rdx");
+          }
+        }
+        println("  mov %%rsp, %%rax");
+      }
+      println("  add $16, %%rsp");
+    }
+
     return;
   }
 
@@ -1253,6 +1355,15 @@ void codegen(Node *head, char *filename) {
 
     // Set arguments
     int flcnt = 0, gecnt = 0, stframe = 16;
+
+    // Set return
+    Type *ret_ty = func->ty->ret_ty;
+    if (ret_ty->kind == TY_STRUCT || ret_ty->kind == TY_UNION) {
+      if (is_struct_pass_by_stack(func->ty->ret_ty, flcnt, gecnt, true)) {
+        gen_push("rdi");
+        gecnt++;
+      }
+    }
     
     gen_push("rdi");
     for (Obj *param = node->func->params; param != NULL; param = param->next) {
@@ -1300,21 +1411,8 @@ void codegen(Node *head, char *filename) {
           gen_store(param->ty);
           break;
         case TY_STRUCT:
-        case TY_UNION: {
-          int stsize = 0;
-
-          if (param->ty->var_size > 16 || param->ty->members->ty->kind == TY_LDOUBLE) {
-            stsize = param->ty->var_size;
-          } else {
-            bool f1 = has_only_float(param->ty, 0, 8, 0);
-            bool f2 = has_only_float(param->ty, 8, 16, 0);
-
-            if (flcnt + f1 + f2 >= 8 || gecnt + !f1 + !f2 >= 6) {
-              stsize = param->ty->var_size;
-            }
-          }
-
-          if (stsize == 0) {
+        case TY_UNION:
+          if (!is_struct_pass_by_stack(param->ty, flcnt, gecnt, false)) {
             bool f1 = has_only_float(param->ty, 0, 8, 0);
             bool f2 = has_only_float(param->ty, 8, 16, 0);
 
@@ -1361,14 +1459,13 @@ void codegen(Node *head, char *filename) {
             gen_push("rcx");
             println("  mov 16(%%rsp), %%rdi");
             println("  lea %d(%%rbp), %%rsi", stframe);
-            println("  mov $%d, %%rcx", stsize);
+            println("  mov $%d, %%rcx", param->ty->var_size);
             println("  rep movsb");
             gen_pop("rcx");
             gen_pop("rsi");
             gen_pop("rax");
-            stframe += align_to(stsize, 8);
+            stframe += align_to(param->ty->var_size, 8);
           }
-        }
       }
     }
     gen_pop("rdi");
