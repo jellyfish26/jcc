@@ -314,7 +314,6 @@ int main() {
     fnstatic();
   }));
 
-  // Not working
   // CHECK(6, ({
   //   struct A tmp = retsta();
   //   tmp.a + tmp.b + tmp.c;

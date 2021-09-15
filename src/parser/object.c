@@ -24,7 +24,7 @@ Type *ty_f32;
 Type *ty_f64;
 Type *ty_f80;
 
-static Type *new_ty(TypeKind kind, bool is_unsigned, int size) {
+static Type *new_type(TypeKind kind, bool is_unsigned, int size) {
   Type *ty = calloc(1, sizeof(Type));
   ty->kind = kind;
   ty->is_unsigned = is_unsigned;
@@ -33,66 +33,93 @@ static Type *new_ty(TypeKind kind, bool is_unsigned, int size) {
   return ty;
 }
 
-Type *copy_ty(Type *ty) {
+Type *copy_type(Type *ty) {
   Type *cty = calloc(1, sizeof(Type));
   memcpy(cty, ty, sizeof(Type));
   return cty;
 }
 
 void init_type() {
-  ty_void = new_ty(TY_VOID, false, 0);
-  ty_bool = new_ty(TY_CHAR, false, 1);
+  ty_void = new_type(TY_VOID, false, 0);
+  ty_bool = new_type(TY_CHAR, false, 1);
 
-  ty_i8  = new_ty(TY_CHAR, false, 1);
-  ty_i16 = new_ty(TY_SHORT, false, 2);
-  ty_i32 = new_ty(TY_INT, false, 4);
-  ty_i64 = new_ty(TY_LONG, false, 8);
+  ty_i8  = new_type(TY_CHAR, false, 1);
+  ty_i16 = new_type(TY_SHORT, false, 2);
+  ty_i32 = new_type(TY_INT, false, 4);
+  ty_i64 = new_type(TY_LONG, false, 8);
 
-  ty_u8  = new_ty(TY_CHAR, true, 1);
-  ty_u16 = new_ty(TY_SHORT, true, 2);
-  ty_u32 = new_ty(TY_INT, true, 4);
-  ty_u64 = new_ty(TY_LONG, true, 8);
+  ty_u8  = new_type(TY_CHAR, true, 1);
+  ty_u16 = new_type(TY_SHORT, true, 2);
+  ty_u32 = new_type(TY_INT, true, 4);
+  ty_u64 = new_type(TY_LONG, true, 8);
 
-  ty_f32 = new_ty(TY_FLOAT, false, 4);
-  ty_f64 = new_ty(TY_DOUBLE, false, 8);
-  ty_f80 = new_ty(TY_LDOUBLE, false, 16);
+  ty_f32 = new_type(TY_FLOAT, false, 4);
+  ty_f64 = new_type(TY_DOUBLE, false, 8);
+  ty_f80 = new_type(TY_LDOUBLE, false, 16);
+}
+
+// In the case of functions, we need to look at the type of the return type.
+Type *extract_type(Type *ty) {
+  if (ty->kind == TY_FUNC) {
+    return ty->ret_ty;
+  }
+  return ty;
+}
+
+Type *extract_arr_type(Type *ty) {
+  while (ty->base != NULL && ty->kind == TY_ARRAY) {
+    ty = ty->base;
+  }
+  return ty;
 }
 
 Type *pointer_to(Type *base) {
-  Type *ty = new_ty(TY_PTR, false, 8);
+  Type *ty = new_type(TY_PTR, false, 8);
   ty->base = base;
   return ty;
 }
 
 Type *array_to(Type *base, int array_len) {
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = TY_ARRAY;
+  Type *ty = new_type(TY_ARRAY, false, array_len * base->var_size);
   ty->base = base;
-  ty->var_size = array_len * base->var_size;
   ty->array_len = array_len;
   ty->align = base->align;
   return ty;
 }
 
-bool is_integer_ty(Type *ty) {
-  switch (ty->kind) {
+bool is_integer_type(Type *ty) {
+  switch (extract_type(ty)->kind) {
     case TY_CHAR:
     case TY_SHORT:
     case TY_INT:
     case TY_LONG:
       return true;
+    default:
+      return false;
   }
-  return false;
 }
 
-bool is_float_ty(Type *ty) {
-  switch (ty->kind) {
+bool is_float_type(Type *ty) {
+  switch (extract_type(ty)->kind) {
     case TY_FLOAT:
     case TY_DOUBLE:
     case TY_LDOUBLE:
       return true;
+    default:
+      return false;
   }
-  return false;
+}
+
+// The union are included in the structure the behave the same as structure,
+// except that all members have zero offset.
+bool is_struct_type(Type *ty) {
+  switch (extract_type(ty)->kind) {
+    case TY_STRUCT:
+    case TY_UNION:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool is_same_type(Type *lty, Type *rty) {
@@ -117,21 +144,6 @@ bool is_same_type(Type *lty, Type *rty) {
   }
 
   return true;
-}
-
-// In the case of functions, we need to look at the type of the return type.
-Type *extract_ty(Type *ty) {
-  if (ty->kind == TY_FUNC) {
-    return ty->ret_ty;
-  }
-  return ty;
-}
-
-Type *extract_arr_ty(Type *ty) {
-  while (ty->base != NULL && ty->kind == TY_ARRAY) {
-    ty = ty->base;
-  }
-  return ty;
 }
 
 Obj *new_obj(Type *type, char *name) {
@@ -329,9 +341,9 @@ static bool comp_type(Type *left, Type *right) {
 }
 
 static void implicit_cast(Node **lhs, Node **rhs) {
-  Type *ty = comp_type(extract_ty((*lhs)->ty), extract_ty((*rhs)->ty)) ? (*rhs)->ty : (*lhs)->ty;
-  *lhs = new_cast(*lhs, extract_ty(ty));
-  *rhs = new_cast(*rhs, extract_ty(ty));
+  Type *ty = comp_type(extract_type((*lhs)->ty), extract_type((*rhs)->ty)) ? (*rhs)->ty : (*lhs)->ty;
+  *lhs = new_cast(*lhs, extract_type(ty));
+  *rhs = new_cast(*rhs, extract_type(ty));
 }
 
 void add_type(Node *node) {
@@ -371,11 +383,11 @@ void add_type(Node *node) {
     case ND_LEC:
     case ND_LOGICALAND:
     case ND_LOGICALOR:
-      if (extract_ty(node->lhs->ty)->kind >= TY_PTR) {
+      if (extract_type(node->lhs->ty)->kind >= TY_PTR) {
         node->ty = node->lhs->ty;
         return;
       }
-      if (extract_ty(node->rhs->ty)->kind >= TY_PTR) {
+      if (extract_type(node->rhs->ty)->kind >= TY_PTR) {
         node->ty = node->rhs->ty;
         return;
       }

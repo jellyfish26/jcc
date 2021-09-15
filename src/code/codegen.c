@@ -64,8 +64,9 @@ static void gen_addr(Node *node) {
 }
 
 static void gen_load(Type *ty) {
-  if (ty->kind == TY_ARRAY) {
-    // If it is an array or a string, it will automatically be treated as a pointer
+  if (ty->kind == TY_ARRAY || is_struct_type(ty)) {
+    // If the type is array, string literal, struct, or union,
+    // it will automatically be treated as a pointer
     // and we cannot load the content direclty.
     return;
   }
@@ -364,7 +365,7 @@ static char *cast_table[][11] = {
 };
 
 static int get_type_idx(Type *ty) {
-  ty = extract_ty(ty);
+  ty = extract_type(ty);
 
   int ret;
   switch (ty->kind) {
@@ -638,45 +639,6 @@ static bool has_only_float(Type *ty, int begin, int end, int offset) {
   return ret;
 }
 
-// Recursive
-static void push_argsre(Node *node, bool pass_stack) {
-  if (node == NULL) {
-    return;
-  }
-  push_argsre(node->next, pass_stack);
-
-  if ((pass_stack && !node->pass_by_stack) || (!pass_stack && node->pass_by_stack)) {
-    return;
-  }
-
-  Type *ty = extract_ty(node->lhs->ty);
-  switch (ty->kind) {
-    case TY_FLOAT:
-    case TY_DOUBLE:
-      compile_node(node->lhs);
-      println("  movd %%xmm0, %%rax");
-      gen_push("rax");
-      break;
-    case TY_LDOUBLE:
-      compile_node(node->lhs);
-      println("  sub $16, %%rsp");
-      println("  fstpt (%%rsp)");
-      break;
-    case TY_STRUCT: {
-      println("  sub $%d, %%rsp", align_to(ty->var_size, 8));
-      gen_addr(node->lhs);
-      println("  mov %%rax, %%rsi");
-      println("  mov %%rsp, %%rdi");
-      println("  mov $%d, %%rcx", ty->var_size);
-      println("  rep movsb");
-      break;
-    }
-    default:
-      compile_node(node->lhs);
-      gen_push("rax");
-  }
-}
-
 // Returns a bool value indicating whether or not the structure type is passing by stack.
 //
 // When f80_to_register is true, it returns false for the long double type alone.
@@ -698,9 +660,49 @@ static bool is_struct_pass_by_stack(Type *ty, int flcnt, int gecnt, bool f80_to_
   return flcnt + f1 + f2 >= 8 || gecnt + !f1 + !f2 >= 6;
 }
 
+// Recursive
+static void push_argsre(Node *node, bool pass_stack) {
+  if (node == NULL) {
+    return;
+  }
+  push_argsre(node->next, pass_stack);
+
+  if ((pass_stack && !node->pass_by_stack) || (!pass_stack && node->pass_by_stack)) {
+    return;
+  }
+
+  Type *ty = extract_type(node->lhs->ty);
+  switch (ty->kind) {
+    case TY_FLOAT:
+    case TY_DOUBLE:
+      compile_node(node->lhs);
+      println("  movd %%xmm0, %%rax");
+      gen_push("rax");
+      break;
+    case TY_LDOUBLE:
+      compile_node(node->lhs);
+      println("  sub $16, %%rsp");
+      println("  fstpt (%%rsp)");
+      break;
+    case TY_STRUCT:
+    case TY_UNION: {
+      println("  sub $%d, %%rsp", align_to(ty->var_size, 8));
+      gen_addr(node->lhs);
+      println("  mov %%rax, %%rsi");
+      println("  mov %%rsp, %%rdi");
+      println("  mov $%d, %%rcx", ty->var_size);
+      println("  rep movsb");
+      break;
+    }
+    default:
+      compile_node(node->lhs);
+      gen_push("rax");
+  }
+}
+
 static void push_args(Node *node, bool pass_stack, int flcnt, int gecnt) {
   for (Node *arg = node->args; arg != NULL; arg = arg->next) {
-    Type *arg_ty = extract_ty(arg->lhs->ty);
+    Type *arg_ty = extract_type(arg->lhs->ty);
 
     switch (arg_ty->kind) {
       case TY_FLOAT:
@@ -820,8 +822,8 @@ void compile_node(Node *node) {
       gen_addr(node->lhs);
       return;
     case ND_ASSIGN: {
-      if (node->ty->kind == TY_STRUCT || node->ty->kind == TY_UNION) {
-        gen_addr(node->lhs);
+      if (is_struct_type(node->ty)) {
+        compile_node(node->lhs);
         gen_push("rax");
 
         if (node->rhs->kind == ND_ASSIGN) {
@@ -843,7 +845,7 @@ void compile_node(Node *node) {
       return;
     }
     case ND_RETURN:
-      if (node->ty->ret_ty->kind == TY_STRUCT || node->ty->ret_ty->kind == TY_UNION) {
+      if (is_struct_type(node->ty)) {
         gen_addr(node->lhs);
         bool ld1 = is_struct_pass_by_stack(node->ty->ret_ty, 0, 0, true);
         bool ld2 = is_struct_pass_by_stack(node->ty->ret_ty, 0, 0, false);
@@ -1015,19 +1017,17 @@ void compile_node(Node *node) {
     int flcnt = 0, gecnt = 0, stcnt = 0;
 
     Type *ret_ty = ty->ret_ty;
-    if (ret_ty->kind == TY_STRUCT || ret_ty->kind == TY_UNION) {
-      if (is_struct_pass_by_stack(ret_ty, flcnt, gecnt, true)) {
-        println("  sub $%d, %%rsp", align_to(ret_ty->var_size, 8));
-        println("  mov %%rsp, %s", argregs64[gecnt++]);
-        stcnt += align_to(ret_ty->var_size, 8) / 8;
-      }
+    if (is_struct_type(ret_ty) && is_struct_pass_by_stack(ret_ty, flcnt, gecnt, true)) {
+      println("  sub $%d, %%rsp", align_to(ret_ty->var_size, 8));
+      println("  mov %%rsp, %s", argregs64[gecnt++]);
+      stcnt += align_to(ret_ty->var_size, 8) / 8;
     }
 
     push_args(node, true, flcnt, gecnt);
     push_args(node, false, flcnt, gecnt);
 
     for (Node *arg = node->args; arg != NULL; arg = arg->next) {
-      Type *ty = extract_ty(arg->lhs->ty);
+      Type *ty = extract_type(arg->lhs->ty);
 
       switch (ty->kind) {
         case TY_FLOAT:
@@ -1042,7 +1042,8 @@ void compile_node(Node *node) {
         case TY_LDOUBLE:
           stcnt += 2;
           break;
-        case TY_STRUCT: {
+        case TY_STRUCT:
+        case TY_UNION: {
           if (arg->pass_by_stack) {
             stcnt += align_to(ty->var_size, 8) / 8;
             break;
@@ -1081,7 +1082,7 @@ void compile_node(Node *node) {
     println("  call *%%r10");
     gen_emptypop(stcnt);
 
-    if (ty->ret_ty->kind == TY_STRUCT || ty->ret_ty->kind == TY_UNION) {
+    if (is_struct_type(ty)) {
       bool ld1 = is_struct_pass_by_stack(ty->ret_ty, 0, 0, true);
       bool ld2 = is_struct_pass_by_stack(ty->ret_ty, 0, 0, false);
 
@@ -1219,7 +1220,7 @@ void compile_node(Node *node) {
   // Default register is 32bit
   char *rax = "%eax", *rdi = "%edi", *rdx = "%edx";
 
-  if (node->lhs->ty->kind == TY_LONG || node->lhs->ty->base != NULL) {
+  if (node->ty->kind == TY_LONG || node->ty->base != NULL || is_struct_type(node->ty)) {
     rax = "%rax";
     rdi = "%rdi";
     rdx = "%rdx";
@@ -1358,11 +1359,9 @@ void codegen(Node *head, char *filename) {
 
     // Set return
     Type *ret_ty = func->ty->ret_ty;
-    if (ret_ty->kind == TY_STRUCT || ret_ty->kind == TY_UNION) {
-      if (is_struct_pass_by_stack(func->ty->ret_ty, flcnt, gecnt, true)) {
-        gen_push("rdi");
-        gecnt++;
-      }
+    if (is_struct_type(ret_ty) && is_struct_pass_by_stack(ret_ty, flcnt, gecnt, true)) {
+      gen_push("rdi");
+      gecnt++;
     }
     
     gen_push("rdi");

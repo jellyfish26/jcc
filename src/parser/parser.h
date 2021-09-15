@@ -179,15 +179,16 @@ extern Type *ty_f32;
 extern Type *ty_f64;
 extern Type *ty_f80;
 
-Type *copy_ty(Type *ty);
+Type *copy_type(Type *ty);
 void init_type();
 Type *pointer_to(Type *type);
 Type *array_to(Type *type, int array_len);
-bool is_integer_ty(Type *ty);
-bool is_float_ty(Type *ty);
+bool is_integer_type(Type *ty);
+bool is_float_type(Type *ty);
+bool is_struct_type(Type *ty);
 bool is_same_type(Type *lty, Type *rty);
-Type *extract_ty(Type *ty);
-Type *extract_arr_ty(Type *ty);
+Type *extract_type(Type *ty);
+Type *extract_arr_type(Type *ty);
 
 // Variable or Function
 struct Obj {

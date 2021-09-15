@@ -345,7 +345,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
     return ty;
   }
 
-  Type *enumerator_ty = copy_ty(ty_i32);
+  Type *enumerator_ty = copy_type(ty_i32);
 
   Obj head = {};
   Obj *cur = &head;
@@ -366,7 +366,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
     }
 
     if (val >> 31 && enumerator_ty->kind == TY_INT) {
-      enumerator_ty = copy_ty(ty_i64);
+      enumerator_ty = copy_type(ty_i64);
     }
 
     Obj *obj = new_obj(NULL, ident);
@@ -376,7 +376,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
     cur = obj;
   }
 
-  Type *ty = copy_ty(enumerator_ty);
+  Type *ty = copy_type(enumerator_ty);
   ty->kind = TY_ENUM;
   ty->base = enumerator_ty;
   ty->is_const = true;
@@ -420,11 +420,11 @@ static void construct_members(Token *tkn, Token **end_tkn, Type *ty) {
       }
       need_comma = true;
 
-      Type *mem_ty = declarator(tkn, &tkn, copy_ty(base_ty));
+      Type *mem_ty = declarator(tkn, &tkn, copy_type(base_ty));
 
       if (consume(tkn, &tkn, ":")) {
         if (mem_ty == NULL) {
-          mem_ty = copy_ty(base_ty);
+          mem_ty = copy_type(base_ty);
         }
 
         mem_ty->bit_field = eval_expr(conditional(tkn, &tkn));
@@ -710,7 +710,7 @@ static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
     }
     tkn = tkn->next;
   }
-  ty = copy_ty(ty);
+  ty = copy_type(ty);
   ty->is_const = is_const;
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -932,7 +932,7 @@ static void initializer_list(Token *tkn, Token **end_tkn, Initializer *init) {
       idx = val;
     }
 
-    if ((ty->kind == TY_STRUCT || ty->kind == TY_UNION) && consume(tkn, &tkn, ".")) {
+    if (is_struct_type(ty) && consume(tkn, &tkn, ".")) {
       char *ident = get_ident(tkn);
       int i = 0;
       Type *member_ty;
@@ -997,7 +997,7 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
 
     if (only_const) {
       char *label = NULL;
-      if (is_float_ty(node->init->ty)) {
+      if (is_float_type(node->init->ty)) {
         node->init = new_floating(node->init->tkn, node->init->ty, eval_double(node->init));
       } else {
         node->init = new_num(init->node->tkn, eval_expr2(node->init, &label));
@@ -1086,17 +1086,17 @@ static int64_t eval_expr2(Node *node, char **label) {
       }
       return eval_expr(node->lhs) % eval_expr(node->rhs);
     case ND_EQ:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs) == eval_double(node->rhs);
       }
       return eval_expr(node->lhs) == eval_expr(node->rhs);
     case ND_NEQ:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs) != eval_double(node->rhs);
       }
       return eval_expr(node->lhs) != eval_expr(node->rhs);
     case ND_LC:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs) < eval_double(node->rhs);
       }
 
@@ -1105,7 +1105,7 @@ static int64_t eval_expr2(Node *node, char **label) {
       }
       return eval_expr(node->lhs) < eval_expr(node->rhs);
     case ND_LEC:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs) <= eval_double(node->rhs);
       }
 
@@ -1129,13 +1129,13 @@ static int64_t eval_expr2(Node *node, char **label) {
     case ND_BITWISENOT:
       return ~eval_expr(node->lhs);
     case ND_LOGICALAND:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs) && eval_double(node->rhs);
       }
 
       return eval_expr(node->lhs) && eval_expr(node->rhs);
     case ND_LOGICALOR:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs) || eval_double(node->rhs);
       }
 
@@ -1154,7 +1154,7 @@ static int64_t eval_expr2(Node *node, char **label) {
 
       return node->var->val;
     case ND_CAST: {
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return (int64_t)eval_double(node->lhs);
       }
 
@@ -1217,7 +1217,7 @@ static long double eval_double(Node *node) {
 
       return node->var->fval;
     case ND_CAST:
-      if (is_float_ty(node->lhs->ty)) {
+      if (is_float_type(node->lhs->ty)) {
         return eval_double(node->lhs);
       }
       return (long double)eval_expr(node->lhs);
@@ -1519,7 +1519,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     tkn = skip(tkn->next, "(");
     node->cond = expr(tkn, &tkn);
     add_type(node->cond);
-    if (!is_integer_ty(node->cond->ty)) {
+    if (!is_integer_type(node->cond->ty)) {
       errorf_tkn(ER_COMPILE, tkn, "Statemnet require expression of integer type");
     }
     tkn = skip(tkn, ")");
@@ -2215,7 +2215,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
 
       cur = head.next;
       for (Type *arg_ty = node->ty->params; arg_ty != NULL; arg_ty = arg_ty->next) {
-        if (arg_ty->kind != TY_STRUCT && arg_ty->kind != TY_UNION) {
+        if (!is_struct_type(arg_ty)) {
           cur->lhs = new_cast(cur->lhs, arg_ty);
         }
         cur = cur->next;
@@ -2249,7 +2249,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     }
 
     Type *ty = equal(tkn, ".") ? node->ty : node->ty->base;
-    if (ty->kind != TY_STRUCT && ty->kind != TY_UNION) {
+    if (!is_struct_type(ty)) {
       errorf_tkn(ER_COMPILE, tkn, "Need struct or union type");
     }
 
@@ -2258,7 +2258,6 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "This member is not found");
     }
 
-    if (equal(tkn, ".")) node = new_unary(ND_ADDR, tkn, node);
     node = new_unary(ND_ADD, tkn, node);
     node->rhs = new_num(tkn, member->offset);
     node = new_unary(ND_CONTENT, tkn, node);
