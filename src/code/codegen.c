@@ -471,14 +471,14 @@ static void gen_lvar_init(Node *node) {
     }
 
     if (expr->init != NULL) {
-      switch (expr->ty->kind) {
+      switch (extract_type(expr->init->ty)->kind) {
         case TY_STRUCT:
         case TY_UNION:
           if (expr->init->kind == ND_ASSIGN) {
             compile_node(expr->init);
             gen_addr(expr->init->lhs);
           } else {
-            gen_addr(expr->init);
+            compile_node(expr->init);
           }
           println("  mov %%rax, %%rsi");
           gen_pop("rdi");
