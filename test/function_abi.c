@@ -109,9 +109,23 @@ int main() {
   }));
 
   CHECK(6, ({
+    struct A tmp = retsta();
+    tmp.a + tmp.b + tmp.c;
+  }));
+
+  CHECK(6, ({
     struct A tmp;
     tmp = retsta();
     tmp.a + tmp.b + tmp.c;
+  }));
+
+  CHECK(21, ({
+    struct B tmp = retstb();
+    int ans = 0;
+    for (int i = 0; i < 6; i++) {
+      ans += tmp.a[i];
+    }
+    ans;
   }));
 
   CHECK(21, ({
@@ -125,14 +139,29 @@ int main() {
   }));
 
   CHECKLD(2.2L, ({
+    struct C tmp = retstc();
+    tmp.a;
+  }));
+
+  CHECKLD(2.2L, ({
     struct C tmp;
     tmp = retstc();
     tmp.a;
   }));
 
   CHECKF(5.0f, ({
+    struct D tmp = retstd();
+    tmp.a + tmp.b;
+  }));
+
+  CHECKF(5.0f, ({
     struct D tmp;
     tmp = retstd();
+    tmp.a + tmp.b;
+  }));
+
+  CHECKLD(5.0l, ({
+    struct E tmp = retste();
     tmp.a + tmp.b;
   }));
 
@@ -143,11 +172,21 @@ int main() {
   }));
 
   CHECK(288, ({
+    struct F tmp = retstf();
+    tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
+  }));
+
+  CHECK(288, ({
     struct F tmp;
     tmp = retstf();
     tmp.a + tmp.b + tmp.c + tmp.d + tmp.e;
   }));
 
+  CHECK(36, ({
+    int a = 1; int b = 2; int c = 3; int d = 4; int e = 5; int f = 6; int g = 7; int h = 8;
+    int ans = add8(a, b, c, d, e, f, g, h);
+    ans;
+  }));
+
   return 0;
 }
-

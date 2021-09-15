@@ -189,6 +189,7 @@ struct F retstf() {
   return tmp;
 }
 
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -392,6 +393,15 @@ int main() {
     int a = 1; int b = 2; int c = 3; int d = 4; int e = 5; int f = 6; int g = 7; int h = 8;
     int ans = add8(a, b, c, d, e, f, g, h);
     ans;
+  }));
+
+  CHECK(10, ({
+    struct B {
+      struct A aa;
+      int bb;
+    };
+    struct B tmp = {retsta(), add2(2, 2)};
+    tmp.aa.a + tmp.aa.b + tmp.aa.c + tmp.bb;
   }));
 
   return 0;

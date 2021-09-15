@@ -453,7 +453,7 @@ Token *tokenize(char *path) {
     // Check keywords
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
-      if (memcmp(ptr, permit_keywords[i], keyword_len) == 0 && *(ptr + keyword_len + 1) == ' ') {
+      if (strncmp(ptr, permit_keywords[i], keyword_len) == 0 && !is_ident_char(*(ptr + keyword_len))) {
         cur = cur->next = new_token(TK_KEYWORD, ptr, keyword_len);
         ptr += keyword_len;
         check = true;

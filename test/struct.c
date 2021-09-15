@@ -393,16 +393,15 @@ int main() {
     tmp.a + tmp.b + tmp.c + tmp.d;
   }));
 
-  // CHECK(5, ({
-  //   struct B {
-  //     struct A aa;
-  //     int bb;
-  //   };
-  //   struct A dog = {1, 2};
-  //   struct B tmp = {dog, 3};
-
-  //   tmp.aa.A + tmp.aa.B + tmp.bb;
-  // }));
+  CHECK(6, ({
+    struct B {
+      struct A aa;
+      int bb;
+    };
+    struct A dog = {1, 2};
+    struct B tmp = {dog, 3};
+    tmp.aa.A + tmp.aa.B + tmp.bb;
+  }));
 
   return 0;
 }
