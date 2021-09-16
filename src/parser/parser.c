@@ -26,6 +26,7 @@ struct Initializer {
 };
 
 typedef struct {
+  bool is_type_def;
   bool is_static;
 } VarAttr;
 
@@ -283,7 +284,7 @@ static Node *to_assign(Token *tkn, Node *rhs) {
 static bool is_typename(Token *tkn) {
   char *keywords[] = {
     "void", "_Bool", "char", "short", "int", "long", "float", "double", "signed", "unsigned",
-    "const", "enum", "struct", "union", "auto", "static"
+    "const", "enum", "struct", "union", "auto", "static", "typedef"
   };
 
   for (int i = 0; i < sizeof(keywords) / sizeof(*keywords); i++) {
@@ -292,7 +293,7 @@ static bool is_typename(Token *tkn) {
     }
   }
 
-  return false;
+  return find_type_def(strndup(tkn->loc, tkn->len));
 }
 
 static char *get_ident(Token *tkn) {
@@ -409,9 +410,7 @@ static void construct_members(Token *tkn, Token **end_tkn, Type *ty) {
       errorf_tkn(ER_COMPILE, tkn, "Need type");
     }
 
-    VarAttr *attr = calloc(1, sizeof(VarAttr));
-    Type *base_ty = declspec(tkn, &tkn, attr);
-    free(attr);  // Not use attribute
+    Type *base_ty = declspec(tkn, &tkn, NULL);
 
     bool need_comma = false;
     while (!consume(tkn, &tkn, ";")) {
@@ -489,10 +488,7 @@ static Type *struct_specifier(Token *tkn, Token **end_tkn, char *tag) {
   ty->var_size = bytes + align_to(bit_offset, 8) / 8;
   ty->align = align;
 
-  if (tag != NULL) {
-    add_tag(ty, tag);
-  }
-
+  add_tag(ty, tag);
   if (end_tkn != NULL) *end_tkn = tkn;
   return ty;
 }
@@ -515,10 +511,7 @@ static Type *union_specifier(Token *tkn, Token **end_tkn, char *tag) {
   ty->var_size = bytes;
   ty->align = align;
 
-  if (tag != NULL) {
-    add_tag(ty, tag);
-  }
-
+  add_tag(ty, tag);
   if (end_tkn != NULL) *end_tkn = tkn; 
   return ty;
 }
@@ -557,6 +550,10 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     return ty;
   }
 
+  if (tag == NULL) {
+    tag = new_unique_label();
+  }
+
   if (kind == TY_STRUCT) {
     return struct_specifier(tkn, end_tkn, tag);
   } else {
@@ -566,11 +563,13 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
 
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
+//                          storage-class-specifier declaration-specifiers?
 //
 // type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned" |
 //                  enum-specifier |
 //                  struct-or-union-specifier
 // type-qualifier = "const"
+// storage-class-specifier = "typedef" | "static" | "auto"
 static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
@@ -604,13 +603,31 @@ static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
       continue;
     }
 
+    // Check storage class specifier
+    if (equal(tkn, "static") || equal(tkn, "typedef")) {
+      if (attr == NULL) {
+        errorf_tkn(ER_COMPILE, tkn, "Storage class specifier is not allowd in this context");
+      }
+
+      if (equal(tkn, "static")) {
+        attr->is_static = true;
+      } else if (equal(tkn, "typedef")) {
+        attr->is_type_def = true;
+      }
+
+      tkn = tkn->next;
+      continue;
+    }
+
     // Ignore these keywords
     if (consume(tkn, &tkn, "auto")) {
       continue;
     }
 
-    if (consume(tkn, &tkn, "static")) {
-      attr->is_static = true;
+    Type *type_def = find_type_def(strndup(tkn->loc, tkn->len));
+    if (type_def != NULL) {
+      ty = type_def;
+      tkn = tkn->next;
       continue;
     }
 
@@ -768,10 +785,8 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
       tkn = skip(tkn, ",");
     }
 
-    VarAttr *attr = calloc(1, sizeof(VarAttr));
-    Type *param_ty = declspec(tkn, &tkn, attr);
+    Type *param_ty = declspec(tkn, &tkn, NULL);
     param_ty = declarator(tkn, &tkn, param_ty);
-    free(attr);
 
     cur->next = param_ty;
     cur = param_ty;
@@ -1266,6 +1281,15 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return node;
+  }
+
+  if (attr->is_type_def) {
+    char *name = ty->name;
+    ty->name = NULL;
+    add_type_def(ty, name);
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return new_node(ND_VOID, tkn);
   }
 
   obj->is_global = is_global;
@@ -2074,8 +2098,7 @@ static Node *mul(Token *tkn, Token **end_tkn) {
 // The definition of typename is shown in the comments of the function below.
 static Node *cast(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "(") && is_typename(tkn->next)) {
-    VarAttr *attr = calloc(1, sizeof(VarAttr));
-    Type *ty = declspec(tkn->next, &tkn, attr);
+    Type *ty = declspec(tkn->next, &tkn, NULL);
     ty = abstract_declarator(tkn, &tkn, ty);
 
     tkn = skip(tkn, ")");
@@ -2147,8 +2170,7 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 
     // type-name
     if (equal(tkn, "(") && is_typename(tkn->next)) {
-      VarAttr *attr = calloc(1, sizeof(VarAttr));
-      Type *ty = declspec(tkn->next, &tkn, attr);
+      Type *ty = declspec(tkn->next, &tkn, NULL);
       ty = abstract_declarator(tkn, &tkn, ty);
 
       tkn = skip(tkn, ")");

@@ -162,6 +162,7 @@ struct Scope {
 
   HashMap var;
   HashMap tag;
+  HashMap type_def;
 };
 
 static Scope *scope = &(Scope){};
@@ -201,8 +202,14 @@ void add_tag(Type *ty, char *name) {
   hashmap_insert(&(scope->tag), name, ty);
 }
 
+void add_type_def(Type *ty, char *name) {
+  if (hashmap_get(&(scope->type_def), name) != NULL) {
+    errorf_tkn(ER_COMPILE, ty->tkn, "Name '%s' is already define", name);
+  }
+  hashmap_insert(&(scope->type_def), name, ty);
+}
+
 Obj *find_var(char *name) {
-  // Find in local object
   for (Scope *cur = scope; cur != NULL; cur = cur->up) {
     Obj *obj = hashmap_get(&(cur->var), name);
     if (obj != NULL) {
@@ -214,9 +221,19 @@ Obj *find_var(char *name) {
 }
 
 Type *find_tag(char *name) {
-  // Find in local tag
   for (Scope *cur = scope; cur != NULL; cur = cur->up) {
     Type *ty = hashmap_get(&(cur->tag), name);
+    if (ty != NULL) {
+      return ty;
+    }
+  }
+
+  return NULL;
+}
+
+Type *find_type_def(char *name) {
+  for (Scope *cur = scope; cur != NULL; cur = cur->up) {
+    Type *ty = hashmap_get(&(cur->type_def), name);
     if (ty != NULL) {
       return ty;
     }

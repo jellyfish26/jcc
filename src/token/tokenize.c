@@ -172,9 +172,10 @@ static char *permit_panct[] = {
 
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "do", "while", "break", "continue",
-  "switch", "case", "default", "goto", "sizeof", "_Alignof", "static", "auto",
-  "signed", "unsigned", "void", "_Bool", "char", "short", 
-  "int", "long", "float", "double", "const", "enum", "struct", "union"};
+  "switch", "case", "default", "goto", "sizeof", "_Alignof",
+  "signed", "unsigned", "void", "_Bool", "char", "short", "int",
+  "long", "float", "double", "enum", "struct", "union",
+  "auto", "const", "static", "typdef"};
 
 static bool convert_tkn_int(Token *tkn) {
   char *ptr = tkn->loc;

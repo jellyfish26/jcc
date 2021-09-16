@@ -1334,8 +1334,12 @@ void codegen(Node *head, char *filename) {
   output_file = fopen(filename, "w");
 
   for (Node *node = head; node != NULL; node = node->next) {
-    if (node->kind != ND_FUNC) {
+    if (node->kind == ND_INIT || node->kind == ND_VAR) {
       gen_gvar_init(node);
+      continue;
+    }
+
+    if (node->kind != ND_FUNC) {
       continue;
     }
 
