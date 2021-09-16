@@ -186,6 +186,7 @@ Type *array_to(Type *type, int array_len);
 bool is_integer_type(Type *ty);
 bool is_float_type(Type *ty);
 bool is_struct_type(Type *ty);
+bool is_ptr_type(Type *ty);
 bool is_same_type(Type *lty, Type *rty);
 Type *extract_type(Type *ty);
 Type *extract_arr_type(Type *ty);

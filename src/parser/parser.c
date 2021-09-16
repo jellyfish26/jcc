@@ -177,19 +177,16 @@ static Node *new_static_var(Node *var_node) {
   return node;
 }
 
-static bool is_addr_node(Node *node) {
-  switch (node->ty->kind) {
-    case TY_PTR:
-    case TY_ARRAY:
-      return true;
-    default:
-      return false;
-  }
-}
-
 static Node *new_unary(NodeKind kind, Token *tkn, Node *lhs) {
   Node *node = new_node(kind, tkn);
   node->lhs = lhs;
+  return node;
+}
+
+static Node *new_binary(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
+  Node *node = new_node(kind, tkn);
+  node->lhs = lhs;
+  node->rhs = rhs;
   return node;
 }
 
@@ -200,62 +197,57 @@ static Node *new_commma(Token *tkn, Node *head) {
 }
 
 static Node *new_calc(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
-  Node *node = new_node(kind, tkn);
-  node->lhs = lhs;
-  node->rhs = rhs;
+  Node *node = new_binary(kind, tkn, lhs, rhs);
   add_type(node);
 
-  if (is_addr_node(node->lhs) || is_addr_node(node->rhs)) {
+  if (is_ptr_type(lhs->ty) || is_ptr_type(rhs->ty)) {
     errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
   }
+
   return node;
 }
 
 static Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
-  Node *node = new_node(ND_ADD, tkn);
-  node->lhs = lhs;
-  node->rhs = rhs;
-  add_type(node);
+  add_type(lhs);
+  add_type(rhs);
 
-  if (is_addr_node(node->lhs) && is_addr_node(node->rhs)) {
-    errorf_tkn(ER_COMPILE, tkn, "Invalid operand.");
+  // num + num
+  if (!is_ptr_type(lhs->ty) && !is_ptr_type(rhs->ty)) {
+    return new_calc(ND_ADD, tkn, lhs, rhs);
   }
 
-  if (is_addr_node(node->lhs)) {
-    node->rhs = new_calc(ND_MUL, tkn, node->rhs, new_num(tkn, node->lhs->ty->base->var_size));
+  if (is_ptr_type(lhs->ty) && is_ptr_type(rhs->ty)) {
+    errorf_tkn(ER_COMPILE, tkn, "Invalid operand");
   }
 
-  if (is_addr_node(node->rhs)) {
-    node->lhs = new_calc(ND_MUL, tkn, node->lhs, new_num(tkn, node->rhs->ty->base->var_size));
+  if (is_ptr_type(lhs->ty)) {
+    rhs = new_calc(ND_MUL, tkn, rhs, new_num(tkn, lhs->ty->base->var_size));
   }
 
-  return node;
+  if (is_ptr_type(rhs->ty)) {
+    lhs = new_calc(ND_MUL, tkn, lhs, new_num(tkn, rhs->ty->base->var_size));
+  }
+
+  return new_binary(ND_ADD, tkn, lhs, rhs);
 }
 
 static Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
-  Node *node = new_node(ND_SUB, tkn);
-  node->lhs = lhs;
-  node->rhs = rhs;
-  add_type(node);
+  add_type(lhs);
+  add_type(rhs);
 
-  if (is_addr_node(node->lhs) && is_addr_node(node->rhs)) {
-    if (!is_same_type(node->lhs->ty, node->rhs->ty)) {
+  if (is_ptr_type(lhs->ty) && is_ptr_type(rhs->ty)) {
+    if (!is_same_type(lhs->ty, rhs->ty)) {
       errorf_tkn(ER_COMPILE, tkn, "Invalid operand");
     }
 
+    Node *node = new_binary(ND_SUB, tkn, lhs, rhs);
     node->ty = ty_i64;
-    node = new_calc(ND_DIV, tkn, node, new_num(tkn, node->lhs->ty->base->var_size));
+    node = new_binary(ND_DIV, tkn, node, new_num(tkn, lhs->ty->base->var_size));
     return node;
   }
 
-  if (is_addr_node(node->lhs)) {
-    node->rhs = new_calc(ND_MUL, tkn, node->rhs, new_num(tkn, node->lhs->ty->base->var_size));
-  }
-
-  if (is_addr_node(node->rhs)) {
-    node->lhs = new_calc(ND_MUL, tkn, node->lhs, new_num(tkn, node->rhs->ty->base->var_size));
-  }
-
+  Node *node = new_add(tkn, lhs, rhs);
+  node->kind = ND_SUB;
   return node;
 }
 
@@ -1163,7 +1155,7 @@ static int64_t eval_expr2(Node *node, char **label) {
         return 0;
       }
 
-      if (is_addr_node(node)) {
+      if (is_ptr_type(node->ty)) {
         break;
       }
 
@@ -1854,6 +1846,7 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   if (end_tkn != NULL) *end_tkn = tkn;
   return node;
 }
+
 // conditional-expression = logical-OR-expression |
 //                          logical-OR-expression "?" expression ":" conditional-expression
 static Node *conditional(Token *tkn, Token **end_tkn) {

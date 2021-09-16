@@ -122,6 +122,18 @@ bool is_struct_type(Type *ty) {
   }
 }
 
+bool is_ptr_type(Type *ty) {
+  switch (extract_type(ty)->kind) {
+    case TY_PTR:
+    case TY_ARRAY:
+    case TY_STRUCT:
+    case TY_UNION:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool is_same_type(Type *lty, Type *rty) {
   while (lty != NULL && rty != NULL) {
     if (lty->kind != rty->kind) {

@@ -378,8 +378,14 @@ static char *read_file(char *path) {
   return buf;
 }
 
-// Update source token
-Token *tokenize(char *path) {
+Token *get_tail_token(Token *tkn) {
+  while (tkn->next != NULL) {
+    tkn = tkn->next;
+  }
+  return tkn;
+}
+
+Token *tokenize_file(char *path) {
   char *ptr = read_file(path);
   source_str = ptr;
 
@@ -415,7 +421,7 @@ Token *tokenize(char *path) {
     if (isdigit(*ptr)) {
       char *begin = ptr;
       while (isalnum(*ptr) || *ptr == '.') {
-          ptr++;
+        ptr++;
       }
       cur = cur->next = new_token(TK_NUM, begin, ptr - begin);
       convert_tkn_num(cur);
@@ -478,6 +484,13 @@ Token *tokenize(char *path) {
     printf("%s", ptr);
     errorf_loc(ER_TOKENIZE, ptr, 1, "Unexpected tokenize");
   }
-  cur = cur->next = new_token(TK_EOF, NULL, 1);
   return head.next;
+}
+
+// Update source token
+Token *tokenize(char *path) {
+  Token *tkn = tokenize_file(path);
+  get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
+
+  return tkn;
 }
