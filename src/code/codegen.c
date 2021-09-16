@@ -788,6 +788,8 @@ void compile_node(Node *node) {
         println("  add $%d, %%rsp", 4 * sz);
         return;
       }
+      default:
+        return;
     }
   }
 
@@ -1155,6 +1157,8 @@ void compile_node(Node *node) {
 
         println("  movzx %%al, %%rax");
         return;
+      default:
+        return;
     }
   }
 
@@ -1205,6 +1209,8 @@ void compile_node(Node *node) {
         }
 
         println("  movzx %%al, %%rax");
+        return;
+      default:
         return;
     }
   }
@@ -1469,6 +1475,8 @@ void codegen(Node *head, char *filename) {
             gen_pop("rax");
             stframe += align_to(param->ty->var_size, 8);
           }
+        default:
+          continue;
       }
     }
     gen_pop("rdi");
