@@ -57,6 +57,7 @@ static void create_init_node(Initializer *init, Node **connect, bool only_const,
 static int64_t eval_expr(Node *node);
 static int64_t eval_expr2(Node *node, char **label);
 static int64_t eval_addr(Node *node, char **label);
+static bool is_const_expr(Node *node);
 static long double eval_double(Node *node);
 static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr);
 static Node *comp_stmt(Token *tkn, Token **end_tkn);
@@ -747,16 +748,58 @@ static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
   return ty;
 }
 
+static Type *new_vla(Token *tkn, Type *base, Node *node) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = TY_VLA;
+
+  if (base->vla_len == NULL) {
+    ty->vla_len = new_binary(ND_MUL, tkn, node, new_num(tkn, base->var_size));
+    ty->var_size = 8;
+  } else {
+    ty->vla_len = new_binary(ND_MUL, tkn, node, base->vla_len);
+    ty->var_size = 8 + base->var_size;
+  }
+
+  ty->base = base;
+  ty->align = base->align;
+  return ty;
+}
+
+// If all the array length specifications are constant expressions,
+// the type is changing from vla to normal array.
+static Type *vla_to_arr(Type *ty) {
+  if (ty->kind != TY_VLA) {
+    return ty;
+  }
+
+  ty->kind = TY_ARRAY;
+  ty->base = vla_to_arr(ty->base);
+  ty->align = ty->base->align;
+  ty->var_size = eval_expr(ty->vla_len);
+  ty->array_len = ty->var_size / ty->base->var_size;
+  ty->vla_len = NULL;
+  return ty;
+}
+
 // array-dimension = constant "]" type-suffix
 static Type *array_dimension(Token *tkn, Token **end_tkn, Type *ty) {
   int64_t val = 0;
+  Node *node = NULL;
 
   if (!consume(tkn, &tkn, "]")) {
-    val = eval_expr(expr(tkn, &tkn));
+    node = assign(tkn, &tkn);
     tkn = skip(tkn, "]");
   }
 
-  return array_to(type_suffix(tkn, end_tkn, ty), val);
+  ty = type_suffix(tkn, end_tkn, ty);
+
+  // When declare an array of unspecific length, we cannot declare a VLA.
+  if (node == NULL || ty->kind == TY_ARRAY) {
+    ty = vla_to_arr(ty);
+    return array_to(ty, node == NULL ? 0 : eval_expr(node));
+  }
+
+  return new_vla(node->tkn, ty, node);
 }
 
 // param-list = ("void" | param ("," param)*)? ")"
@@ -822,7 +865,8 @@ static Type *declarator(Token *tkn, Token **end_tkn, Type *ty) {
   char *ident = get_ident(tkn);
   ty = type_suffix(tkn->next, end_tkn, ty);
   ty->name = ident;
-  return ty;
+
+  return vla_to_arr(ty);
 }
 
 // abstract-declarator = pointer | pointer? direct-abstract-declarator
@@ -833,7 +877,9 @@ static Type *declarator(Token *tkn, Token **end_tkn, Type *ty) {
 // abstract-declarator = pointer? type-suffix
 static Type *abstract_declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
-  return type_suffix(tkn, end_tkn, ty);
+  ty = type_suffix(tkn, end_tkn, ty);
+  
+  return vla_to_arr(ty);
 }
 
 static Initializer *new_initializer(Type *ty, bool is_flexible) {
@@ -1234,6 +1280,42 @@ static long double eval_double(Node *node) {
   }
 
   return 0; // unreachable
+}
+
+static bool is_const_expr(Node *node) {
+  add_type(node);
+
+  switch (node->kind) {
+    case ND_ADD:
+    case ND_SUB:
+    case ND_MUL:
+    case ND_DIV:
+    case ND_REMAINDER:
+    case ND_EQ:
+    case ND_NEQ:
+    case ND_LC:
+    case ND_LEC:
+    case ND_LEFTSHIFT:
+    case ND_RIGHTSHIFT:
+    case ND_BITWISEAND:
+    case ND_BITWISEOR:
+    case ND_BITWISEXOR:
+    case ND_LOGICALAND:
+    case ND_LOGICALOR:
+      return is_const_expr(node->lhs) && is_const_expr(node->rhs);
+    case ND_COND:
+      if (!is_const_expr(node->cond)) {
+        return false;
+      }
+      return is_const_expr(eval_expr(node->cond) ? node->lhs : node->rhs);
+    case ND_BITWISENOT:
+    case ND_CAST:
+      return is_const_expr(node->lhs);
+    case ND_NUM:
+      return true;
+    default:
+      return false;
+  }
 }
 
 // declaration = declaration-specifiers init-declarator-list?

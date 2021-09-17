@@ -119,6 +119,7 @@ typedef enum {
   TY_LDOUBLE,  // "long double"
   TY_PTR,      // Pointer type
   TY_ARRAY,    // Array type
+  TY_VLA,      // VLA (variable-length-array)
   TY_FUNC,     // Function
   TY_ENUM,     // Enum type
   TY_STRUCT,   // Struct type
@@ -143,6 +144,9 @@ struct Type {
 
   int var_size;  // Variable size
   int array_len; // Array length if kind is TY_ARRAY
+
+  // VLA
+  Node *vla_len;
 
   // Function type
   Type *ret_ty;
