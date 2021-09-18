@@ -126,6 +126,7 @@ bool is_ptr_type(Type *ty) {
   switch (extract_type(ty)->kind) {
     case TY_PTR:
     case TY_ARRAY:
+    case TY_VLA:
     case TY_STRUCT:
     case TY_UNION:
       return true;
@@ -178,7 +179,10 @@ struct Scope {
 };
 
 static Scope *scope = &(Scope){};
-static int offset;
+
+// The reason for allocating 8 bytes at the beginning is to keep
+// track of how much space is allocated as a variable.
+static int offset = 8;
 
 void enter_scope() {
   Scope *sc = calloc(1, sizeof(Scope));
@@ -351,7 +355,7 @@ bool define_func(Type *ty, bool is_static) {
 
 int init_offset() {
   int sz = offset + 16 - (offset % 16);
-  offset = 0;
+  offset = 8;
   return sz;
 }
 

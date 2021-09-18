@@ -48,8 +48,26 @@ static void gen_addr(Node *node) {
         return;
       }
 
+      if (node->var->ty->kind == TY_VLA && !node->var->is_allocate) {
+        compile_node(node->var->ty->vla_size);
+        println("  mov %%rsp, %%rsi");
+        println("  mov %%rbp, %%rcx");
+        println("  sub %%rsp, %%rcx");
+        println("  sub -8(%%rbp), %%rcx");
+        println("  add %%rax, -8(%%rbp)");
+        println("  sub %%rax, %%rsp");
+        println("  mov %%rsp, %%rdi");
+        println("  rep movsb");
+        println("  mov %%rdi, -%d(%%rbp)", node->var->offset);
+        node->var->is_allocate = true;
+      }
+
       println("  mov %%rbp, %%rax");
       println("  sub $%d, %%rax", node->var->offset);
+
+      if (node->var->ty->kind == TY_VLA) {
+        println("  mov (%%rax), %%rax");
+      }
       return;
     case ND_CONTENT:
       compile_node(node->lhs);
@@ -64,7 +82,7 @@ static void gen_addr(Node *node) {
 }
 
 static void gen_load(Type *ty) {
-  if (ty->kind == TY_ARRAY || is_struct_type(ty)) {
+  if (ty->kind == TY_ARRAY || ty->kind == TY_VLA || is_struct_type(ty)) {
     // If the type is array, string literal, struct, or union,
     // it will automatically be treated as a pointer
     // and we cannot load the content direclty.
@@ -1363,6 +1381,7 @@ void codegen(Node *head, char *filename) {
     gen_push("rbp");
     println("  mov %%rsp, %%rbp");
     println("  sub $%d, %%rsp", func->vars_size);
+    println("  movq $%d, -8(%%rbp)", func->vars_size);
 
     // Set arguments
     int flcnt = 0, gecnt = 0, stframe = 16;

@@ -222,11 +222,19 @@ static Node *new_add(Token *tkn, Node *lhs, Node *rhs) {
   }
 
   if (is_ptr_type(lhs->ty)) {
-    rhs = new_calc(ND_MUL, tkn, rhs, new_num(tkn, lhs->ty->base->var_size));
+    if (lhs->ty->base->kind == TY_VLA) {
+      rhs = new_calc(ND_MUL, tkn, rhs, lhs->ty->base->vla_size);
+    } else {
+      rhs = new_calc(ND_MUL, tkn, rhs, new_num(tkn, lhs->ty->base->var_size));
+    }
   }
 
   if (is_ptr_type(rhs->ty)) {
-    lhs = new_calc(ND_MUL, tkn, lhs, new_num(tkn, rhs->ty->base->var_size));
+    if (rhs->ty->base->kind == TY_VLA) {
+      lhs = new_calc(ND_MUL, tkn, lhs, rhs->ty->base->vla_size);
+    } else {
+      lhs = new_calc(ND_MUL, tkn, lhs, new_num(tkn, rhs->ty->base->var_size));
+    }
   }
 
   return new_binary(ND_ADD, tkn, lhs, rhs);
@@ -243,7 +251,12 @@ static Node *new_sub(Token *tkn, Node *lhs, Node *rhs) {
 
     Node *node = new_binary(ND_SUB, tkn, lhs, rhs);
     node->ty = ty_i64;
-    node = new_binary(ND_DIV, tkn, node, new_num(tkn, lhs->ty->base->var_size));
+
+    if (lhs->ty->base->kind == TY_VLA) {
+      node = new_binary(ND_DIV, tkn, node, lhs->ty->base->vla_size);
+    } else {
+      node = new_binary(ND_DIV, tkn, node, new_num(tkn, lhs->ty->base->var_size));
+    }
     return node;
   }
 
@@ -752,15 +765,14 @@ static Type *new_vla(Token *tkn, Type *base, Node *node) {
   Type *ty = calloc(1, sizeof(Type));
   ty->kind = TY_VLA;
 
-  if (base->vla_len == NULL) {
-    ty->vla_len = new_binary(ND_MUL, tkn, node, new_num(tkn, base->var_size));
-    ty->var_size = 8;
+  if (base->vla_size == NULL) {
+    ty->vla_size = new_binary(ND_MUL, tkn, node, new_num(tkn, base->var_size));
   } else {
-    ty->vla_len = new_binary(ND_MUL, tkn, node, base->vla_len);
-    ty->var_size = 8 + base->var_size;
+    ty->vla_size = new_binary(ND_MUL, tkn, node, base->vla_size);
   }
 
   ty->base = base;
+  ty->var_size = 8;
   ty->align = base->align;
   return ty;
 }
@@ -768,16 +780,16 @@ static Type *new_vla(Token *tkn, Type *base, Node *node) {
 // If all the array length specifications are constant expressions,
 // the type is changing from vla to normal array.
 static Type *vla_to_arr(Type *ty) {
-  if (ty->kind != TY_VLA) {
+  if (ty->kind != TY_VLA || !is_const_expr(ty->vla_size)) {
     return ty;
   }
 
   ty->kind = TY_ARRAY;
   ty->base = vla_to_arr(ty->base);
   ty->align = ty->base->align;
-  ty->var_size = eval_expr(ty->vla_len);
+  ty->var_size = eval_expr(ty->vla_size);
   ty->array_len = ty->var_size / ty->base->var_size;
-  ty->vla_len = NULL;
+  ty->vla_size = NULL;
   return ty;
 }
 
@@ -1367,6 +1379,16 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
     return new_node(ND_VOID, tkn);
   }
 
+  if (ty->kind == TY_VLA) {
+    if (is_global) {
+      errorf_tkn(ER_COMPILE, tkn, "VLA cannot declare globally");
+    }
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    add_var(obj, true);
+    return new_var(tkn, obj);
+  }
+
   obj->is_global = is_global;
 
   if (attr->is_static) {
@@ -1485,7 +1507,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
 
   for (Type *param = ty->params; param != NULL; param = param->next) {
     // In the function parameters, the array is treated as a pointer variable.
-    if (param->kind == TY_ARRAY) {
+    if (param->kind == TY_ARRAY || param->kind == TY_VLA) {
       param->kind = TY_PTR;
       param->var_size = 8;
     }
@@ -2251,11 +2273,19 @@ static Node *unary(Token *tkn, Token **end_tkn) {
 
       tkn = skip(tkn, ")");
       if (end_tkn != NULL) *end_tkn = tkn;
+
+      if (is_sizeof && ty->kind == TY_VLA) {
+        return ty->vla_size;
+      }
       return new_num(tkn, is_sizeof ? ty->var_size : ty->align);
     }
 
     Node *node = unary(tkn, end_tkn);
     add_type(node);
+
+    if (is_sizeof && node->ty->kind == TY_VLA) {
+      return node->ty->vla_size;
+    }
     return new_num(tkn, is_sizeof ? node->ty->var_size : node->ty->align);
   }
 

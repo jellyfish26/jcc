@@ -146,7 +146,7 @@ struct Type {
   int array_len; // Array length if kind is TY_ARRAY
 
   // VLA
-  Node *vla_len;
+  Node *vla_size;
 
   // Function type
   Type *ret_ty;
@@ -208,6 +208,9 @@ struct Obj {
 
   // Variable attribute
   bool is_static;
+
+  // VLA
+  bool is_allocate;
 
   // Function
   Obj *params;
