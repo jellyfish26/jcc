@@ -83,6 +83,24 @@ int arr2(int a[]) {
   return ans;
 }
 
+void arr3(int a[2][5]) {
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 5; j++) {
+      a[i][j] = i + j;
+    }
+  }
+}
+
+int arr3_cnt(int a[2][5]) {
+  int ans = 0;
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 5; j++) {
+      ans += a[i][j];
+    }
+  }
+  return ans;
+}
+
 int foo(int a, int b) {
   return a + b;
 }
@@ -115,6 +133,16 @@ int ua(union G tmp) {
   return tmp.a + tmp.b;
 }
 
+int instatic() {
+  static int a = 0;
+  return ++a;
+}
+
+int inauto() {
+  auto int a = 0;
+  return ++a;
+}
+
 struct A retsta() {
   struct A tmp = {1, 2, 3};
   return tmp;
@@ -144,3 +172,57 @@ struct F retstf() {
   struct F tmp = {2, 50, 1, -1, 240};
   return tmp;
 }
+
+void ivla_1(int a, int b[a]) {
+  b[0] = 1;
+  b[1] = 2;
+}
+
+int ivla_1cnt(int a, int b[a]) {
+  int ans = 0;
+  for (int i = 0; i < a; i++) {
+    ans += b[i];
+  }
+  return ans;
+}
+
+void ivla_2(int a, int b, int c[b][a]) {
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < a; j++) {
+      c[i][j] = i + j;
+    }
+  }
+}
+
+int ivla_2cnt(int a, int b, int c[b][a]) {
+  int ans = 0;
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < a; j++) {
+      ans += c[i][j];
+    }
+  }
+  return ans;
+}
+
+void dvla_1(int a, int b, double c[b][2][a]) {
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < 2; j++) {
+      for (int k = 0; k < a; k++) {
+        c[i][j][k] = (i + j + k) * 2.0;
+      }
+    }
+  }
+}
+
+double dvla_1cnt(int a, int b, double c[b][2][a]) {
+  double ans = 0;
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < 2; j++) {
+      for (int k = 0; k < a; k++) {
+        ans += c[i][j][k];
+      }
+    }
+  }
+  return ans;
+}
+

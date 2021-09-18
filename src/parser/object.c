@@ -326,25 +326,23 @@ bool define_func(Type *ty, bool is_static) {
   ty->is_prototype = false;
   Obj *alrady = find_var(ty->name);
 
-  if (alrady == NULL) {
-    Obj *obj = new_obj(ty, ty->name);
-    obj->is_static = is_static;
-    add_var(obj, false);
-
-    if (is_static) {
-      obj->name = new_unique_label();
-    }
-
-    return true;
-  }
-
-  if (!alrady->ty->is_prototype || !check_func_params(ty, alrady->ty)) {
+  if (alrady != NULL && (!alrady->ty->is_prototype || !check_func_params(ty, alrady->ty))) {
     return false;
   }
 
   Obj *obj = new_obj(ty, ty->name);
-  obj->is_static = alrady->is_static | is_static;
-  hashmap_insert(&(scope->var), ty->name, obj);
+
+  if (alrady == NULL) {
+    obj->is_static = is_static;
+  } else {
+    obj->is_static = alrady->is_static | is_static;
+  }
+
+  Scope *gscope = scope;
+  while (gscope->up != NULL) {
+    gscope = gscope->up;
+  }
+  hashmap_insert(&(gscope->var), ty->name, obj);
 
   if (obj->is_static) {
     obj->name = new_unique_label();

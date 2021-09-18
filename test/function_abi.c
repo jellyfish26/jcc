@@ -58,6 +58,24 @@ int main() {
     ans;
   }));
 
+  CHECK(25, ({
+    int foo[2][5];
+    arr3(foo);
+    int ans = 0;
+    for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < 5; j++) {
+        ans += foo[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECK(25, ({
+    int foo[2][5];
+    arr3(foo);
+    arr3_cnt(foo);
+  }));
+
   CHECKF(5.0, ({
     struct D tmp = {2, 3.0f};
     se(tmp);
@@ -106,6 +124,18 @@ int main() {
     tmp.b = 11;
     tmp.a = -3;
     ua(tmp);
+  }));
+
+  CHECK(3, ({
+    instatic();
+    instatic();
+    instatic();
+  }));
+
+  CHECK(1, ({
+    inauto();
+    inauto();
+    inauto();
   }));
 
   CHECK(6, ({
@@ -188,5 +218,75 @@ int main() {
     ans;
   }));
 
+  CHECK(10, ({
+    struct B {
+      struct A aa;
+      int bb;
+    };
+    struct B tmp = {retsta(), add2(2, 2)};
+    tmp.aa.a + tmp.aa.b + tmp.aa.c + tmp.bb;
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+    int b[2];
+    ivla_1(a, b);
+    b[0] + b[1];
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+    int b[2];
+    ivla_1(a, b);
+    ivla_1cnt(a, b);
+  }));
+
+  CHECK(25, ({
+    int a = 2;
+    int b = a + 3;
+    int foo[b][a];
+    ivla_2(a, b, foo);
+    int ans = 0;
+    for (int i = 0; i < b; i++) {
+      for (int j = 0; j < a; j++) {
+        ans += foo[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECK(25, ({
+    int a = 2;
+    int b = a + 3;
+    int foo[b][a];
+    ivla_2(a, b, foo);
+    ivla_2cnt(a, b, foo);
+  }));
+
+  CHECKD(80.0, ({
+    int a = 2;
+    int b = a + 2;
+    double foo[b][2][a];
+    dvla_1(a, b, foo);
+    double ans = 0;
+    for (int i = 0; i < b; i++) {
+      for (int j = 0; j < 2; j++) {
+        for (int k = 0; k < a; k++) {
+          ans += foo[i][j][k];
+        }
+      }
+    }
+    ans;
+  }));
+
+  CHECKD(80.0, ({
+    int a = 2;
+    int b = a + 2;
+    double foo[b][2][a];
+    dvla_1(a, b, foo);
+    dvla_1cnt(a, b, foo);
+  }));
+
   return 0;
 }
+

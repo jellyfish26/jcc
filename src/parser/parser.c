@@ -835,6 +835,13 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
     Type *param_ty = declspec(tkn, &tkn, NULL);
     param_ty = declarator(tkn, &tkn, param_ty);
 
+    // In the function parameters, the array is treated as a pointer variable.
+    if (param_ty->kind == TY_ARRAY || param_ty->kind == TY_VLA) {
+      param_ty->kind = TY_PTR;
+      param_ty->var_size = 8;
+    }
+    add_var(new_obj(param_ty, param_ty->name), true);
+
     cur->next = param_ty;
     cur = param_ty;
     ty->param_cnt++;
@@ -854,6 +861,7 @@ static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty) {
   }
 
   if (equal(tkn, "(")) {
+    enter_scope();
     return param_list(tkn->next, end_tkn, ty);
   }
 
@@ -1359,12 +1367,14 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
   Obj *obj = new_obj(ty, ty->name);
 
   if (ty->kind == TY_FUNC) {
+    Node *node = new_node(ND_FUNC, tkn);
+    node->func = obj;
+    leave_scope();
+    init_offset();
+
     if (!declare_func(ty, attr->is_static)) {
       errorf_tkn(ER_COMPILE, tkn, "Conflict declaration");
     }
-
-    Node *node = new_node(ND_FUNC, tkn);
-    node->func = obj;
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return node;
@@ -1487,41 +1497,38 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
 
   Type *ty = declarator(tkn, &tkn, base_ty);
   if (!equal(tkn, "{")) {
+    if (ty != NULL && ty->kind == TY_FUNC) {
+      leave_scope();
+      init_offset();
+    }
     return NULL;
   }
 
-  if (!define_func(ty, attr->is_static)) {
-    errorf_tkn(ER_COMPILE, tkn, "Conflict define");
-  }
   func_ty = ty;
-
-  Node *node = new_node(ND_FUNC, tkn);
-  enter_scope();
   ty->is_prototype = false;
-
-  Obj *func = find_var(ty->name);
-  node->func = func;
 
   Obj head = {};
   Obj *cur = &head;
 
   for (Type *param = ty->params; param != NULL; param = param->next) {
-    // In the function parameters, the array is treated as a pointer variable.
-    if (param->kind == TY_ARRAY || param->kind == TY_VLA) {
-      param->kind = TY_PTR;
-      param->var_size = 8;
-    }
-
-    cur->next = new_obj(param, param->name);
+    cur->next = find_var(param->name);
     cur = cur->next;
-    add_var(cur, true);
   }
-  func->params = head.next;
 
+  if (!define_func(ty, attr->is_static)) {
+    errorf_tkn(ER_COMPILE, tkn, "Conflict define");
+  }
+
+  Node *node = new_node(ND_FUNC, tkn);
   node->deep = comp_stmt(tkn, &tkn);
   leave_scope();
+
+
+  Obj *func = find_var(ty->name);
+  node->func = func;
   node->func->vars_size = init_offset();
   node->func->ty->var_size = node->func->vars_size;
+  func->params = head.next;
 
   // Relocate label
   for (Node *stmt = label_node; stmt != NULL; stmt = stmt->deep) {

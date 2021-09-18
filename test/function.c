@@ -94,6 +94,24 @@ int arr2(int a[]) {
   return ans;
 }
 
+void arr3(int a[2][5]) {
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 5; j++) {
+      a[i][j] = i + j;
+    }
+  }
+}
+
+int arr3_cnt(int a[2][5]) {
+  int ans = 0;
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 5; j++) {
+      ans += a[i][j];
+    }
+  }
+  return ans;
+}
+
 struct D {
   int a;
   float b;
@@ -189,6 +207,58 @@ struct F retstf() {
   return tmp;
 }
 
+void ivla_1(int a, int b[a]) {
+  b[0] = 1;
+  b[1] = 2;
+}
+
+int ivla_1cnt(int a, int b[a]) {
+  int ans = 0;
+  for (int i = 0; i < a; i++) {
+    ans += b[i];
+  }
+  return ans;
+}
+
+void ivla_2(int a, int b, int c[b][a]) {
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < a; j++) {
+      c[i][j] = i + j;
+    }
+  }
+}
+
+int ivla_2cnt(int a, int b, int c[b][a]) {
+  int ans = 0;
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < a; j++) {
+      ans += c[i][j];
+    }
+  }
+  return ans;
+}
+
+void dvla_1(int a, int b, double c[b][2][a]) {
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < 2; j++) {
+      for (int k = 0; k < a; k++) {
+        c[i][j][k] = (i + j + k) * 2.0;
+      }
+    }
+  }
+}
+
+double dvla_1cnt(int a, int b, double c[b][2][a]) {
+  double ans = 0;
+  for (int i = 0; i < b; i++) {
+    for (int j = 0; j < 2; j++) {
+      for (int k = 0; k < a; k++) {
+        ans += c[i][j][k];
+      }
+    }
+  }
+  return ans;
+}
 
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
@@ -245,6 +315,24 @@ int main() {
       ans -= tmp[i];
     }
     ans;
+  }));
+
+  CHECK(25, ({
+    int foo[2][5];
+    arr3(foo);
+    int ans = 0;
+    for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < 5; j++) {
+        ans += foo[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECK(25, ({
+    int foo[2][5];
+    arr3(foo);
+    arr3_cnt(foo);
   }));
 
   CHECKF(5.0, ({
@@ -402,6 +490,66 @@ int main() {
     };
     struct B tmp = {retsta(), add2(2, 2)};
     tmp.aa.a + tmp.aa.b + tmp.aa.c + tmp.bb;
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+    int b[2];
+    ivla_1(a, b);
+    b[0] + b[1];
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+    int b[2];
+    ivla_1(a, b);
+    ivla_1cnt(a, b);
+  }));
+
+  CHECK(25, ({
+    int a = 2;
+    int b = a + 3;
+    int foo[b][a];
+    ivla_2(a, b, foo);
+    int ans = 0;
+    for (int i = 0; i < b; i++) {
+      for (int j = 0; j < a; j++) {
+        ans += foo[i][j];
+      }
+    }
+    ans;
+  }));
+
+  CHECK(25, ({
+    int a = 2;
+    int b = a + 3;
+    int foo[b][a];
+    ivla_2(a, b, foo);
+    ivla_2cnt(a, b, foo);
+  }));
+
+  CHECKD(80.0, ({
+    int a = 2;
+    int b = a + 2;
+    double foo[b][2][a];
+    dvla_1(a, b, foo);
+    double ans = 0;
+    for (int i = 0; i < b; i++) {
+      for (int j = 0; j < 2; j++) {
+        for (int k = 0; k < a; k++) {
+          ans += foo[i][j][k];
+        }
+      }
+    }
+    ans;
+  }));
+
+  CHECKD(80.0, ({
+    int a = 2;
+    int b = a + 2;
+    double foo[b][2][a];
+    dvla_1(a, b, foo);
+    dvla_1cnt(a, b, foo);
   }));
 
   return 0;

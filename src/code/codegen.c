@@ -399,6 +399,7 @@ static int get_type_idx(Type *ty) {
     case TY_LONG:
     case TY_PTR:
     case TY_ARRAY:
+    case TY_VLA:
       ret = 3;
       break;
     case TY_FLOAT:

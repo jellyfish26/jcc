@@ -34,6 +34,8 @@ long double sd(struct C tmp);
 
 int arr1(int a[5]);
 int arr2(int a[]);
+void arr3(int a[2][5]);
+int arr3_cnt(int a[2][5]);
 
 struct D {
   int a;
@@ -68,6 +70,8 @@ union G {
 
 int ua(union G tmp);
 
+int instatic();
+int inauto();
 
 struct A retsta();
 struct B retstb();
@@ -75,3 +79,10 @@ struct C retstc();
 struct D retstd();
 struct E retste();
 struct F retstf();
+
+void ivla_1(int a, int b[a]);
+int ivla_1cnt(int a, int b[a]);
+void ivla_2(int a, int b, int c[b][a]);
+int ivla_2cnt(int a, int b, int c[b][a]);
+void dvla_1(int a, int b, double c[b][2][a]);
+double dvla_1cnt(int a, int b, double c[b][2][a]);
