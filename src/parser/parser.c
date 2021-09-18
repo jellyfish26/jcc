@@ -92,6 +92,10 @@ char *new_unique_label() {
 }
 
 int align_to(int bytes, int align) {
+  if (align == 0) {
+    errorf(ER_COMPILE, "Align zero is not allow");
+  }
+
   return bytes + (align - bytes % align) % align;
 }
 
@@ -443,7 +447,7 @@ static void construct_members(Token *tkn, Token **end_tkn, Type *ty) {
       }
       need_comma = true;
 
-      Type *mem_ty = declarator(tkn, &tkn, copy_type(base_ty));
+      Type *mem_ty = copy_type(declarator(tkn, &tkn, base_ty));
 
       if (consume(tkn, &tkn, ":")) {
         if (mem_ty == NULL) {
@@ -478,9 +482,7 @@ static void construct_members(Token *tkn, Token **end_tkn, Type *ty) {
   if (end_tkn != NULL) *end_tkn = tkn;
 }
 
-static Type *struct_specifier(Token *tkn, Token **end_tkn, char *tag) {
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = TY_STRUCT;
+static void struct_specifier(Token *tkn, Token **end_tkn, Type *ty) {
   construct_members(tkn, &tkn, ty);
 
   // Initialize size, offset, and align
@@ -512,14 +514,10 @@ static Type *struct_specifier(Token *tkn, Token **end_tkn, char *tag) {
   ty->var_size = bytes + align_to(bit_offset, 8) / 8;
   ty->align = align;
 
-  add_tag(ty, tag);
   if (end_tkn != NULL) *end_tkn = tkn;
-  return ty;
 }
 
-static Type *union_specifier(Token *tkn, Token **end_tkn, char *tag) {
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = TY_UNION;
+static void union_specifier(Token *tkn, Token **end_tkn, Type *ty) {
   construct_members(tkn, &tkn, ty);
 
   int bytes = 0, align = 0;
@@ -535,9 +533,7 @@ static Type *union_specifier(Token *tkn, Token **end_tkn, char *tag) {
   ty->var_size = bytes;
   ty->align = align;
 
-  add_tag(ty, tag);
   if (end_tkn != NULL) *end_tkn = tkn; 
-  return ty;
 }
 
 // struct-or-union-specifier = struct-or-union identifier |
@@ -578,11 +574,17 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     tag = new_unique_label();
   }
 
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = kind;
+  add_tag(ty, tag);
+
   if (kind == TY_STRUCT) {
-    return struct_specifier(tkn, end_tkn, tag);
+    struct_specifier(tkn, end_tkn, ty);
   } else {
-    return union_specifier(tkn, end_tkn, tag);
+    union_specifier(tkn, end_tkn, ty);
   }
+
+  return ty;
 }
 
 // declaration-specifiers = type-specifier declaration-specifiers?
@@ -751,7 +753,6 @@ static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
     }
     tkn = tkn->next;
   }
-  ty = copy_type(ty);
   ty->is_const = is_const;
 
   if (end_tkn != NULL) *end_tkn = tkn;
@@ -851,7 +852,7 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
     }
 
     Type *param_ty = declspec(tkn, &tkn, NULL);
-    param_ty = declarator(tkn, &tkn, param_ty);
+    param_ty = declarator(tkn, &tkn, copy_type(param_ty));
 
     // In the function parameters, the array is treated as a pointer variable.
     if (param_ty->kind == TY_ARRAY || param_ty->kind == TY_VLA) {
@@ -1371,7 +1372,7 @@ static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_glo
     if (cur != &head) {
       tkn = skip(tkn, ",");
     }
-    cur->next = initdecl(tkn, &tkn, base_ty, is_global, attr);
+    cur->next = initdecl(tkn, &tkn, copy_type(base_ty), is_global, attr);
     cur = cur->next;
   }
 
@@ -1492,7 +1493,7 @@ Node *program(Token *tkn) {
 
     VarAttr *attr = calloc(1, sizeof(VarAttr));
     Type *ty = declspec(tkn, &tkn, attr);
-    Node *node = funcdef(tkn, &tkn, ty, attr);
+    Node *node = funcdef(tkn, &tkn, copy_type(ty), attr);
     if (node == NULL) {
       node = declaration(tkn, &tkn, ty, true, attr);
     }

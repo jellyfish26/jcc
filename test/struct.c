@@ -37,6 +37,11 @@ struct F {
 
 struct F fa = {2, 100, 16, -100};
 
+struct DEEP {
+  struct DEEP *deep;
+  int a;
+};
+
 int main() {
   CHECK(8, sizeof(struct A));
 
@@ -401,6 +406,15 @@ int main() {
     struct A dog = {1, 2};
     struct B tmp = {dog, 3};
     tmp.aa.A + tmp.aa.B + tmp.bb;
+  }));
+
+  CHECK(3, ({
+    struct DEEP foo = {};
+    foo.a = 1;
+    struct DEEP bar = {};
+    bar.deep = &foo;
+    bar.a = 2;
+    bar.a + bar.deep->a;
   }));
 
   return 0;
