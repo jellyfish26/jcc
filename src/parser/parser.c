@@ -283,6 +283,24 @@ static Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+// Return nodes to fix the length of VLA,
+// and vla_size is replaced with a temporary variable that
+// contains the length of VLA.
+static Node *compute_vla_len(Type *ty) {
+  if (ty->kind != TY_VLA) {
+    return NULL;
+  }
+
+  Obj *tmp_var = new_obj(copy_type(ty_i64), new_unique_label());
+  add_var(tmp_var, true);
+
+  Node *node = ty->vla_size;
+  ty->vla_size = new_var(ty->tkn, tmp_var);
+  node = new_assign(ty->tkn, ty->vla_size, node);
+  node->next = compute_vla_len(ty->base);
+  return node;
+}
+
 static Node *to_assign(Token *tkn, Node *rhs) {
   return new_assign(tkn, rhs->lhs, rhs);
 }
@@ -1394,9 +1412,14 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
       errorf_tkn(ER_COMPILE, tkn, "VLA cannot declare globally");
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+    // Fix array len
+    Node *node = compute_vla_len(ty);
+    node = new_commma(ty->tkn, node);
+    node->next = new_var(tkn, obj);
     add_var(obj, true);
-    return new_var(tkn, obj);
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return node;
   }
 
   obj->is_global = is_global;
@@ -1510,7 +1533,17 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
   Obj head = {};
   Obj *cur = &head;
 
+  Node vla_init_head = {};
+  Node *vla_init_node = &vla_init_head;
+
   for (Type *param = ty->params; param != NULL; param = param->next) {
+    // Fix array len 
+    if (param->base != NULL && param->base->kind == TY_VLA) {
+      vla_init_node->next = compute_vla_len(param->base);
+      vla_init_node->next = new_commma(param->tkn, vla_init_node->next);
+      vla_init_node = vla_init_node->next;
+    }
+
     cur->next = find_var(param->name);
     cur = cur->next;
   }
@@ -1523,6 +1556,9 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
   node->deep = comp_stmt(tkn, &tkn);
   leave_scope();
 
+  // Add nodes of fix array len
+  vla_init_node->next = node->deep->deep;
+  node->deep->deep = vla_init_head.next;
 
   Obj *func = find_var(ty->name);
   node->func = func;

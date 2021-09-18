@@ -287,6 +287,12 @@ int main() {
     dvla_1cnt(a, b, foo);
   }));
 
+  CHECK(0, ({
+    int a = 2;
+    int foo[a][a];
+    ivla_3(a, foo);
+  }));
+
   return 0;
 }
 

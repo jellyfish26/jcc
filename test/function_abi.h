@@ -86,3 +86,4 @@ void ivla_2(int a, int b, int c[b][a]);
 int ivla_2cnt(int a, int b, int c[b][a]);
 void dvla_1(int a, int b, double c[b][2][a]);
 double dvla_1cnt(int a, int b, double c[b][2][a]);
+int ivla_3(int a, int b[a][a]);

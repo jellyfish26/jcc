@@ -260,6 +260,13 @@ double dvla_1cnt(int a, int b, double c[b][2][a]) {
   return ans;
 }
 
+int ivla_3(int a, int b[a][a]) {
+  int before = sizeof(b[0]);
+  a = 5;
+  int after = sizeof(b[0]);
+  return after - before;
+}
+
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));
   CHECK(1, ({int a = 2; int b = 3; sub2(b, a);}));
@@ -550,6 +557,12 @@ int main() {
     double foo[b][2][a];
     dvla_1(a, b, foo);
     dvla_1cnt(a, b, foo);
+  }));
+
+  CHECK(0, ({
+    int a = 2;
+    int foo[a][a];
+    ivla_3(a, foo);
   }));
 
   return 0;

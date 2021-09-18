@@ -226,3 +226,10 @@ double dvla_1cnt(int a, int b, double c[b][2][a]) {
   return ans;
 }
 
+int ivla_3(int a, int b[a][a]) {
+  int before = sizeof(b[0]);
+  a = 5;
+  int after = sizeof(b[0]);
+  return after - before;
+}
+

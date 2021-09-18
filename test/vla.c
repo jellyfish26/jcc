@@ -85,5 +85,24 @@ int main() {
     ans;
   }));
 
+  CHECK(0, ({
+    int a = 2;
+    int b[a];
+    int before = sizeof(b);
+    a = 5;
+    int after = sizeof(b);
+    after - before;
+  }));
+
+  CHECK(12, ({
+    int a = 2;
+    int b[a];
+    int before = sizeof(b);
+    a = 5;
+    int c[a];
+    int after = sizeof(c);
+    after - before;
+  }));
+
   return 0;
 }
