@@ -7,6 +7,12 @@ typedef struct {
   int a, b;
 } tydef_st;
 
+typedef struct DEEP DEEP;
+struct DEEP {
+  DEEP *deep;
+  int a;
+};
+
 int main() {
   CHECK(2, ({
     dogint dog = 2;
@@ -60,6 +66,15 @@ int main() {
     } hoge;
     hoge aa = DD;
     aa;
+  }));
+
+  CHECK(3, ({
+    DEEP foo = {};
+    foo.a = 1;
+    DEEP bar = {};
+    bar.deep = &foo;
+    bar.a = 2;
+    bar.a + bar.deep->a;
   }));
 
   return 0;

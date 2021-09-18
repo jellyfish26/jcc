@@ -227,6 +227,7 @@ void enter_scope();
 void leave_scope();
 void add_var(Obj *var, bool set_offset);
 void add_tag(Type *ty, char *name);
+void enforce_add_tag(Type *ty, char *name);
 void add_type_def(Type *ty, char *name);
 Obj *find_var(char *name);
 Type *find_tag(char *name);

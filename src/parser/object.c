@@ -218,6 +218,15 @@ void add_tag(Type *ty, char *name) {
   hashmap_insert(&(scope->tag), name, ty);
 }
 
+void enforce_add_tag(Type *ty, char *name) {
+  Type *already = hashmap_get(&(scope->tag), name);
+
+  if (already != NULL) {
+    memcpy(already, ty, sizeof(Obj));
+  } else {
+    add_tag(ty, name);
+  }
+}
 void add_type_def(Type *ty, char *name) {
   if (hashmap_get(&(scope->type_def), name) != NULL) {
     errorf_tkn(ER_COMPILE, ty->tkn, "Name '%s' is already define", name);

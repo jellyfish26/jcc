@@ -561,7 +561,10 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
     Type *ty = find_tag(tag);
 
     if (ty == NULL) {
-      errorf_tkn(ER_COMPILE, tkn, "This struct tag is not declared");
+      ty = calloc(1, sizeof(Type));
+      ty->tkn = tkn;
+      ty->kind = kind;
+      add_tag(ty, tag);
     } else if (ty->kind != kind) {
       errorf_tkn(ER_COMPILE, tkn, "This tag is not an %s tag", kind == TY_STRUCT ? "struct" : "union");
     }
@@ -576,7 +579,8 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
 
   Type *ty = calloc(1, sizeof(Type));
   ty->kind = kind;
-  add_tag(ty, tag);
+  enforce_add_tag(ty, tag);
+  ty = find_tag(tag);
 
   if (kind == TY_STRUCT) {
     struct_specifier(tkn, end_tkn, ty);
@@ -1372,7 +1376,7 @@ static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_glo
     if (cur != &head) {
       tkn = skip(tkn, ",");
     }
-    cur->next = initdecl(tkn, &tkn, copy_type(base_ty), is_global, attr);
+    cur->next = initdecl(tkn, &tkn, base_ty, is_global, attr);
     cur = cur->next;
   }
 
@@ -1383,6 +1387,17 @@ static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_glo
 // init-declarator = declarator ("=" initializer)?
 static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, VarAttr *attr) {
   ty = declarator(tkn, &tkn, ty);
+
+  if (attr->is_type_def) {
+    char *name = ty->name;
+    ty->name = NULL;
+    add_type_def(ty, name);
+
+    if (end_tkn != NULL) *end_tkn = tkn;
+    return new_node(ND_VOID, tkn);
+  }
+
+  ty = copy_type(ty);
   Obj *obj = new_obj(ty, ty->name);
 
   if (ty->kind == TY_FUNC) {
@@ -1397,15 +1412,6 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
 
     if (end_tkn != NULL) *end_tkn = tkn;
     return node;
-  }
-
-  if (attr->is_type_def) {
-    char *name = ty->name;
-    ty->name = NULL;
-    add_type_def(ty, name);
-
-    if (end_tkn != NULL) *end_tkn = tkn;
-    return new_node(ND_VOID, tkn);
   }
 
   if (ty->kind == TY_VLA) {
