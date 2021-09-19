@@ -1,5 +1,6 @@
 #include "token/tokenize.h"
 #include "parser/parser.h"
+#include "util/util.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -11,7 +12,7 @@
 #include <string.h>
 #include <strings.h>
 
-static char *source_str;
+static File *current_file;
 
 //
 // About error output
@@ -52,10 +53,10 @@ static void errorf_at(ERROR_TYPE type, char *loc, int underline_len, char *fmt, 
       break;
   }
   int line_loc = 1;
-  char *begin_line_loc = source_str;
+  char *begin_line_loc = current_file->contents;
 
   // Where char location belong line
-  for (char *now_loc = source_str; now_loc != loc; now_loc++) {
+  for (char *now_loc = current_file->contents; now_loc != loc; now_loc++) {
     if (*now_loc == '\n') {
       line_loc++;
       begin_line_loc = now_loc + 1;
@@ -154,7 +155,7 @@ static bool is_useable_char(char c) {
   return ret;
 }
 
-static bool is_ident_char(char c) {
+bool is_ident_char(char c) {
   return is_useable_char(c) || ('0' <= c && c <= '9');
 }
 
@@ -344,39 +345,6 @@ static Token *read_charlit(char *begin, char **endptr) {
   return tkn;
 }
 
-static char *read_file(char *path) {
-  FILE *fp;
-  fp = fopen(path, "r");
-
-  if (fp == NULL) {
-    fprintf(stderr, "Failed to open the file: %s\n", path);
-    exit(1);
-  }
-
-  char *buf;
-  size_t buflen;
-  FILE *buffp = open_memstream(&buf, &buflen);
-
-  // Read file
-  while (true) {
-    char tmp[1024];
-    int len = fread(tmp, sizeof(char), sizeof(tmp), fp);
-    if (len == 0) {
-      break;
-    }
-    fwrite(tmp, sizeof(char), len, buffp);
-  }
-  fclose(fp);
-  fflush(buffp);
-
-  // To make processing easier, insert '\n' if there is not '\n' at the end.
-  if (buflen == 0 || buf[buflen - 1] != '\n') {
-    fputc('\n', buffp);
-  }
-  fputc('\0', buffp);
-  fclose(buffp);
-  return buf;
-}
 
 Token *get_tail_token(Token *tkn) {
   while (tkn->next != NULL) {
@@ -385,12 +353,12 @@ Token *get_tail_token(Token *tkn) {
   return tkn;
 }
 
-Token *tokenize_file(char *path) {
-  char *ptr = read_file(path);
-  source_str = ptr;
-
+Token *tokenize_file(File *file) {
   Token head;
   Token *cur = &head;
+
+  current_file = file;
+  char *ptr = file->contents;
 
   while (*ptr) {
     // Comment out of line
@@ -489,7 +457,8 @@ Token *tokenize_file(char *path) {
 
 // Update source token
 Token *tokenize(char *path) {
-  Token *tkn = tokenize_file(path);
+  File *file = read_file(path);
+  Token *tkn = tokenize_file(file);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
 
   return tkn;

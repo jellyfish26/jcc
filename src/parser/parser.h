@@ -1,4 +1,5 @@
 #pragma once
+#define _POSIX_C_SOURCE 200809L
 #include "token/tokenize.h"
 #include "util/util.h"
 

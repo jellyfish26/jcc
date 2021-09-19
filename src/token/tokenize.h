@@ -1,5 +1,4 @@
 #pragma once
-#define _POSIX_C_SOURCE 200809L
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,6 +33,7 @@ struct Token {
 
 char read_char(char *str, char **end_ptr);
 Token *tokenize(char *file_name);
+bool is_ident_char(char c);
 
 typedef enum {
   ER_COMPILE,  // Compiler Error
