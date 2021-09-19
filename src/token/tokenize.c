@@ -357,10 +357,16 @@ Token *tokenize_file(File *file) {
   Token head;
   Token *cur = &head;
 
-  current_file = file;
   char *ptr = file->contents;
 
   while (*ptr) {
+    // Define macro
+    if (streq(ptr, "#define ")) {
+      ptr += 8;
+      define_objlike_macro(ptr, &ptr);
+      continue;
+    }
+
     // Comment out of line
     if (streq(ptr, "//")) {
       while (*ptr != '\n') {
@@ -446,7 +452,13 @@ Token *tokenize_file(File *file) {
         ptr++;
       }
       int ident_len = ptr - start;
-      cur = cur->next = new_token(TK_IDENT, start, ident_len);
+      cur->next = new_token(TK_IDENT, start, ident_len);
+
+      if (find_macro(cur->next) != NULL) {
+        cur->next = expand_macro(cur->next);
+      }
+
+      cur = get_tail_token(cur);
       continue;
     }
     printf("%s", ptr);
@@ -458,6 +470,8 @@ Token *tokenize_file(File *file) {
 // Update source token
 Token *tokenize(char *path) {
   File *file = read_file(path);
+  current_file = file;
+
   Token *tkn = tokenize_file(file);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
 

@@ -1,10 +1,16 @@
 #pragma once
+#include "util/util.h"
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+//
+// token.c
+//
 
 typedef enum {
   TK_NUM,     // Numerical literal
@@ -32,6 +38,7 @@ struct Token {
 };
 
 char read_char(char *str, char **end_ptr);
+Token *tokenize_file(File *file);
 Token *tokenize(char *file_name);
 bool is_ident_char(char c);
 
@@ -49,3 +56,16 @@ bool equal(Token *tkn, char *op);
 bool consume(Token *tkn, Token **end_tkn, char *op);
 Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
+
+// 
+// preprocess.c
+//
+
+typedef struct {
+  char *name;
+  Token *conv_tkn;
+} Macro;
+
+Macro *find_macro(Token *tkn);
+void define_objlike_macro(char *ptr, char **endptr);
+Token *expand_macro(Token *tkn);
