@@ -469,7 +469,8 @@ Token *tokenize_file(File *file) {
       cur->next = new_token(TK_IDENT, start, ident_len);
 
       if (find_macro(cur->next) != NULL &&
-          ((*(ptr + 1) == '(') != find_macro(cur->next)->is_objlike)) {
+          ((*(ptr) == '(') != find_macro(cur->next)->is_objlike)) {
+        ptr += (find_macro(cur->next)->is_objlike ? 0 : 2);
         cur->next = expand_macro(cur->next);
       }
 

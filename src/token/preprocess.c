@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static HashMap macros;
+static HashMap macros = {};
 
 Macro *find_macro(Token *tkn) {
   return hashmap_nget(&macros, tkn->loc, tkn->len);
@@ -84,14 +84,15 @@ Token *expand_macro(Token *tkn) {
     return NULL;
   }
 
-  Token *macro_tkn = copy_conv_tkn(macro);
-  Token *head = calloc(1, sizeof(Token));  // dummy
+  Token *head = calloc(1, sizeof(Token));
+  head->next = copy_conv_tkn(macro);
 
   // Check recursive macro
   for (Token *tkn = head; tkn->next != NULL; tkn = tkn->next) {
     if (tkn->next->kind == TK_IDENT && find_macro(tkn->next)) {
+      Token *macro_tkn = expand_macro(tkn->next);
       tkn->next = tkn->next->next;
-      concat_token(tkn, expand_macro(tkn->next));
+      concat_token(tkn, macro_tkn);
     }
   }
 

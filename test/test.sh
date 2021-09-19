@@ -26,11 +26,18 @@ gcc -std=c11 -static -c -o hashmap.o hashmap_gcc.c -I ../src
 gcc -static -g -o tmp ../src/util/hashmap.o hashmap.o
 check "hashmap.c"
 
+# Check function ABI
 gcc -std=c11 -static -c -o function_abi_gcc.o function_abi_gcc.c
 compile function_abi.c function_abi_gcc.o
 check function_abi.c
 
-for src_file in `\find . -name '*.c' -not -name '*gcc.c' -not -name 'function_abi.c'`; do
+# Check macro
+../jcc macro.c macro.s
+gcc -static -g -o tmp common.o macro.s
+rm macro.s
+check macro.c
+
+for src_file in `\find . -name '*.c' -not -name 'macro.c' -not -name '*gcc.c' -not -name 'function_abi.c'`; do
   compile $src_file
   check $src_file
 done

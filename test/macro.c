@@ -1,4 +1,9 @@
-#include "test.h"
+void check(int expected, int actual, char *str);
+void checkl(long expected, long actual, char *str);
+void checkul(unsigned long expected, unsigned long actual, char *str);
+void checkf(float expected, float actual, char *str);
+void checkd(double expected, double actual, char *str);
+void checkld(long double expected, long double actual, char *str);
 
 #define ONE 1
 #define MACRO_INVOCATE TWO
@@ -16,52 +21,52 @@ int func() {
 }
 
 int main() {
-  CHECK(1, ONE);
-  CHECK(2, TWO);
-  CHECK(2, MACRO_INVOCATE);
+  check(1, ONE, "ONE");
+  check(2, TWO, "TWO");
+  check(2, MACRO_INVOCATE, "MACRO_INVOCATE");
 
-  CHECK(3, ({
+  check(3, ({
     MACRO_STRUCT {
       int a;
     };
     MACRO_STRUCT tmp = {3};
     tmp.a;
-  }));
+  }), "MACRO_STRUCT_1");
 
-  CHECK(3, ({
+  check(3, ({
     typedef MACRO_STRUCT A;
     MACRO_STRUCT {
       int a;
     };
     A tmp = {3};
     tmp.a;
-  }));
+  }), "MACRO_STRUCT_2");
 
 #define THREE 3
-  CHECK(3, THREE);
+  check(3, THREE, "THREE");
 
-  CHECK(108, ({
+  check(108, ({
     char *str = HELLO;
     str[2];
-  }));
+  }), "HEELO");
 
-  CHECK(15, ({
+  check(15, ({
     int a[5] = ARRAY_INITIALIZER
     a[0] + a[1] + a[2] + a[3] + a[4];
-  }));
+  }), "ARRAY_INITIALIZER_1");
 
-  CHECK(15, ({
+  check(15, ({
     int a[5] = ARRAY_INITIALIZER
     a[0] + a[1] + a[2] + a[3] + a[4];
-  }));
+  }), "ARRAY_INITIALIZER_2");
 
-  CHECK(19, ({
+  check(19, ({
     int FOO = 9;
     int BAR = FOO();
     FOO + BAR;
-  }));
+  }), "FOO");
 
-  CHECK(2, FUNC());
+  // check(2, FUNC(), "FUNC()");
 
   return 0;
 }
