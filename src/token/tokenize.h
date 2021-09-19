@@ -63,9 +63,11 @@ bool is_eof(Token *tkn);
 
 typedef struct {
   char *name;
+  bool is_objlike;
   Token *conv_tkn;
 } Macro;
 
 Macro *find_macro(Token *tkn);
-void define_objlike_macro(char *ptr, char **endptr);
+void define_objlike_macro(char *ident, char *ptr, char **endptr);
+void define_funclike_macro(char *ident, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);

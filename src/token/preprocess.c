@@ -18,9 +18,10 @@ static bool add_macro(char *name, Macro *macro) {
   return true;
 }
 
-bool define_macro(char *name, Token *conv_tkn) {
+bool define_macro(char *name, bool is_objlike, Token *conv_tkn) {
   Macro *macro = calloc(1, sizeof(Macro));
   macro->name = name;
+  macro->is_objlike = is_objlike;
   macro->conv_tkn = conv_tkn;
   return add_macro(name, macro);
 }
@@ -49,22 +50,30 @@ static void concat_token(Token *ltkn, Token *rtkn) {
 }
 
 // allow only (ptr, &ptr)
-void define_objlike_macro(char *ptr, char **endptr) {
+void define_objlike_macro(char *ident, char *ptr, char **endptr) {
   int strlen = 0;
-  while (*ptr != ' ') {
-    ptr++;
-    strlen++;
-  }
-  char *name = strndup(ptr - strlen, strlen);
-  ptr++;
-
-  strlen = 0;
   while (*ptr != '\n' && *ptr != '\0') {
     ptr++;
     strlen++;
   }
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(name, tokenize_file(builtin));
+  define_macro(ident, true, tokenize_file(builtin));
+
+  *endptr = ptr;
+}
+
+// allow onl (ptr, &ptr)
+void define_funclike_macro(char *ident, char *ptr, char **endptr) {
+  Token *ident_tkn = tokenize_file(new_file("builtin", ident));
+  ident = strndup(ident_tkn->loc, ident_tkn->len);
+
+  int strlen = 0;
+  while (*ptr != '\n' && *ptr != '\0') {
+    ptr++;
+    strlen++;
+  }
+  File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
+  define_macro(ident, false, tokenize_file(builtin));
 
   *endptr = ptr;
 }

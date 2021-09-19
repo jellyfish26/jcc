@@ -7,6 +7,14 @@
 #define HELLO "hello"
 #define ARRAY_INITIALIZER {1, 2, 3, 4, 5};
 
+#define FOO() 10
+
+#define FUNC() func()
+
+int func() {
+  return 2;
+}
+
 int main() {
   CHECK(1, ONE);
   CHECK(2, TWO);
@@ -43,9 +51,17 @@ int main() {
   }));
 
   CHECK(15, ({
-    int a[] = ARRAY_INITIALIZER
+    int a[5] = ARRAY_INITIALIZER
     a[0] + a[1] + a[2] + a[3] + a[4];
   }));
+
+  CHECK(19, ({
+    int FOO = 9;
+    int BAR = FOO();
+    FOO + BAR;
+  }));
+
+  CHECK(2, FUNC());
 
   return 0;
 }
