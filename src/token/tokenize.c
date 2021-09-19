@@ -366,7 +366,7 @@ Token *tokenize_file(File *file) {
 
       int strlen = 0;
       bool is_objlike = true;
-      while (*ptr != ' ') {
+      while ((!is_objlike && *ptr != ')') || (is_objlike && *ptr != ' ')) {
         ptr++;
         strlen++;
         is_objlike &= (*ptr != '(');
@@ -375,7 +375,7 @@ Token *tokenize_file(File *file) {
       if (is_objlike) {
         define_objlike_macro(strndup(ptr - strlen, strlen), ptr + 1, &ptr);
       } else {
-        define_funclike_macro(strndup(ptr - strlen, strlen), ptr + 1, &ptr);
+        define_funclike_macro(strndup(ptr - strlen, strlen + 1), ptr + 2, &ptr);
       }
 
       continue;
@@ -468,9 +468,11 @@ Token *tokenize_file(File *file) {
       int ident_len = ptr - start;
       cur->next = new_token(TK_IDENT, start, ident_len);
 
-      if (find_macro(cur->next) != NULL &&
-          ((*(ptr) == '(') != find_macro(cur->next)->is_objlike)) {
-        ptr += (find_macro(cur->next)->is_objlike ? 0 : 2);
+      Macro *macro = find_macro(cur->next);
+      if (macro != NULL && (*ptr == '(') != macro->is_objlike) {
+        if (!macro->is_objlike) {
+          set_macro_args(macro, ptr, &ptr);
+        }
         cur->next = expand_macro(cur->next);
       }
 

@@ -15,9 +15,15 @@ void checkld(long double expected, long double actual, char *str);
 #define FOO() 10
 
 #define FUNC() func()
+#define MAX(a, b) a > b ? a : b
+#define MIN(a, b) (MAX(a, b)) == a ? b : a
 
 int func() {
   return 2;
+}
+
+int cat(int a) {
+  return a;
 }
 
 int main() {
@@ -66,7 +72,13 @@ int main() {
     FOO + BAR;
   }), "FOO");
 
-  // check(2, FUNC(), "FUNC()");
+  check(2, FUNC(), "FUNC()");
+  check(3, MAX(2, 3), "MAX(2, 3)");
+  check(2, MIN(2, 3), "MIN(2, 3)");
+  check(2, MIN(func(), 3), "MIN(func(), 3)");
+  check(2, MIN(FUNC(), 3), "MIN(FUNC(), 3)");
+  check(2, MIN(cat(func()), 3), "MIN(cat(func()), 3)");
+  check(2, MIN(cat(FUNC()), 3), "MIN(cat(FUNC()), 3)");
 
   return 0;
 }

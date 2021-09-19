@@ -61,13 +61,27 @@ bool is_eof(Token *tkn);
 // preprocess.c
 //
 
+typedef struct MacroArg MacroArg;
+struct MacroArg {
+  char *name;
+  MacroArg *next;
+
+  // The conv_tkn variable stores the token to be replaced and
+  // is used when expanding the macro.
+  Token *conv_tkn;
+};
+
 typedef struct {
   char *name;
   bool is_objlike;
   Token *conv_tkn;
+
+  // Function-like macro
+  MacroArg *args;
 } Macro;
 
 Macro *find_macro(Token *tkn);
 void define_objlike_macro(char *ident, char *ptr, char **endptr);
 void define_funclike_macro(char *ident, char *ptr, char **endptr);
+void set_macro_args(Macro *macro, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
