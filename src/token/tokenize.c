@@ -131,7 +131,7 @@ bool is_eof(Token *tkn) {
   return tkn->kind == TK_EOF;
 }
 
-static Token *new_token(TokenKind kind, char *loc, int len) {
+Token *new_token(TokenKind kind, char *loc, int len) {
   Token *tkn = calloc(1, sizeof(Token));
   tkn->kind = kind;
   tkn->loc = loc;
@@ -169,7 +169,7 @@ static char *permit_panct[] = {
     "(",   ")",  ";",  "{",  "}",  "[",  "]",  ".", "->", "<<=", "<<", "<=", "<",
     ">>=", ">>", ">=", ">",  "==", "!=", "=",  "++",  "+=", "+",  "--",
     "-=",  "-",  "*=", "*",  "/=", "/",  "%=", "%",   "&=", "&&", "&",
-    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~", ":",};
+    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~", ":", "#"};
 
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "do", "while", "break", "continue",
@@ -353,7 +353,7 @@ Token *get_tail_token(Token *tkn) {
   return tkn;
 }
 
-Token *tokenize_file(File *file) {
+Token *tokenize_file(File *file, bool enable_macro) {
   Token head;
   Token *cur = &head;
 
@@ -361,7 +361,7 @@ Token *tokenize_file(File *file) {
 
   while (*ptr) {
     // Define macro
-    if (streq(ptr, "#define ")) {
+    if (enable_macro && streq(ptr, "#define ")) {
       ptr += 8;
 
       int strlen = 0;
@@ -468,7 +468,7 @@ Token *tokenize_file(File *file) {
       int ident_len = ptr - start;
       cur->next = new_token(TK_IDENT, start, ident_len);
 
-      Macro *macro = find_macro(cur->next);
+      Macro *macro = enable_macro ? find_macro(cur->next) : NULL;
       if (macro != NULL && (*ptr == '(') != macro->is_objlike) {
         if (!macro->is_objlike) {
           set_macro_args(macro, ptr, &ptr);
@@ -490,7 +490,7 @@ Token *tokenize(char *path) {
   File *file = read_file(path);
   current_file = file;
 
-  Token *tkn = tokenize_file(file);
+  Token *tkn = tokenize_file(file, true);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
 
   return tkn;

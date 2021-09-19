@@ -1,9 +1,5 @@
 void check(int expected, int actual, char *str);
-void checkl(long expected, long actual, char *str);
-void checkul(unsigned long expected, unsigned long actual, char *str);
-void checkf(float expected, float actual, char *str);
-void checkd(double expected, double actual, char *str);
-void checkld(long double expected, long double actual, char *str);
+#define CHECK(expected, actual) check(expected, actual, #actual)
 
 #define ONE 1
 #define MACRO_INVOCATE TWO
@@ -79,6 +75,59 @@ int main() {
   check(2, MIN(FUNC(), 3), "MIN(FUNC(), 3)");
   check(2, MIN(cat(func()), 3), "MIN(cat(func()), 3)");
   check(2, MIN(cat(FUNC()), 3), "MIN(cat(FUNC()), 3)");
+
+  // stringizing
+  CHECK(1, ONE);
+  CHECK(2, TWO);
+  CHECK(2, MACRO_INVOCATE);
+
+  // CHECK(3, ({
+  //   MACRO_STRUCT {
+  //     int a;
+  //   };
+  //   MACRO_STRUCT tmp = {3};
+  //   tmp.a;
+  // }));
+
+  // CHECK(3, ({
+  //   typedef MACRO_STRUCT A;
+  //   MACRO_STRUCT {
+  //     int a;
+  //   };
+  //   A tmp = {3};
+  //   tmp.a;
+  // }));
+
+  // CHECK(3, THREE);
+
+  // CHECK(108, ({
+  //   char *str = HELLO;
+  //   str[2];
+  // }));
+
+  // CHECK(15, ({
+  //   int a[5] = ARRAY_INITIALIZER
+  //   a[0] + a[1] + a[2] + a[3] + a[4];
+  // }));
+
+  // CHECK(15, ({
+  //   int a[5] = ARRAY_INITIALIZER
+  //   a[0] + a[1] + a[2] + a[3] + a[4];
+  // }));
+
+  // CHECK(19, ({
+  //   int FOO = 9;
+  //   int BAR = FOO();
+  //   FOO + BAR;
+  // }));
+
+  // CHECK(2, FUNC());
+  // CHECK(3, MAX(2, 3));
+  // CHECK(2, MIN(2, 3));
+  // CHECK(2, MIN(func(), 3));
+  // CHECK(2, MIN(FUNC(), 3));
+  // CHECK(2, MIN(cat(func()), 3));
+  // CHECK(2, MIN(cat(FUNC()), 3));
 
   return 0;
 }

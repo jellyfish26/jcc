@@ -38,7 +38,7 @@ struct Token {
 };
 
 char read_char(char *str, char **end_ptr);
-Token *tokenize_file(File *file);
+Token *tokenize_file(File *file, bool enable_macro);
 Token *tokenize(char *file_name);
 bool is_ident_char(char c);
 
@@ -56,6 +56,7 @@ bool equal(Token *tkn, char *op);
 bool consume(Token *tkn, Token **end_tkn, char *op);
 Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
+Token *new_token(TokenKind kind, char *loc, int len);
 
 // 
 // preprocess.c
@@ -68,6 +69,7 @@ struct MacroArg {
 
   // The conv_tkn variable stores the token to be replaced and
   // is used when expanding the macro.
+  char *conv;
   Token *conv_tkn;
 };
 

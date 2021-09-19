@@ -1,5 +1,7 @@
 #include "token/tokenize.h"
 #include "util/util.h"
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,14 +68,14 @@ void define_objlike_macro(char *ident, char *ptr, char **endptr) {
     strlen++;
   }
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(ident, true, tokenize_file(builtin), NULL);
+  define_macro(ident, true, tokenize_file(builtin, true), NULL);
 
   *endptr = ptr;
 }
 
 // allow onl (ptr, &ptr)
 void define_funclike_macro(char *ident, char *ptr, char **endptr) {
-  Token *ident_tkn = tokenize_file(new_file("builtin", ident));
+  Token *ident_tkn = tokenize_file(new_file("builtin", ident), false);
   ident = strndup(ident_tkn->loc, ident_tkn->len);
   ident_tkn = skip(ident_tkn->next, "(");
 
@@ -98,7 +100,7 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr) {
   }
 
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(ident, false, tokenize_file(builtin), head.next);
+  define_macro(ident, false, tokenize_file(builtin, true), head.next);
 
   *endptr = ptr;
 }
@@ -139,7 +141,8 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
       len++;
     }
 
-    arg->conv_tkn = tokenize_file(new_file("builtin", strndup(ptr - len, len)));
+    arg->conv = strndup(ptr - len, len);
+    arg->conv_tkn = tokenize_file(new_file("builtin", arg->conv), true);
     arg = arg->next;
   }
 
@@ -159,6 +162,25 @@ static MacroArg *find_macro_arg(Macro *macro, Token *tkn) {
   return NULL;
 }
 
+static char *stringizing(Token *tkn) {
+  char *buf;
+  size_t buflen;
+  FILE *fp = open_memstream(&buf, &buflen);
+  fwrite("\"", sizeof(char), 1, fp);
+
+  while (tkn != NULL) {
+    char *str = strndup(tkn->loc, tkn->len);
+    fwrite(str, sizeof(char), tkn->len, fp);
+    free(str);
+    tkn = tkn->next;
+  }
+  fwrite("\"\0", sizeof(char), 2, fp);
+  fflush(fp);
+  fclose(fp);
+
+  return buf;
+}
+
 Token *expand_macro(Token *tkn) {
   Macro *macro = find_macro(tkn);
   if (macro == NULL) {
@@ -169,7 +191,27 @@ Token *expand_macro(Token *tkn) {
   head->next = extract_tkn(macro);
 
   // Check recursive macro
+  Token *pass_sharp = NULL;
   for (Token *tkn = head; tkn->next != NULL; tkn = tkn->next) {
+    if (equal(tkn->next, "#")) {
+      pass_sharp = tkn;
+      continue;
+    }
+
+    if (pass_sharp != NULL) {
+      if (find_macro_arg(macro, tkn->next) == NULL) {
+        errorf_tkn(ER_COMPILE, tkn->next, "Not found this argument");
+      }
+
+      Token *macro_tkn = tokenize_file(new_file("builtin", find_macro_arg(macro, tkn->next)->conv), false);
+      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn)), false);
+
+      macro_tkn->next = tkn->next = tkn->next->next;
+      pass_sharp->next = macro_tkn;
+      pass_sharp = NULL;
+      continue;
+    }
+
     if (tkn->next->kind == TK_IDENT && find_macro_arg(macro, tkn->next) != NULL) {
       Token *macro_tkn = find_macro_arg(macro, tkn->next)->conv_tkn;
       macro_tkn = copy_conv_tkn(macro_tkn);
@@ -178,7 +220,7 @@ Token *expand_macro(Token *tkn) {
       continue;
     }
 
-    if (tkn->next->kind == TK_IDENT && find_macro(tkn->next)) {
+    if (tkn->next->kind == TK_IDENT && find_macro(tkn->next) != NULL) {
       Token *macro_tkn = expand_macro(tkn->next);
       tkn->next = tkn->next->next;
       concat_token(tkn, macro_tkn);
