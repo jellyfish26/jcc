@@ -1,5 +1,5 @@
 #include "test.h"
-#include "function_abi.h"
+#include "function_abi_jcc.h"
 
 int main() {
   CHECK(5, ({int a = 2, b = 3; add2(a, b);}));

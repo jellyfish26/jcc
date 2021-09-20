@@ -15,9 +15,7 @@ File *new_file(char *name, char *contents) {
 
 File *read_file(char *path) {
   FILE *fp;
-  fp = fopen(path, "r");
-
-  if (fp == NULL) {
+  if ((fp = fopen(path, "r")) == NULL) {
     fprintf(stderr, "Failed to open the file: %s\n", path);
     exit(1);
   }

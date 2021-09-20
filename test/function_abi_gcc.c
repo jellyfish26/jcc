@@ -1,5 +1,5 @@
 #include "test.h"
-#include "function_abi.h"
+#include "function_abi_jcc.h"
 #include <stdio.h>
 
 int add2(int a, int b) {

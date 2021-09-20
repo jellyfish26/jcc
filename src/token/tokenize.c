@@ -358,8 +358,14 @@ Token *tokenize_file(File *file, bool enable_macro) {
   Token *cur = &head;
 
   char *ptr = file->contents;
-
   while (*ptr) {
+    if (streq(ptr, "#include")) {
+      ptr += 8;
+      cur->next = read_include(ptr, &ptr);
+      cur = get_tail_token(cur);
+      continue;
+    }
+
     // Define macro
     if (enable_macro && streq(ptr, "#define ")) {
       ptr += 8;

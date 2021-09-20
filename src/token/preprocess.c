@@ -1,12 +1,22 @@
 #include "token/tokenize.h"
 #include "util/util.h"
+
+#include <ctype.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-static HashMap macros = {};
+typedef struct IncludePath IncludePath;
+struct IncludePath {
+  char *path;
+  IncludePath *next;
+};
+
+static HashMap macros;
+static IncludePath *include_paths;
 
 static bool add_macro(char *name, Macro *macro) {
   if (hashmap_get(&macros, name) != NULL) {
@@ -290,4 +300,64 @@ Token *expand_macro(Token *tkn) {
   }
 
   return head->next;
+}
+
+void add_include_path(char *path) {
+  IncludePath *include_path = calloc(1, sizeof(IncludePath));
+  include_path->path = path;
+  include_path->next = include_paths;
+  include_paths = include_path;
+}
+
+static Token *expand_include(Token *tkn, bool allow_relative) {
+  char path[1024] = {};
+
+  // Find relative path
+  if (allow_relative) {
+    add_include_path(getcwd(path, 1024));
+  }
+
+  // Find absolute path
+  FILE *fp = NULL;
+  for (IncludePath *ipath = include_paths; ipath != NULL; ipath = ipath->next) {
+    sprintf(path, "%s/%s", ipath->path, tkn->strlit);
+
+    if ((fp = fopen(path, "r")) != NULL) {
+      break;
+    }
+  }
+
+  if (allow_relative) {
+    include_paths = include_paths->next;
+  }
+
+  if (fp == NULL) {
+    printf("%s\n", path);
+    errorf_tkn(ER_COMPILE, tkn, "Failed open this file");
+  }
+  fclose(fp);
+
+  return tokenize_file(read_file(path), true);
+}
+
+
+Token *read_include(char *ptr, char **endptr) {
+  while (isspace(*ptr)) {
+    ptr++;
+  }
+
+  bool allow_relative = (*ptr == '"');
+  Token *tkn = new_token(TK_IDENT, ptr + 1, 0);
+  ptr++;
+
+  int len = 0;
+  while (allow_relative ? (*ptr != '"') : (*ptr == '>')) {
+    ptr++;
+    len++;
+  }
+  tkn->strlit = strndup(ptr - len, len);
+  tkn->len = len;
+
+  *endptr = ptr + 1;
+  return expand_include(tkn, allow_relative);
 }

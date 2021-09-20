@@ -89,3 +89,5 @@ void define_objlike_macro(char *ident, char *ptr, char **endptr);
 void define_funclike_macro(char *ident, char *ptr, char **endptr);
 void set_macro_args(Macro *macro, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
+void add_include_path(char *path);
+Token *read_include(char *ptr, char **endptr);
