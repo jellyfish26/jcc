@@ -479,7 +479,6 @@ Token *tokenize_file(File *file, bool enable_macro) {
       cur = get_tail_token(cur);
       continue;
     }
-    printf("%s", ptr);
     errorf_loc(ER_TOKENIZE, ptr, 1, "Unexpected tokenize");
   }
   return head.next;

@@ -81,53 +81,53 @@ int main() {
   CHECK(2, TWO);
   CHECK(2, MACRO_INVOCATE);
 
-  // CHECK(3, ({
-  //   MACRO_STRUCT {
-  //     int a;
-  //   };
-  //   MACRO_STRUCT tmp = {3};
-  //   tmp.a;
-  // }));
+  CHECK(3, ({
+    MACRO_STRUCT {
+      int a;
+    };
+    MACRO_STRUCT tmp = {3};
+    tmp.a;
+  }));
 
-  // CHECK(3, ({
-  //   typedef MACRO_STRUCT A;
-  //   MACRO_STRUCT {
-  //     int a;
-  //   };
-  //   A tmp = {3};
-  //   tmp.a;
-  // }));
+  CHECK(3, ({
+    typedef MACRO_STRUCT A;
+    MACRO_STRUCT {
+      int a;
+    };
+    A tmp = {3};
+    tmp.a;
+  }));
 
-  // CHECK(3, THREE);
+  CHECK(3, THREE);
 
-  // CHECK(108, ({
-  //   char *str = HELLO;
-  //   str[2];
-  // }));
+  CHECK(108, ({
+    char *str = HELLO;
+    str[2];
+  }));
 
-  // CHECK(15, ({
-  //   int a[5] = ARRAY_INITIALIZER
-  //   a[0] + a[1] + a[2] + a[3] + a[4];
-  // }));
+  CHECK(15, ({
+    int a[5] = ARRAY_INITIALIZER
+    a[0] + a[1] + a[2] + a[3] + a[4];
+  }));
 
-  // CHECK(15, ({
-  //   int a[5] = ARRAY_INITIALIZER
-  //   a[0] + a[1] + a[2] + a[3] + a[4];
-  // }));
+  CHECK(15, ({
+    int a[5] = ARRAY_INITIALIZER
+    a[0] + a[1] + a[2] + a[3] + a[4];
+  }));
 
-  // CHECK(19, ({
-  //   int FOO = 9;
-  //   int BAR = FOO();
-  //   FOO + BAR;
-  // }));
+  CHECK(19, ({
+    int FOO = 9;
+    int BAR = FOO();
+    FOO + BAR;
+  }));
 
-  // CHECK(2, FUNC());
-  // CHECK(3, MAX(2, 3));
-  // CHECK(2, MIN(2, 3));
-  // CHECK(2, MIN(func(), 3));
-  // CHECK(2, MIN(FUNC(), 3));
-  // CHECK(2, MIN(cat(func()), 3));
-  // CHECK(2, MIN(cat(FUNC()), 3));
+  CHECK(2, FUNC());
+  CHECK(3, MAX(2, 3));
+  CHECK(2, MIN(2, 3));
+  CHECK(2, MIN(func(), 3));
+  CHECK(2, MIN(FUNC(), 3));
+  CHECK(2, MIN(cat(func()), 3));
+  CHECK(2, MIN(cat(FUNC()), 3));
 
   return 0;
 }

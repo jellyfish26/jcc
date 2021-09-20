@@ -76,6 +76,8 @@ struct MacroArg {
 typedef struct {
   char *name;
   bool is_objlike;
+
+  char *conv;
   Token *conv_tkn;
 
   // Function-like macro

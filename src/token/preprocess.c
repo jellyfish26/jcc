@@ -32,7 +32,8 @@ bool define_macro(char *name, bool is_objlike, Token *conv_tkn, MacroArg *args) 
 static Token *copy_conv_tkn(Token *tkn) {
   Token head = {};
   Token *cur = &head;
-
+  
+  int cnt = 0;
   for (Token *conv_tkn = tkn; conv_tkn != NULL; conv_tkn = conv_tkn->next) {
     cur->next = calloc(1, sizeof(Token));
     memcpy(cur->next, conv_tkn, sizeof(Token));
@@ -68,7 +69,7 @@ void define_objlike_macro(char *ident, char *ptr, char **endptr) {
     strlen++;
   }
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(ident, true, tokenize_file(builtin, true), NULL);
+  define_macro(ident, true, tokenize_file(builtin, false), NULL);
 
   *endptr = ptr;
 }
@@ -100,7 +101,7 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr) {
   }
 
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(ident, false, tokenize_file(builtin, true), head.next);
+  define_macro(ident, false, tokenize_file(builtin, false), head.next);
 
   *endptr = ptr;
 }
@@ -113,22 +114,22 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
 
   MacroArg *arg = macro->args;
 
-  bool need_commma = false;
+  bool need_comma = false;
   while (*ptr != ')') {
     if (arg == NULL) {
       errorf_loc(ER_COMPILE, ptr, 1, "The number of arguments does not match");
     }
 
-    if (need_commma && *ptr != ',') {
+    if (need_comma && *ptr != ',') {
       errorf_loc(ER_COMPILE, ptr, 1, "Unexpected macro");
-    } else if (need_commma) {
+    } else if (need_comma) {
       ptr++;
     }
-    need_commma = true;
+    need_comma = true;
 
     int len = 0;
     int pass_lparenthese = 0;
-    while (*ptr != ',' && ((pass_lparenthese == 0 && *ptr != ')') || pass_lparenthese != 0)) {
+    while ((*ptr != ',' && *ptr != ')') || pass_lparenthese != 0) {
       if (pass_lparenthese != 0 && *ptr == ')') {
         pass_lparenthese--;
       }
@@ -155,26 +156,48 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
 
 static MacroArg *find_macro_arg(Macro *macro, Token *tkn) {
   for (MacroArg *arg = macro->args; arg != NULL; arg = arg->next) {
-    if (strncmp(arg->name, tkn->loc, tkn->len) == 0) {
+    if (strlen(arg->name) == tkn->len && strncmp(arg->name, tkn->loc, tkn->len) == 0) {
       return arg;
     }
   }
   return NULL;
 }
 
-static char *stringizing(Token *tkn) {
+static char *stringizing(Token *tkn, bool add_dquote) {
   char *buf;
   size_t buflen;
   FILE *fp = open_memstream(&buf, &buflen);
-  fwrite("\"", sizeof(char), 1, fp);
+
+  if (add_dquote) {
+    fwrite("\"", sizeof(char), 1, fp);
+  }
 
   while (tkn != NULL) {
+    if (tkn->kind == TK_KEYWORD) {
+      fputc(' ', fp);
+    }
+
     char *str = strndup(tkn->loc, tkn->len);
     fwrite(str, sizeof(char), tkn->len, fp);
     free(str);
+
+    if (tkn->kind == TK_KEYWORD) {
+      fputc(' ', fp);
+    }
+
+    if (tkn->kind == TK_IDENT && (tkn->next != NULL && tkn->next->kind == TK_IDENT)) {
+      fputc(' ', fp);
+    }
+
     tkn = tkn->next;
   }
-  fwrite("\"\0", sizeof(char), 2, fp);
+
+  if (add_dquote) {
+    fwrite("\"\0", sizeof(char), 2, fp);
+  } else {
+    fputc('\0', fp);
+  }
+
   fflush(fp);
   fclose(fp);
 
@@ -190,7 +213,7 @@ Token *expand_macro(Token *tkn) {
   Token *head = calloc(1, sizeof(Token));
   head->next = extract_tkn(macro);
 
-  // Check recursive macro
+  // Extract macro arguments
   Token *pass_sharp = NULL;
   for (Token *tkn = head; tkn->next != NULL; tkn = tkn->next) {
     if (equal(tkn->next, "#")) {
@@ -204,7 +227,7 @@ Token *expand_macro(Token *tkn) {
       }
 
       Token *macro_tkn = tokenize_file(new_file("builtin", find_macro_arg(macro, tkn->next)->conv), false);
-      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn)), false);
+      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn, true)), false);
 
       macro_tkn->next = tkn->next = tkn->next->next;
       pass_sharp->next = macro_tkn;
@@ -219,12 +242,51 @@ Token *expand_macro(Token *tkn) {
       concat_token(tkn, macro_tkn);
       continue;
     }
+  }
 
-    if (tkn->next->kind == TK_IDENT && find_macro(tkn->next) != NULL) {
+  // Extract macro
+  for (Token *tkn = head; tkn->next != NULL; tkn = tkn->next) {
+    Macro *macro = NULL;
+
+    if (tkn->next->kind != TK_IDENT || (macro = find_macro(tkn->next)) == NULL) {
+      continue;
+    }
+
+    if (macro->is_objlike) {
       Token *macro_tkn = expand_macro(tkn->next);
       tkn->next = tkn->next->next;
       concat_token(tkn, macro_tkn);
+      continue;
     }
+
+    if (!equal(tkn->next->next, "(")) {
+      continue;
+    }
+
+    Token *ident_tkn = tkn->next;
+    Token *arg_head = tkn->next->next;
+    tkn->next = skip(tkn->next->next, "(");
+
+    int pass_lparenthese = 0;
+    while (pass_lparenthese != 0 || !equal(tkn->next, ")")) {
+      if (equal(tkn->next, "(")) {
+        pass_lparenthese++;
+      }
+
+      if (equal(tkn->next, ")")) {
+        pass_lparenthese--;
+      }
+
+      tkn->next = tkn->next->next;
+    }
+
+    Token *arg_tail = tkn->next;
+    tkn->next = tkn->next->next;
+    arg_tail->next = NULL;
+
+    char *ptr = stringizing(arg_head, false);
+    set_macro_args(macro, ptr, &ptr);
+    concat_token(tkn, expand_macro(ident_tkn));
   }
 
   return head->next;
