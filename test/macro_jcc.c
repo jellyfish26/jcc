@@ -22,6 +22,9 @@ int cat(int a) {
   return a;
 }
 
+#define xstr(s) str(s)
+#define str(s) #s
+
 int main() {
   check(1, ONE, "ONE");
   check(2, TWO, "TWO");
@@ -128,6 +131,16 @@ int main() {
   CHECK(2, MIN(FUNC(), 3));
   CHECK(2, MIN(cat(func()), 3));
   CHECK(2, MIN(cat(FUNC()), 3));
+
+  CHECK(51, ({
+    char *str = xstr(THREE);
+    *str;
+  }));
+
+  CHECK(84, ({
+    char *str = str(THREE);
+    *str;
+  }));
 
   return 0;
 }

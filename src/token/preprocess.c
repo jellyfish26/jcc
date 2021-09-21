@@ -257,7 +257,7 @@ Token *expand_macro(Token *tkn) {
 
   // Extract macro arguments
   Token *pass_sharp = NULL;
-  for (Token *tkn = head; tkn->next != NULL; tkn = tkn->next) {
+  for (Token *tkn = head; tkn != NULL && tkn->next != NULL; tkn = tkn->next) {
     if (equal(tkn->next, "#")) {
       pass_sharp = tkn;
       continue;
