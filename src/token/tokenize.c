@@ -14,94 +14,10 @@
 
 static File *current_file;
 
-//
-// About error output
-//
-
-void errorf(ERROR_TYPE type, char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  char *err_type;
-  switch (type) {
-    case ER_TOKENIZE:
-      err_type = "Tokenize Error";
-      break;
-    case ER_COMPILE:
-      err_type = "Compile Error";
-      break;
-    case ER_INTERNAL:
-      err_type = "Internal Error";
-      break;
-  }
-  fprintf(stderr, "\x1b[31m[%s]\x1b[39m: ", err_type);
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
-static void errorf_at(ERROR_TYPE type, char *loc, int underline_len, char *fmt, va_list ap) {
-  char *err_type;
-  switch (type) {
-    case ER_TOKENIZE:
-      err_type = "Tokenize Error";
-      break;
-    case ER_COMPILE:
-      err_type = "Compile Error";
-      break;
-    case ER_INTERNAL:
-      err_type = "Internal Error";
-      break;
-  }
-  int line_loc = 1;
-  char *begin_line_loc = current_file->contents;
-
-  // Where char location belong line
-  for (char *now_loc = current_file->contents; now_loc != loc; now_loc++) {
-    if (*now_loc == '\n') {
-      line_loc++;
-      begin_line_loc = now_loc + 1;
-    }
-  }
-
-  fprintf(stderr, "\x1b[31m[%s]\x1b[39m\n", err_type);
-  // Prine line
-  fprintf(stderr, "%d:", line_loc);
-  for (char *now_loc = begin_line_loc; *now_loc != '\n' && *now_loc != '\0'; now_loc++) {
-    fprintf(stderr, "%c", *now_loc);
-  }
-  fprintf(stderr, "\n");
-
-  // Print space of line location print
-  for (int i = line_loc; i != 0; i /= 10) {
-    fprintf(stderr, " ");
-  }
-  fprintf(stderr, " ");
-  for (char *now_loc = begin_line_loc;; now_loc++) {
-    if (now_loc == loc) {
-      for (int i = 0; i < underline_len; i++) {
-        fprintf(stderr, "^");
-      }
-      break;
-    } else {
-      fprintf(stderr, " ");
-    }
-  }
-  fprintf(stderr, " ");
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
-void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  errorf_at(type, loc, underline_len, fmt, ap);
-}
-
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  errorf_at(type, tkn->loc, tkn->len, fmt, ap);
+  errorf_at(type, tkn->file, tkn->loc, tkn->len, fmt, ap);
 }
 
 bool equal(Token *tkn, char *op) {
@@ -292,7 +208,7 @@ static char read_escaped_char(char *ptr, char **endptr) {
 static char *strlit_end(char *ptr) {
   for (; *ptr != '"'; ptr++) {
     if (*ptr == '\n' || *ptr == '\0') {
-      errorf_loc(ER_COMPILE, ptr, 1, "String must be closed with double quotation marks");
+      errorf_at(ER_COMPILE, current_file, ptr, 1, "String must be closed with double quotation marks");
     }
 
     if (*ptr == '\\') {
@@ -302,7 +218,7 @@ static char *strlit_end(char *ptr) {
   return ptr;
 }
 
-static Token *read_strlit(File *file, char *begin, char **endptr) {
+static Token *read_strlit(char *begin, char **endptr) {
   char *end = strlit_end(begin + 1);
   char *str = calloc(end - begin, sizeof(char));
 
@@ -325,7 +241,7 @@ static Token *read_strlit(File *file, char *begin, char **endptr) {
   return tkn;
 }
 
-static Token *read_charlit(File *file, char *begin, char **endptr) {
+static Token *read_charlit(char *begin, char **endptr) {
   char *ptr = begin + 1;
   char c;
 
@@ -337,7 +253,7 @@ static Token *read_charlit(File *file, char *begin, char **endptr) {
   }
 
   if (*ptr != '\'') {
-    errorf_loc(ER_COMPILE, ptr, 1, "Char must be closed with single quotation marks");
+    errorf_at(ER_COMPILE, current_file, ptr, 1, "Char must be closed with single quotation marks");
   }
   ptr++;
   *endptr = ptr;
@@ -431,13 +347,13 @@ Token *tokenize_file(File *file, bool enable_macro) {
 
     // Char literal
     if (*ptr == '\'') {
-      cur = cur->next = read_charlit(file, ptr, &ptr);
+      cur = cur->next = read_charlit(ptr, &ptr);
       continue;
     }
 
     // String literal
     if (*ptr == '"') {
-      cur = cur->next = read_strlit(file, ptr, &ptr);
+      cur = cur->next = read_strlit(ptr, &ptr);
       continue;
     }
 
@@ -484,7 +400,7 @@ Token *tokenize_file(File *file, bool enable_macro) {
       Macro *macro = enable_macro ? find_macro(cur->next) : NULL;
       if (macro != NULL && (*ptr == '(') != macro->is_objlike) {
         if (!macro->is_objlike) {
-          set_macro_args(macro, ptr, &ptr);
+          set_macro_args(macro, current_file, ptr, &ptr);
         }
         cur->next = expand_macro(cur->next);
       }
@@ -492,10 +408,10 @@ Token *tokenize_file(File *file, bool enable_macro) {
       cur = get_tail_token(cur);
       continue;
     }
-    errorf_loc(ER_TOKENIZE, ptr, 1, "Unexpected tokenize");
+    errorf_at(ER_TOKENIZE, current_file, ptr, 1, "Unexpected tokenize");
   }
 
-  store_file = file;
+  current_file = store_file;
   return head.next;
 }
 

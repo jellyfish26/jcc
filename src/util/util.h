@@ -40,5 +40,14 @@ void hashmap_delete(HashMap *map, char *key);
 void hashmap_ndelete(HashMap *map, char *key, int keylen);
 
 //
-// error.f
+// error.c
 //
+
+typedef enum {
+  ER_COMPILE,  // Compiler Error
+  ER_TOKENIZE, // Tokenize Error
+  ER_INTERNAL, // Internal Error
+} ERROR_TYPE;
+
+void errorf(ERROR_TYPE type, char *format, ...);
+void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, ...);

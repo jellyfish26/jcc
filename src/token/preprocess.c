@@ -165,9 +165,9 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr) {
   *endptr = ptr;
 }
 
-void set_macro_args(Macro *macro, char *ptr, char **endptr) {
+void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr) {
   if (*ptr != '(') {
-    errorf_loc(ER_COMPILE, ptr, 1, "Unexpected macro");
+    errorf_at(ER_COMPILE, file, ptr, 1, "Unexpected macro");
   }
   ptr++;
 
@@ -177,11 +177,11 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
   bool need_comma = false;
   while (*ptr != ')') {
     if (arg == NULL) {
-      errorf_loc(ER_COMPILE, ptr, 1, "The number of arguments does not match");
+      errorf_at(ER_COMPILE, file, ptr, 1, "The number of arguments does not match");
     }
 
     if (need_comma && *ptr != ',') {
-      errorf_loc(ER_COMPILE, ptr, 1, "Unexpected macro");
+      errorf_at(ER_COMPILE, file, ptr, 1, "Unexpected macro");
     } else if (need_comma) {
       ptr++;
     }
@@ -220,7 +220,7 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
   }
 
   if (arg != NULL) {
-    errorf_loc(ER_COMPILE, ptr, 1, "The number of arguments does not match");
+    errorf_at(ER_COMPILE, file, ptr, 1, "The number of arguments does not match");
   }
 
   *endptr = ptr + 1;
@@ -385,7 +385,7 @@ Token *expand_macro(Token *tkn) {
     arg_tail->next = NULL;
 
     char *ptr = stringizing(arg_head, false);
-    set_macro_args(macro, ptr, &ptr);
+    set_macro_args(macro, tkn->file, ptr, &ptr);
     concat_token(tkn, expand_macro(ident_tkn));
   }
 

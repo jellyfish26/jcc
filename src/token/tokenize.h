@@ -1,12 +1,8 @@
 #pragma once
 #include "util/util.h"
 
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 //
 // token.c
@@ -50,14 +46,6 @@ Token *get_tail_token(Token *tkn);
 Token *tokenize_file(File *file, bool enable_macro);
 Token *tokenize(char *file_name);
 
-typedef enum {
-  ER_COMPILE,  // Compiler Error
-  ER_TOKENIZE, // Tokenize Error
-  ER_INTERNAL, // Internal Error
-} ERROR_TYPE;
-
-void errorf(ERROR_TYPE type, char *format, ...);
-void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...);
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 
 // 
@@ -89,7 +77,7 @@ Macro *find_macro(Token *tkn);
 Token *delete_pp_token(Token *tkn);
 void define_objlike_macro(char *ident, char *ptr, char **endptr);
 void define_funclike_macro(char *ident, char *ptr, char **endptr);
-void set_macro_args(Macro *macro, char *ptr, char **endptr);
+void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
 void add_include_path(char *path);
 Token *read_include(char *ptr, char **endptr);
