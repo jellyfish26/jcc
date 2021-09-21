@@ -1,6 +1,7 @@
 #include "util/util.h"
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,62 +32,82 @@ void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *
   va_list ap;
   va_start(ap, fmt);
 
-  char *err_type;
+  char *color = NULL, *cerase = "\x1b[39m\x1b[0m";
   switch (type) {
-    case ER_TOKENIZE:
-      err_type = "Tokenize Error";
+    case ER_NOTE:
+      color = "\x1b[34m\x1b[1m";
       break;
-    case ER_COMPILE:
-      err_type = "Compile Error";
-      break;
-    case ER_INTERNAL:
-      err_type = "Internal Error";
-      break;
+    default:
+      color = "\x1b[31m\x1b[1m";
   }
 
-  int line_loc = 1;
-  char *begin_line_loc = file->contents;
+  char code[1024] = {};
+  int hloc = 1, wloc = 0;
 
   // Where char location belong line
-  for (char *now_loc = file->contents; now_loc != loc; now_loc++) {
-    if (*now_loc == '\n') {
-      line_loc++;
-      begin_line_loc = now_loc + 1;
+  int pass_loc = -1;
+  for (char *now_loc = file->contents; *now_loc != '\0'; now_loc++) {
+    if (now_loc == loc) {
+      pass_loc = 0;
+    }
+
+    if (pass_loc == -1) {
+      wloc++;
+    } else if (pass_loc == 0) {
+      strcat(code, color);
+    } else if (pass_loc == underline_len) {
+      strcat(code, cerase);
+    }
+
+    if (pass_loc != -1) {
+      pass_loc++;
+    }
+
+    strncat(code, now_loc, 1);
+    if (*now_loc == '\n' || *now_loc == '\0') {
+      if (pass_loc != -1) {
+        break;
+      }
+
+      hloc++;
+      wloc = 1;
+      memset(code, 0, 1024);
     }
   }
+  fprintf(stderr, "\x1b[1m%s:%d:%d: ", file->name, hloc, wloc);
 
-  fprintf(stderr, "\x1b[31m[%s]\x1b[39m\n", err_type);
+  switch (type) {
+    case ER_NOTE:
+      fprintf(stderr, "\x1b[34mnote:\x1b[39m\x1b[0m ");
+      break;
+    default:
+      fprintf(stderr, "\x1b[31merror:\x1b[39m\x1b[0m ");
+  }
+  fprintf(stderr, fmt, ap);
 
   // Prine line
-  fprintf(stderr, "%s:%d: ", file->name, line_loc);
-  for (char *now_loc = begin_line_loc; *now_loc != '\n' && *now_loc != '\0'; now_loc++) {
-    fprintf(stderr, "%c", *now_loc);
-  }
-  fprintf(stderr, "\n");
+  fprintf(stderr, "\n   %d | %s", hloc, code);
 
   // Print space of line location print
-  int space_len = strlen(file->name) + 3;
-  for (int i = line_loc; i != 0; i /= 10) {
+  int space_len = 4;
+  for (int i = hloc; i != 0; i /= 10) {
     space_len++;
   }
 
-  char space[256] = {};
-  memset(space, ' ', space_len);
+  memset(code, 0, 1024);
+  memset(code, ' ', space_len);
+  strcat(code, "|");
+  fprintf(stderr, "%s", code);
 
-  fprintf(stderr, "%s", space);
-  for (char *now_loc = begin_line_loc;; now_loc++) {
-    if (now_loc == loc) {
-      for (int i = 0; i < underline_len; i++) {
-        fprintf(stderr, "^");
-      }
-      break;
-    } else {
-      fprintf(stderr, " ");
-    }
-  }
-  fprintf(stderr, " ");
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
+  memset(code, 0, 1024);
+  memset(code, ' ', wloc);
+  fprintf(stderr, "%s", code);
+
+  memset(code, '~', underline_len);
+  code[0] = '^';
+  code[underline_len] = '\0';
+  fprintf(stderr, "%s%s%s\n", color, code, cerase);
+
   exit(1);
 }
 

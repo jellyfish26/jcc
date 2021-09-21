@@ -47,6 +47,7 @@ typedef enum {
   ER_COMPILE,  // Compiler Error
   ER_TOKENIZE, // Tokenize Error
   ER_INTERNAL, // Internal Error
+  ER_NOTE,     // Note
 } ERROR_TYPE;
 
 void errorf(ERROR_TYPE type, char *format, ...);

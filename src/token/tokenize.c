@@ -17,6 +17,13 @@ static File *current_file;
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
+
+  if (tkn->macro_tkn != NULL) {
+    errorf_tkn(ER_COMPILE, tkn->macro_tkn, fmt, ap);
+    errorf_at(ER_NOTE, tkn->file, tkn->loc, tkn->len, "in expansion of macro");
+    return;
+  }
+
   errorf_at(type, tkn->file, tkn->loc, tkn->len, fmt, ap);
 }
 
@@ -299,10 +306,11 @@ Token *tokenize_file(File *file, bool enable_macro) {
         is_objlike &= (*ptr != '(');
       }
 
+      Token *ident = new_token(TK_IDENT, ptr - strlen, strlen + !is_objlike);
       if (is_objlike) {
-        define_objlike_macro(strndup(ptr - strlen, strlen), ptr + 1, &ptr);
+        define_objlike_macro(ident, ptr + 1, &ptr);
       } else {
-        define_funclike_macro(strndup(ptr - strlen, strlen + 1), ptr + 2, &ptr);
+        define_funclike_macro(ident, ptr + 2, &ptr);
       }
 
       continue;

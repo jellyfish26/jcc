@@ -2483,7 +2483,6 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     Obj *obj = find_var(get_ident(tkn));
 
     if (obj == NULL) {
-      printf("%s\n", tkn->loc);
       errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
     }
 

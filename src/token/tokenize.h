@@ -28,6 +28,13 @@ struct Token {
   char *loc;       // Token String
   int len;         // Token length
 
+  // When a macro is expanded,
+  // the macro identifier disappears from the token list,
+  // but the token before the macro is expanded is needed
+  // to output error messages, expand the __LINE__ predefiend macro,
+  // etc., so it is stored in the macro_tkn variable.
+  Token *macro_tkn;
+
   void *ty;          // Type if kind is TK_NUM
   int64_t val;       // Value if kind is TK_NUM 
   long double fval;  // Floating-value if kind is TK_NUM
@@ -75,8 +82,8 @@ typedef struct {
 
 Macro *find_macro(Token *tkn);
 Token *delete_pp_token(Token *tkn);
-void define_objlike_macro(char *ident, char *ptr, char **endptr);
-void define_funclike_macro(char *ident, char *ptr, char **endptr);
+void define_objlike_macro(Token *ident, char *ptr, char **endptr);
+void define_funclike_macro(Token *ident, char *ptr, char **endptr);
 void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
 void add_include_path(char *path);

@@ -30,12 +30,17 @@ Macro *find_macro(Token *tkn) {
   return hashmap_nget(&macros, tkn->loc, tkn->len);
 }
 
-bool define_macro(char *name, bool is_objlike, Token *conv_tkn, MacroArg *args) {
+static bool define_macro(char *name, Token *ident, bool is_objlike, Token *conv_tkn, MacroArg *args) {
   Macro *macro = calloc(1, sizeof(Macro));
   macro->name = name;
   macro->is_objlike = is_objlike;
   macro->conv_tkn = conv_tkn;
   macro->args = args;
+
+  for (Token *tkn = macro->conv_tkn; tkn != NULL; tkn = tkn->next) {
+    tkn->macro_tkn = ident;
+  }
+
   return add_macro(name, macro);
 }
 
@@ -109,24 +114,25 @@ static Token *delete_enclose_pp_token(Token *tkn) {
 
 
 // allow only (ptr, &ptr)
-void define_objlike_macro(char *ident, char *ptr, char **endptr) {
+void define_objlike_macro(Token *ident, char *ptr, char **endptr) {
   int strlen = 0;
   while (*ptr != '\n' && *ptr != '\0') {
     ptr++;
     strlen++;
   }
+
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(ident, true, tokenize_file(builtin, false), NULL);
+  define_macro(strndup(ident->loc, ident->len), ident, true, tokenize_file(builtin, false), NULL);
 
   *endptr = ptr;
 }
 
 // allow onl (ptr, &ptr)
-void define_funclike_macro(char *ident, char *ptr, char **endptr) {
-  Token *ident_tkn = tokenize_file(new_file("builtin", ident), false);
+void define_funclike_macro(Token *ident, char *ptr, char **endptr) {
+  Token *ident_tkn = tokenize_file(new_file("builtin", strndup(ident->loc, ident->len)), false);
   ident_tkn = delete_pp_token(ident_tkn);
 
-  ident = strndup(ident_tkn->loc, ident_tkn->len);
+  char *name = strndup(ident_tkn->loc, ident_tkn->len);
   ident_tkn = skip(ident_tkn->next, "(");
 
   MacroArg head = {};
@@ -160,7 +166,7 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr) {
   }
 
   File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(ident, false, tokenize_file(builtin, false), head.next);
+  define_macro(name, ident, false, tokenize_file(builtin, false), head.next);
 
   *endptr = ptr;
 }
