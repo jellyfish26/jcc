@@ -111,21 +111,21 @@ static Token *delete_enclose_pp_token(Token *tkn) {
 
 // allow only (ptr, &ptr)
 void define_objlike_macro(char *name, char *ptr, char **endptr) {
+  name = strndup(name, ptr - name - 1);
+
   int strlen = 0;
   while (*ptr != '\n' && *ptr != '\0') {
     ptr++;
     strlen++;
   }
 
-  File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(name, true, tokenize_file(builtin, false), NULL);
-
+  define_macro(name, true, tokenize_str(ptr - strlen, ptr, false), NULL);
   *endptr = ptr;
 }
 
 // allow onl (ptr, &ptr)
 void define_funclike_macro(char *name, char *ptr, char **endptr) {
-  Token *ident_tkn = tokenize_file(new_file("builtin", name), false);
+  Token *ident_tkn = tokenize_str(name, ptr, false);
   ident_tkn = delete_pp_token(ident_tkn);
 
   name = strndup(ident_tkn->loc, ident_tkn->len);
@@ -161,9 +161,7 @@ void define_funclike_macro(char *name, char *ptr, char **endptr) {
     strlen++;
   }
 
-  File *builtin = new_file("builtin", strndup(ptr - strlen, strlen));
-  define_macro(name, false, tokenize_file(builtin, false), head.next);
-
+  define_macro(name, false, tokenize_str(ptr - strlen, ptr, false), head.next);
   *endptr = ptr;
 }
 
@@ -174,7 +172,7 @@ void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr) {
   ptr++;
 
   MacroArg *arg = macro->args;
-  char variadic[2048] = {};
+  int variadic = 0;
 
   bool need_comma = false;
   while (*ptr != ')') {
@@ -205,19 +203,19 @@ void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr) {
     }
 
     if (strcmp(arg->name, "__VA_ARGS__") == 0) {
-      bool chk = strlen(variadic) != 0;  // Check include commma
-      char *str = strndup(ptr - len - chk, len + chk);
-      strcat(variadic, str);
-      free(str);
+      bool chk = (variadic != 0);  // Check include commma
+      variadic += len + chk;
       continue;
     }
-
-    arg->conv = strndup(ptr - len, len);
+    
+    arg->conv = ptr - len;
+    arg->convlen = len;
     arg = arg->next;
   }
 
   if (arg != NULL && strcmp(arg->name, "__VA_ARGS__") == 0) {
-    arg->conv = strdup(variadic);
+    arg->conv = ptr - variadic;
+    arg->convlen = variadic;
     arg = arg->next;
   }
 
@@ -296,15 +294,16 @@ Token *expand_macro(Token *tkn) {
       char *lstr;
       char *rstr;
 
-      if (find_macro_arg(macro, ltkn)) {
-        ltkn = tokenize_file(new_file("builtin", find_macro_arg(macro, ltkn)->conv), false);
+      MacroArg *arg = find_macro_arg(macro, ltkn);
+      if (arg != NULL) {
+        ltkn = tokenize_str(arg->conv, arg->conv + arg->convlen, false);
         ltkn = delete_enclose_pp_token(ltkn);
-        lstr = stringizing(ltkn, false);
       }
       lstr = stringizing(ltkn, false);
 
-      if (find_macro_arg(macro, rtkn)) {
-        rtkn = tokenize_file(new_file("builtin", find_macro_arg(macro, rtkn)->conv), false);
+      arg = find_macro_arg(macro, rtkn);
+      if (arg != NULL) {
+        rtkn = tokenize_str(arg->conv, arg->conv + arg->convlen, false);
         rtkn = delete_enclose_pp_token(rtkn);
       }
       rstr = stringizing(rtkn, false);
@@ -313,7 +312,7 @@ Token *expand_macro(Token *tkn) {
       strcat(str, lstr), strcat(str, rstr);
       free(lstr), free(rstr);
 
-      Token *con_tkn = tokenize_file(new_file("builtin", str), true);
+      Token *con_tkn = tokenize_file(new_file("builtin", str));
       get_tail_token(con_tkn)->next = tkn->next->next->next->next;  // lol
       tkn->next = con_tkn;
       continue;
@@ -325,12 +324,13 @@ Token *expand_macro(Token *tkn) {
     }
 
     if (pass_sharp != NULL) {
-      if (find_macro_arg(macro, tkn->next) == NULL) {
+      MacroArg *arg = NULL;
+      if ((arg = find_macro_arg(macro, tkn->next)) == NULL) {
         errorf_tkn(ER_COMPILE, tkn->next, "Not found this argument");
       }
 
-      Token *macro_tkn = tokenize_file(new_file("builtin", find_macro_arg(macro, tkn->next)->conv), false);
-      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn, true)), false);
+      Token *macro_tkn = tokenize_str(arg->conv, arg->conv + arg->convlen, false);
+      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn, true)));
 
       macro_tkn->next = tkn->next = tkn->next->next;
       pass_sharp->next = macro_tkn;
@@ -339,7 +339,8 @@ Token *expand_macro(Token *tkn) {
     }
 
     if (tkn->next->kind == TK_IDENT && find_macro_arg(macro, tkn->next) != NULL) {
-      Token *macro_tkn = tokenize_file(new_file("builtin", find_macro_arg(macro, tkn->next)->conv), true);
+      MacroArg *arg = find_macro_arg(macro, tkn->next);
+      Token *macro_tkn = tokenize_str(arg->conv, arg->conv + arg->convlen, true);
       tkn->next = tkn->next->next;
       concat_token(tkn, macro_tkn);
       continue;
@@ -429,7 +430,7 @@ static Token *expand_include(char *inc_path, bool allow_relative) {
   }
   fclose(fp);
 
-  return tokenize_file(read_file(path), true);
+  return tokenize_file(read_file(path));
 }
 
 

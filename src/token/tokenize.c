@@ -276,15 +276,11 @@ Token *get_tail_token(Token *tkn) {
   return tkn;
 }
 
-Token *tokenize_file(File *file, bool enable_macro) {
-  File *store_file = current_file;
-  current_file = file;
-
+Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
   Token head;
   Token *cur = &head;
 
-  char *ptr = file->contents;
-  while (*ptr) {
+  while (*ptr != '\0' && ptr != tokenize_end) {
     if (streq(ptr, "#include")) {
       ptr += 8;
       cur->next = read_include(ptr, &ptr);
@@ -304,11 +300,10 @@ Token *tokenize_file(File *file, bool enable_macro) {
         is_objlike &= (*ptr != '(');
       }
 
-      char *name = strndup(ptr - strlen, strlen + !is_objlike);
       if (is_objlike) {
-        define_objlike_macro(name, ptr + 1, &ptr);
+        define_objlike_macro(ptr - strlen, ptr + 1, &ptr);
       } else {
-        define_funclike_macro(name, ptr + 2, &ptr);
+        define_funclike_macro(ptr - strlen, ptr + 2, &ptr);
       }
 
       continue;
@@ -418,15 +413,23 @@ Token *tokenize_file(File *file, bool enable_macro) {
     errorf_at(ER_TOKENIZE, current_file, ptr, 1, "Unexpected tokenize");
   }
 
-  current_file = store_file;
   return head.next;
+}
+
+Token *tokenize_file(File *file) {
+  File *store_file = current_file;
+  current_file = file;
+  Token *tkn = tokenize_str(file->contents, NULL, true);
+
+  current_file = store_file;
+  return tkn;
 }
 
 // Update source token
 Token *tokenize(char *path) {
   File *file = read_file(path);
 
-  Token *tkn = tokenize_file(file, true);
+  Token *tkn = tokenize_file(file);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
   tkn = delete_pp_token(tkn);
 
