@@ -1,5 +1,7 @@
 void check(int expected, int actual, char *str);
+void checkstr(char *expected, char *actual, char *str);
 #define CHECK(expected, actual) check(expected, actual, #actual)
+#define CHECKSTR(expected, actual) checkstr(expected, actual, #actual)
 
 #define ONE 1
 #define MACRO_INVOCATE TWO
@@ -14,6 +16,9 @@ void check(int expected, int actual, char *str);
 #define MAX(a, b) a > b ? a : b
 #define MIN(a, b) (MAX(a, b)) == a ? b : a
 
+#define CON1(expr) expr ## expr
+#define CON2(expr) expr##_hello
+
 int func() {
   return 2;
 }
@@ -22,8 +27,8 @@ int cat(int a) {
   return a;
 }
 
-#define xstr(s) str(s)
-#define str(s) #s
+#define xstr(x) str(x)
+#define str(x) #x
 
 int main() {
   check(1, ONE, "ONE");
@@ -141,6 +146,13 @@ int main() {
     char *str = str(THREE);
     *str;
   }));
+
+  CHECK(3, ({
+    int CON1(foo) = 3;
+    foofoo;
+  }));
+
+  CHECKSTR("a_hello aCON2(a) a", xstr(CON1(CON2(a) a)));
 
   return 0;
 }

@@ -1,6 +1,7 @@
 #include "test.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void check(int expected, int actual, char *str) {
   if (expected == actual) {
@@ -52,6 +53,15 @@ void checkld(long double expected, long double actual, char *str) {
     printf("\e[32m[ OK ]\e[m %s => %Lf\n", str, actual);
   } else {
     printf("\e[31m[ NG ]\e[m %s => %Lf expected but got %Lf\n", str, expected, actual);
+    exit(1);
+  }
+}
+
+void checkstr(char *expected, char *actual, char *str) {
+  if (strcmp(expected, actual) == 0) {
+    printf("\e[32m[ OK ]\e[m %s => %s\n", str, actual);
+  } else {
+    printf("\e[31m[ NG ]\e[m %s => %s expected but got %s\n", str, expected, actual);
     exit(1);
   }
 }

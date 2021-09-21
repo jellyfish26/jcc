@@ -40,6 +40,7 @@ struct Token {
 
 bool is_ident_char(char c);
 char read_char(char *str, char **end_ptr);
+Token *get_tail_token(Token *tkn);
 Token *tokenize_file(File *file, bool enable_macro);
 Token *tokenize(char *file_name);
 
@@ -71,7 +72,6 @@ struct MacroArg {
   // The conv_tkn variable stores the token to be replaced and
   // is used when expanding the macro.
   char *conv;
-  Token *conv_tkn;
 };
 
 typedef struct {

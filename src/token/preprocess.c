@@ -192,7 +192,6 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
     }
 
     arg->conv = strndup(ptr - len, len);
-    arg->conv_tkn = tokenize_file(new_file("builtin", arg->conv), true);
     arg = arg->next;
   }
 
@@ -254,10 +253,46 @@ Token *expand_macro(Token *tkn) {
 
   Token *head = calloc(1, sizeof(Token));
   head->next = extract_tkn(macro);
+  head->next = delete_pp_token(head->next);
 
   // Extract macro arguments
   Token *pass_sharp = NULL;
   for (Token *tkn = head; tkn != NULL && tkn->next != NULL; tkn = tkn->next) {
+    // Concatenation
+    if (tkn->next->next != NULL && equal(tkn->next->next, "##")) {
+      Token *ltkn = tkn->next;
+      Token *rtkn = tkn->next->next->next;
+
+      if (rtkn == NULL) {
+        errorf_tkn(ER_COMPILE, tkn->next->next, "'##' cannot appear at end of macro expansion");
+      }
+
+      char *lstr;
+      char *rstr;
+
+      if (find_macro_arg(macro, ltkn)) {
+        ltkn = tokenize_file(new_file("builtin", find_macro_arg(macro, ltkn)->conv), false);
+        ltkn = delete_enclose_pp_token(ltkn);
+        lstr = stringizing(ltkn, false);
+      }
+      lstr = stringizing(ltkn, false);
+
+      if (find_macro_arg(macro, rtkn)) {
+        rtkn = tokenize_file(new_file("builtin", find_macro_arg(macro, rtkn)->conv), false);
+        rtkn = delete_enclose_pp_token(rtkn);
+      }
+      rstr = stringizing(rtkn, false);
+
+      char *str = calloc(strlen(lstr) + strlen(rstr) + 10, sizeof(char));
+      strcat(str, lstr), strcat(str, rstr);
+      free(lstr), free(rstr);
+
+      Token *con_tkn = tokenize_file(new_file("builtin", str), true);
+      get_tail_token(con_tkn)->next = tkn->next->next->next->next;  // lol
+      tkn->next = con_tkn;
+      continue;
+    }
+
     if (equal(tkn->next, "#")) {
       pass_sharp = tkn;
       continue;
@@ -278,8 +313,7 @@ Token *expand_macro(Token *tkn) {
     }
 
     if (tkn->next->kind == TK_IDENT && find_macro_arg(macro, tkn->next) != NULL) {
-      Token *macro_tkn = find_macro_arg(macro, tkn->next)->conv_tkn;
-      macro_tkn = copy_conv_tkn(macro_tkn);
+      Token *macro_tkn = tokenize_file(new_file("builtin", find_macro_arg(macro, tkn->next)->conv), true);
       tkn->next = tkn->next->next;
       concat_token(tkn, macro_tkn);
       continue;

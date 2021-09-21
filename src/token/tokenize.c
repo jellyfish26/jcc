@@ -169,7 +169,7 @@ static char *permit_panct[] = {
     "(",   ")",  ";",  "{",  "}",  "[",  "]",  ".", "->", "<<=", "<<", "<=", "<",
     ">>=", ">>", ">=", ">",  "==", "!=", "=",  "++",  "+=", "+",  "--",
     "-=",  "-",  "*=", "*",  "/=", "/",  "%=", "%",   "&=", "&&", "&",
-    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~", ":", "#"};
+    "|=",  "||", "|",  "^=", "^",  "?",  ":",  ",",   "!",  "~", ":", "##", "#"};
 
 static char *permit_keywords[] = {
   "return", "if", "else", "for", "do", "while", "break", "continue",
@@ -344,7 +344,6 @@ static Token *read_charlit(char *begin, char **endptr) {
   tkn->ty = ty_i8;
   return tkn;
 }
-
 
 Token *get_tail_token(Token *tkn) {
   while (tkn->next != NULL) {
