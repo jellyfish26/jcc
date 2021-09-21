@@ -273,6 +273,7 @@ Token *get_tail_token(Token *tkn) {
 
 Token *tokenize_file(File *file, bool enable_macro) {
   File *store_file = current_file;
+  current_file = file;
 
   Token head;
   Token *cur = &head;
@@ -418,7 +419,6 @@ Token *tokenize_file(File *file, bool enable_macro) {
 // Update source token
 Token *tokenize(char *path) {
   File *file = read_file(path);
-  current_file = file;
 
   Token *tkn = tokenize_file(file, true);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);

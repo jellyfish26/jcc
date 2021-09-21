@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 void errorf(ERROR_TYPE type, char *fmt, ...) {
@@ -55,18 +56,24 @@ void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *
   }
 
   fprintf(stderr, "\x1b[31m[%s]\x1b[39m\n", err_type);
+
   // Prine line
-  fprintf(stderr, "%d:", line_loc);
+  fprintf(stderr, "%s:%d: ", file->name, line_loc);
   for (char *now_loc = begin_line_loc; *now_loc != '\n' && *now_loc != '\0'; now_loc++) {
     fprintf(stderr, "%c", *now_loc);
   }
   fprintf(stderr, "\n");
 
   // Print space of line location print
+  int space_len = strlen(file->name) + 3;
   for (int i = line_loc; i != 0; i /= 10) {
-    fprintf(stderr, " ");
+    space_len++;
   }
-  fprintf(stderr, " ");
+
+  char space[256] = {};
+  memset(space, ' ', space_len);
+
+  fprintf(stderr, "%s", space);
   for (char *now_loc = begin_line_loc;; now_loc++) {
     if (now_loc == loc) {
       for (int i = 0; i < underline_len; i++) {
