@@ -21,11 +21,16 @@ void errorf(ERROR_TYPE type, char *fmt, ...) {
     case ER_INTERNAL:
       err_type = "Internal Error";
       break;
+    case ER_NOTE:
+      err_type = "Note";
   }
   fprintf(stderr, "\x1b[31m[%s]\x1b[39m: ", err_type);
   vfprintf(stderr, fmt, ap);
   fprintf(stderr, "\n");
-  exit(1);
+
+  if (type != ER_NOTE) {
+    exit(1);
+  }
 }
 
 void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, ...) {
@@ -88,6 +93,10 @@ void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *
   // Prine line
   fprintf(stderr, "\n   %d | %s", hloc, code);
 
+  if (code[strlen(code) - 1] != '\n') {
+    fprintf(stderr, "\n");
+  }
+
   // Print space of line location print
   int space_len = 4;
   for (int i = hloc; i != 0; i /= 10) {
@@ -108,6 +117,8 @@ void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *
   code[underline_len] = '\0';
   fprintf(stderr, "%s%s%s\n", color, code, cerase);
 
-  exit(1);
+  if (type != ER_NOTE) {
+    exit(1);
+  }
 }
 

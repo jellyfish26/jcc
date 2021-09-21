@@ -47,6 +47,7 @@ bool consume(Token *tkn, Token **end_tkn, char *op);
 Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
 
+Token *new_token(TokenKind kind, char *loc, int len);
 bool is_ident_char(char c);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
@@ -82,8 +83,8 @@ typedef struct {
 
 Macro *find_macro(Token *tkn);
 Token *delete_pp_token(Token *tkn);
-void define_objlike_macro(Token *ident, char *ptr, char **endptr);
-void define_funclike_macro(Token *ident, char *ptr, char **endptr);
+void define_objlike_macro(char *name, char *ptr, char **endptr);
+void define_funclike_macro(char *name, char *ptr, char **endptr);
 void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
 void add_include_path(char *path);
