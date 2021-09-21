@@ -13,12 +13,13 @@
 //
 
 typedef enum {
-  TK_NUM,     // Numerical literal
-  TK_PUNCT,   // Punctuators
-  TK_KEYWORD, // Keywords
-  TK_IDENT,   // Ident (etc. variable)
-  TK_STR,     // String literal
-  TK_EOF,     // End of File
+  TK_NUM,       // Numerical literal
+  TK_PUNCT,     // Punctuators
+  TK_KEYWORD,   // Keywords
+  TK_IDENT,     // Ident (etc. variable)
+  TK_STR,       // String literal
+  TK_PP_SPACE,  // Space or NewLine (Use only preprocess) 
+  TK_EOF,       // End of File
 } TokenKind;
 
 typedef struct Token Token;
@@ -37,10 +38,10 @@ struct Token {
   char *strlit;  // String literal
 };
 
+bool is_ident_char(char c);
 char read_char(char *str, char **end_ptr);
 Token *tokenize_file(File *file, bool enable_macro);
 Token *tokenize(char *file_name);
-bool is_ident_char(char c);
 
 typedef enum {
   ER_COMPILE,  // Compiler Error
@@ -85,6 +86,7 @@ typedef struct {
 } Macro;
 
 Macro *find_macro(Token *tkn);
+Token *delete_pp_token(Token *tkn);
 void define_objlike_macro(char *ident, char *ptr, char **endptr);
 void define_funclike_macro(char *ident, char *ptr, char **endptr);
 void set_macro_args(Macro *macro, char *ptr, char **endptr);

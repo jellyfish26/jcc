@@ -407,6 +407,9 @@ Token *tokenize_file(File *file, bool enable_macro) {
 
     // Skip space
     if (isspace(*ptr)) {
+      if (cur->kind != TK_PP_SPACE) {
+        cur = cur->next = new_token(TK_PP_SPACE, ptr, 1);
+      }
       ptr++;
       continue;
     }
@@ -497,6 +500,7 @@ Token *tokenize(char *path) {
 
   Token *tkn = tokenize_file(file, true);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
+  tkn = delete_pp_token(tkn);
 
   return tkn;
 }

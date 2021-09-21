@@ -71,6 +71,43 @@ static void concat_token(Token *ltkn, Token *rtkn) {
   rtkn->next = tail;
 }
 
+Token *delete_pp_token(Token *tkn) {
+  Token *before = calloc(1, sizeof(Token));
+  Token *now = before->next = tkn;
+  tkn = before;
+
+  while (now != NULL) {
+    if (now->kind == TK_PP_SPACE) {
+      before->next = now = now->next;
+      continue;
+    }
+
+    before = now;
+    now = now->next;
+  }
+
+  return tkn->next;
+}
+
+static Token *delete_enclose_pp_token(Token *tkn) {
+  while (tkn != NULL && tkn->kind == TK_PP_SPACE) {
+    tkn = tkn->next;
+  }
+  Token *head = tkn;
+
+  Token *tail = tkn;
+  while (tkn != NULL) {
+    if (tkn->kind != TK_PP_SPACE) {
+      tail = tkn;
+    }
+    tkn = tkn->next;
+  }
+  tail->next = NULL;
+
+  return head;
+}
+
+
 // allow only (ptr, &ptr)
 void define_objlike_macro(char *ident, char *ptr, char **endptr) {
   int strlen = 0;
@@ -87,6 +124,8 @@ void define_objlike_macro(char *ident, char *ptr, char **endptr) {
 // allow onl (ptr, &ptr)
 void define_funclike_macro(char *ident, char *ptr, char **endptr) {
   Token *ident_tkn = tokenize_file(new_file("builtin", ident), false);
+  ident_tkn = delete_pp_token(ident_tkn);
+
   ident = strndup(ident_tkn->loc, ident_tkn->len);
   ident_tkn = skip(ident_tkn->next, "(");
 
@@ -182,21 +221,14 @@ static char *stringizing(Token *tkn, bool add_dquote) {
     fwrite("\"", sizeof(char), 1, fp);
   }
 
+  tkn = delete_enclose_pp_token(tkn);
   while (tkn != NULL) {
-    if (tkn->kind == TK_KEYWORD) {
-      fputc(' ', fp);
-    }
-
-    char *str = strndup(tkn->loc, tkn->len);
-    fwrite(str, sizeof(char), tkn->len, fp);
-    free(str);
-
-    if (tkn->kind == TK_KEYWORD) {
-      fputc(' ', fp);
-    }
-
-    if (tkn->kind == TK_IDENT && (tkn->next != NULL && tkn->next->kind == TK_IDENT)) {
-      fputc(' ', fp);
+    if (tkn->kind == TK_PP_SPACE) {
+      putc(' ', fp);
+    } else {
+      char *str = strndup(tkn->loc, tkn->len);
+      fwrite(str, sizeof(char), tkn->len, fp);
+      free(str);
     }
 
     tkn = tkn->next;
@@ -332,7 +364,6 @@ static Token *expand_include(Token *tkn, bool allow_relative) {
   }
 
   if (fp == NULL) {
-    printf("%s\n", path);
     errorf_tkn(ER_COMPILE, tkn, "Failed open this file");
   }
   fclose(fp);

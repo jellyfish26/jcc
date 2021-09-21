@@ -17,6 +17,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Usage: jcc <input_file> <output_file>\n");
     exit(1);
   }
+
+  add_default_include_paths();
   init_type();
 
   Token *tkn = tokenize(argv[1]);
