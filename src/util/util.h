@@ -38,3 +38,7 @@ void *hashmap_get(HashMap *map, char *key);
 void *hashmap_nget(HashMap *map, char *key, int keylen);
 void hashmap_delete(HashMap *map, char *key);
 void hashmap_ndelete(HashMap *map, char *key, int keylen);
+
+//
+// error.f
+//

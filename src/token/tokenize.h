@@ -39,6 +39,11 @@ struct Token {
   char *strlit;  // String literal
 };
 
+bool equal(Token *tkn, char *op);
+bool consume(Token *tkn, Token **end_tkn, char *op);
+Token *skip(Token *tkn, char *op);
+bool is_eof(Token *tkn);
+
 bool is_ident_char(char c);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
@@ -54,12 +59,6 @@ typedef enum {
 void errorf(ERROR_TYPE type, char *format, ...);
 void errorf_loc(ERROR_TYPE type, char *loc, int underline_len, char *fmt, ...);
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
-
-bool equal(Token *tkn, char *op);
-bool consume(Token *tkn, Token **end_tkn, char *op);
-Token *skip(Token *tkn, char *op);
-bool is_eof(Token *tkn);
-Token *new_token(TokenKind kind, File *file, char *loc, int len);
 
 // 
 // preprocess.c
@@ -93,4 +92,4 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr);
 void set_macro_args(Macro *macro, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
 void add_include_path(char *path);
-Token *read_include(File *file, char *ptr, char **endptr);
+Token *read_include(char *ptr, char **endptr);

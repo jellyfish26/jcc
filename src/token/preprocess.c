@@ -399,7 +399,8 @@ void add_include_path(char *path) {
   include_paths = include_path;
 }
 
-static Token *expand_include(Token *tkn, bool allow_relative) {
+// Return NULL if include failed.
+static Token *expand_include(char *inc_path, bool allow_relative) {
   char path[1024] = {};
 
   // Find relative path
@@ -410,7 +411,7 @@ static Token *expand_include(Token *tkn, bool allow_relative) {
   // Find absolute path
   FILE *fp = NULL;
   for (IncludePath *ipath = include_paths; ipath != NULL; ipath = ipath->next) {
-    sprintf(path, "%s/%s", ipath->path, tkn->strlit);
+    sprintf(path, "%s/%s", ipath->path, inc_path);
 
     if ((fp = fopen(path, "r")) != NULL) {
       break;
@@ -422,7 +423,7 @@ static Token *expand_include(Token *tkn, bool allow_relative) {
   }
 
   if (fp == NULL) {
-    errorf_tkn(ER_COMPILE, tkn, "Failed open this file");
+    return NULL;
   }
   fclose(fp);
 
@@ -430,13 +431,13 @@ static Token *expand_include(Token *tkn, bool allow_relative) {
 }
 
 
-Token *read_include(File *file, char *ptr, char **endptr) {
+// Return NULL if include failed.
+Token *read_include(char *ptr, char **endptr) {
   while (isspace(*ptr)) {
     ptr++;
   }
 
   bool allow_relative = (*ptr == '"');
-  Token *tkn = new_token(TK_IDENT, file, ptr + 1, 0);
   ptr++;
 
   int len = 0;
@@ -444,9 +445,9 @@ Token *read_include(File *file, char *ptr, char **endptr) {
     ptr++;
     len++;
   }
-  tkn->strlit = strndup(ptr - len, len);
-  tkn->len = len;
+
+  char *inc_path = strndup(ptr - len, len);
 
   *endptr = ptr + 1;
-  return expand_include(tkn, allow_relative);
+  return expand_include(inc_path, allow_relative);
 }
