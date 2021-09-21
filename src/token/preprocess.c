@@ -139,6 +139,16 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr) {
 
     cur->next = calloc(1, sizeof(MacroArg));
     cur = cur->next;
+
+    if (equal(ident_tkn, ".")) {
+      for (int i = 0; i < 3; i++) {
+        ident_tkn = skip(ident_tkn, ".");
+      }
+      cur->name = "__VA_ARGS__";
+      ident_tkn = skip(ident_tkn, ")");
+      break;
+    }
+
     cur->name = strndup(ident_tkn->loc, ident_tkn->len);
     ident_tkn = ident_tkn->next;
   }
@@ -162,6 +172,7 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
   ptr++;
 
   MacroArg *arg = macro->args;
+  char variadic[2048] = {};
 
   bool need_comma = false;
   while (*ptr != ')') {
@@ -191,7 +202,20 @@ void set_macro_args(Macro *macro, char *ptr, char **endptr) {
       len++;
     }
 
+    if (strcmp(arg->name, "__VA_ARGS__") == 0) {
+      bool chk = strlen(variadic) != 0;  // Check include commma
+      char *str = strndup(ptr - len - chk, len + chk);
+      strcat(variadic, str);
+      free(str);
+      continue;
+    }
+
     arg->conv = strndup(ptr - len, len);
+    arg = arg->next;
+  }
+
+  if (arg != NULL && strcmp(arg->name, "__VA_ARGS__") == 0) {
+    arg->conv = strdup(variadic);
     arg = arg->next;
   }
 
