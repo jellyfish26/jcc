@@ -28,6 +28,7 @@ struct Token {
   TokenKind kind;  // Type of Token
   Token *next;     // Next token
 
+  File *file;      // Belong of file
   char *loc;       // Token String
   int len;         // Token length
 
@@ -58,7 +59,7 @@ bool equal(Token *tkn, char *op);
 bool consume(Token *tkn, Token **end_tkn, char *op);
 Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
-Token *new_token(TokenKind kind, char *loc, int len);
+Token *new_token(TokenKind kind, File *file, char *loc, int len);
 
 // 
 // preprocess.c
@@ -92,4 +93,4 @@ void define_funclike_macro(char *ident, char *ptr, char **endptr);
 void set_macro_args(Macro *macro, char *ptr, char **endptr);
 Token *expand_macro(Token *tkn);
 void add_include_path(char *path);
-Token *read_include(char *ptr, char **endptr);
+Token *read_include(File *file, char *ptr, char **endptr);

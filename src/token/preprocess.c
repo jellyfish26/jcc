@@ -430,13 +430,13 @@ static Token *expand_include(Token *tkn, bool allow_relative) {
 }
 
 
-Token *read_include(char *ptr, char **endptr) {
+Token *read_include(File *file, char *ptr, char **endptr) {
   while (isspace(*ptr)) {
     ptr++;
   }
 
   bool allow_relative = (*ptr == '"');
-  Token *tkn = new_token(TK_IDENT, ptr + 1, 0);
+  Token *tkn = new_token(TK_IDENT, file, ptr + 1, 0);
   ptr++;
 
   int len = 0;

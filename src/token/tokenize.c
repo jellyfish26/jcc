@@ -131,9 +131,10 @@ bool is_eof(Token *tkn) {
   return tkn->kind == TK_EOF;
 }
 
-Token *new_token(TokenKind kind, char *loc, int len) {
+Token *new_token(TokenKind kind, File *file, char *loc, int len) {
   Token *tkn = calloc(1, sizeof(Token));
   tkn->kind = kind;
+  tkn->file = file;
   tkn->loc = loc;
   tkn->len = len;
   return tkn;
@@ -299,7 +300,7 @@ static char *strlit_end(char *ptr) {
   return ptr;
 }
 
-static Token *read_strlit(char *begin, char **endptr) {
+static Token *read_strlit(File *file, char *begin, char **endptr) {
   char *end = strlit_end(begin + 1);
   char *str = calloc(end - begin, sizeof(char));
 
@@ -316,13 +317,13 @@ static Token *read_strlit(char *begin, char **endptr) {
   end++;
   *endptr = end;
 
-  Token *tkn = new_token(TK_STR, begin, end - begin);
+  Token *tkn = new_token(TK_STR, file, begin, end - begin);
   tkn->strlit = str;
   tkn->ty = array_to(ty_i8, len);
   return tkn;
 }
 
-static Token *read_charlit(char *begin, char **endptr) {
+static Token *read_charlit(File *file, char *begin, char **endptr) {
   char *ptr = begin + 1;
   char c;
 
@@ -339,7 +340,7 @@ static Token *read_charlit(char *begin, char **endptr) {
   ptr++;
   *endptr = ptr;
 
-  Token *tkn = new_token(TK_NUM, begin, ptr - begin);
+  Token *tkn = new_token(TK_NUM, file, begin, ptr - begin);
   tkn->val = c;
   tkn->ty = ty_i8;
   return tkn;
@@ -360,7 +361,7 @@ Token *tokenize_file(File *file, bool enable_macro) {
   while (*ptr) {
     if (streq(ptr, "#include")) {
       ptr += 8;
-      cur->next = read_include(ptr, &ptr);
+      cur->next = read_include(file, ptr, &ptr);
       cur = get_tail_token(cur);
       continue;
     }
@@ -407,7 +408,7 @@ Token *tokenize_file(File *file, bool enable_macro) {
     // Skip space
     if (isspace(*ptr)) {
       if (cur->kind != TK_PP_SPACE) {
-        cur = cur->next = new_token(TK_PP_SPACE, ptr, 1);
+        cur = cur->next = new_token(TK_PP_SPACE, file, ptr, 1);
       }
       ptr++;
       continue;
@@ -419,20 +420,20 @@ Token *tokenize_file(File *file, bool enable_macro) {
       while (isalnum(*ptr) || *ptr == '.') {
         ptr++;
       }
-      cur = cur->next = new_token(TK_NUM, begin, ptr - begin);
+      cur = cur->next = new_token(TK_NUM, file, begin, ptr - begin);
       convert_tkn_num(cur);
       continue;
     }
 
     // Char literal
     if (*ptr == '\'') {
-      cur = cur->next = read_charlit(ptr, &ptr);
+      cur = cur->next = read_charlit(file, ptr, &ptr);
       continue;
     }
 
     // String literal
     if (*ptr == '"') {
-      cur = cur->next = read_strlit(ptr, &ptr);
+      cur = cur->next = read_strlit(file, ptr, &ptr);
       continue;
     }
 
@@ -442,7 +443,7 @@ Token *tokenize_file(File *file, bool enable_macro) {
     for (int i = 0; i < sizeof(permit_panct) / sizeof(char *); i++) {
       int panct_len = strlen(permit_panct[i]);
       if (strncmp(ptr, permit_panct[i], panct_len) == 0) {
-        cur = cur->next = new_token(TK_PUNCT, ptr, panct_len);
+        cur = cur->next = new_token(TK_PUNCT, file, ptr, panct_len);
         ptr += panct_len;
         check = true;
         break;
@@ -457,7 +458,7 @@ Token *tokenize_file(File *file, bool enable_macro) {
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
       if (strncmp(ptr, permit_keywords[i], keyword_len) == 0 && !is_ident_char(*(ptr + keyword_len))) {
-        cur = cur->next = new_token(TK_KEYWORD, ptr, keyword_len);
+        cur = cur->next = new_token(TK_KEYWORD, file, ptr, keyword_len);
         ptr += keyword_len;
         check = true;
         break;
@@ -474,7 +475,7 @@ Token *tokenize_file(File *file, bool enable_macro) {
         ptr++;
       }
       int ident_len = ptr - start;
-      cur->next = new_token(TK_IDENT, start, ident_len);
+      cur->next = new_token(TK_IDENT, file, start, ident_len);
 
       Macro *macro = enable_macro ? find_macro(cur->next) : NULL;
       if (macro != NULL && (*ptr == '(') != macro->is_objlike) {
@@ -498,7 +499,7 @@ Token *tokenize(char *path) {
   current_file = file;
 
   Token *tkn = tokenize_file(file, true);
-  get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
+  get_tail_token(tkn)->next = new_token(TK_EOF, file, NULL, 1);
   tkn = delete_pp_token(tkn);
 
   return tkn;
