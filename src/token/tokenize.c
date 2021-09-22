@@ -28,7 +28,12 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
 }
 
 bool equal(Token *tkn, char *op) {
-  return memcmp(tkn->loc, op, tkn->len) == 0 && tkn->len == strlen(op);
+  if (tkn->kind == TK_EOF) {
+    errorf_tkn(ER_COMPILE, tkn, "Reached EOF");
+  }
+
+  char *str = erase_bslash_str(tkn->loc, tkn->len);
+  return strcmp(str, op) == 0;
 }
 
 // If the token cannot be consumed, false is return value.
@@ -313,28 +318,11 @@ Token *tokenize_str(char *ptr, char *tokenize_end) {
     if (isspace(*ptr)) {
       if (cur->kind != TK_PP || equal(cur, " ")) {
         cur = cur->next = new_token(TK_PP, ptr, 1);
+      } else {
+        (cur->len)++;
       }
+
       ptr++;
-      continue;
-    }
-
-    if (streq(ptr, "#include")) {
-      cur = cur->next = new_token(TK_PP, ptr, 8);
-      ptr += 8;
-      continue;
-    }
-
-    // Define macro
-    if (streq(ptr, "#define ")) {
-      cur = cur->next = new_token(TK_PP, ptr, 8);
-      ptr += 8;
-      continue;
-    }
-
-    // Undefine macro
-    if (streq(ptr, "#undef ")) {
-      cur = cur->next = new_token(TK_PP, ptr, 7);
-      ptr += 7;
       continue;
     }
 
@@ -425,10 +413,8 @@ Token *tokenize(char *path) {
   File *file = read_file(path);
 
   Token *tkn = tokenize_file(file);
-  get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
+  Token *tail = get_tail_token(tkn);
+  tail->next = new_token(TK_EOF, tail->loc + strlen(tail->loc), 1);
 
-  tkn = concat_separate_ident_token(tkn);
-  tkn = delete_pp_token(tkn);
-
-  return tkn;
+  return preprocess(tkn);
 }

@@ -64,5 +64,4 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 // preprocess.c
 //
 
-Token *concat_separate_ident_token(Token *head);
-Token *delete_pp_token(Token *head);
+Token *preprocess(Token *tkn);
