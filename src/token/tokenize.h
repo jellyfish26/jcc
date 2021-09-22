@@ -14,7 +14,7 @@ typedef enum {
   TK_KEYWORD,   // Keywords
   TK_IDENT,     // Ident (etc. variable)
   TK_STR,       // String literal
-  TK_PP_SPACE,  // Space or NewLine (Use only preprocess) 
+  TK_PP,        // Preprocessor Token
   TK_EOF,       // End of File
 } TokenKind;
 
@@ -54,48 +54,15 @@ Token *copy_token(Token *tkn);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
 char *get_ident(Token *tkn);
-Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro);
-Token *tokenize_file(File *file, bool enable_macro);
 Token *tokenize(char *file_name);
+Token *tokenize_file(File *file);
+Token *tokenize_str(char *ptr, char *tokenize_end);
 
 void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 
-// 
+//
 // preprocess.c
 //
 
-typedef struct MacroArg MacroArg;
-struct MacroArg {
-  char *name;
-  MacroArg *next;
-
-  // The conv_tkn variable stores the token to be replaced and
-  // is used when expanding the macro.
-  char *conv;
-  int convlen;
-};
-
-typedef struct {
-  char *name;
-  bool is_objlike;
-  Token *ref_tkn;
-
-  char *conv;
-  Token *conv_tkn;
-
-  Token *(*macro_handler_fn)(Token *tkn);
-
-  // Function-like macro
-  MacroArg *args;
-} Macro;
-
-Macro *find_macro(Token *tkn);
-void undefine_macro(char *name);
-void init_macro();
-Token *delete_pp_token(Token *tkn);
-void define_objlike_macro(char *name, char *ptr, char **endptr);
-void define_funclike_macro(char *name, char *ptr, char **endptr);
-void set_macro_args(Macro *macro, File *file, char *ptr, char **endptr);
-Token *expand_macro(Token *tkn);
-void add_include_path(char *path);
-Token *read_include(char *ptr, char **endptr);
+Token *concat_separate_ident_token(Token *head);
+Token *delete_pp_token(Token *head);

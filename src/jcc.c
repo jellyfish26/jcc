@@ -5,11 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static void add_default_include_paths() {
-  add_include_path("/usr/include/x86_64-linux-gnu");
-  add_include_path("/usr/include");
-  add_include_path("/usr/local/include");
-}
+// static void add_default_include_paths() {
+//   add_include_path("/usr/include/x86_64-linux-gnu");
+//   add_include_path("/usr/include");
+//   add_include_path("/usr/local/include");
+// }
 
 int main(int argc, char **argv) {
   if (argc != 3) {
@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  add_default_include_paths();
+  // add_default_include_paths();
   init_type();
 
   Token *tkn = tokenize(argv[1]);

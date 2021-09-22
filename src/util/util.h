@@ -7,7 +7,7 @@
 // util.c
 //
 
-int ignore_to_newline(char *ptr, char **endptr);
+int skip_to_newline(char *ptr, char **endptr);
 char *erase_bslash_str(char *ptr, int len);
 bool isident(char c);
 

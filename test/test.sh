@@ -39,18 +39,18 @@ rm function_abi_gcc.o
 check function_abi_jcc.c
 
 # Check macro
-compile_only_jcc macro_jcc
-check macro_jcc.c
+# compile_only_jcc macro_jcc
+# check macro_jcc.c
 
 # Check include
-compile_only_jcc include1_jcc
-check include1_jcc.c
-
-compile_only_jcc include2_jcc
-check include2_jcc.c
-
-compile_only_jcc bslash_jcc
-check bslash_jcc.c
+# compile_only_jcc include1_jcc
+# check include1_jcc.c
+# 
+# compile_only_jcc include2_jcc
+# check include2_jcc.c
+# 
+# compile_only_jcc bslash_jcc
+# check bslash_jcc.c
 
 for src_file in `\find . -name '*.c' -not -name '*jcc.c' -not -name '*gcc.c' -not -name 'function_abi.c'`; do
   compile $src_file

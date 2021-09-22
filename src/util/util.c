@@ -7,7 +7,7 @@
 #include <string.h>
 
 // Return move length
-int ignore_to_newline(char *ptr, char **endptr) {
+int skip_to_newline(char *ptr, char **endptr) {
   int len = 0;
 
   while (*ptr != '\n' && *ptr != '\0') {

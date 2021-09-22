@@ -280,7 +280,7 @@ char *get_ident(Token *tkn) {
 }
 
 
-Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
+Token *tokenize_str(char *ptr, char *tokenize_end) {
   Token head;
   Token *cur = &head;
 
@@ -305,65 +305,38 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
 
     // Back slash
     if (*ptr == '\\') {
-      while (*ptr != '\n') {
-        ptr++;
-      }
-      ptr++;
+      skip_to_newline(ptr, &ptr);
       continue;
     }
 
     // Skip space
     if (isspace(*ptr)) {
-      if (cur->kind != TK_PP_SPACE) {
-        cur = cur->next = new_token(TK_PP_SPACE, ptr, 1);
+      if (cur->kind != TK_PP || equal(cur, " ")) {
+        cur = cur->next = new_token(TK_PP, ptr, 1);
       }
       ptr++;
       continue;
     }
 
     if (streq(ptr, "#include")) {
+      cur = cur->next = new_token(TK_PP, ptr, 8);
       ptr += 8;
-      cur->next = read_include(ptr, &ptr);
-      cur = get_tail_token(cur);
       continue;
     }
 
     // Define macro
-    if (enable_macro && streq(ptr, "#define ")) {
+    if (streq(ptr, "#define ")) {
+      cur = cur->next = new_token(TK_PP, ptr, 8);
       ptr += 8;
-
-      int strlen = 0;
-      bool is_objlike = true;
-      while ((!is_objlike && *ptr != ')') || (is_objlike && *ptr != ' ')) {
-        ptr++;
-        strlen++;
-        is_objlike &= (*ptr != '(');
-      }
-
-      if (is_objlike) {
-        define_objlike_macro(ptr - strlen, ptr + 1, &ptr);
-      } else {
-        define_funclike_macro(ptr - strlen, ptr + 2, &ptr);
-      }
-
       continue;
     }
 
     // Undefine macro
-    if (enable_macro && streq(ptr, "#undef ")) {
+    if (streq(ptr, "#undef ")) {
+      cur = cur->next = new_token(TK_PP, ptr, 7);
       ptr += 7;
-
-      int len = 0;
-      while (*ptr != '\n' && *ptr != '\0') {
-        ptr++;
-        len++;
-      }
-      char name[256] = {};
-      strncpy(name, ptr - len, len);
-      undefine_macro(name);
       continue;
     }
-
 
     // Numerical literal
     if (isdigit(*ptr)) {
@@ -422,25 +395,12 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
 
     if (isident(*ptr) && !isdigit(*ptr)) {
       int len = 0;
-      while (isident(*ptr) || *ptr == '\\') {
-        if (*ptr == '\\') {
-          len += ignore_to_newline(ptr, &ptr);
-          continue;
-        }
-
+      while (isident(*ptr)) {
         ptr++;
         len++;
       }
-      cur->next = new_token(TK_IDENT, ptr - len, len);
 
-      Macro *macro = enable_macro ? find_macro(cur->next) : NULL;
-      if (macro != NULL && (*ptr == '(') != macro->is_objlike) {
-        if (!macro->is_objlike) {
-          set_macro_args(macro, current_file, ptr, &ptr);
-        }
-        cur->next = expand_macro(cur->next);
-      }
-      cur = get_tail_token(cur);
+      cur = cur->next = new_token(TK_IDENT, ptr - len, len);
       continue;
     }
 
@@ -450,10 +410,10 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
   return head.next;
 }
 
-Token *tokenize_file(File *file, bool enable_macro) {
+Token *tokenize_file(File *file) {
   File *store_file = current_file;
   current_file = file;
-  Token *tkn = tokenize_str(file->contents, NULL, enable_macro);
+  Token *tkn = tokenize_str(file->contents, NULL);
 
   current_file = store_file;
   return tkn;
@@ -461,11 +421,13 @@ Token *tokenize_file(File *file, bool enable_macro) {
 
 // Update source token
 Token *tokenize(char *path) {
-  init_macro();
+  // init_macro();
   File *file = read_file(path);
 
-  Token *tkn = tokenize_file(file, true);
+  Token *tkn = tokenize_file(file);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
+
+  tkn = concat_separate_ident_token(tkn);
   tkn = delete_pp_token(tkn);
 
   return tkn;
