@@ -13,9 +13,9 @@ void checkstr(char *expected, char *actual, char *str);
 #define FOO() 10
 
 #define FUNC() func()
-// #define MAX(a, b) a > b ? a : b
-// #define MIN(a, b) (MAX(a, b)) == a ? b : a
-// 
+#define MAX(a, b) a > b ? a : b
+#define MIN(a, b) (MAX(a, b)) == a ? b : a
+
 // #define CON1(expr) expr ## expr
 // #define CON2(expr) expr##_hello
 // 
@@ -28,10 +28,10 @@ int func() {
   return 2;
 }
 
-// int cat(int a) {
-//   return a;
-// }
-// 
+int cat(int a) {
+  return a;
+}
+
 // #define xstr(x) str(x)
 // #define str(x) #x
 // 
@@ -93,13 +93,13 @@ int main() {
   }), "FOO");
 
   check(2, FUNC(), "FUNC()");
-//   check(3, MAX(2, 3), "MAX(2, 3)");
-//   check(2, MIN(2, 3), "MIN(2, 3)");
-//   check(2, MIN(func(), 3), "MIN(func(), 3)");
-//   check(2, MIN(FUNC(), 3), "MIN(FUNC(), 3)");
-//   check(2, MIN(cat(func()), 3), "MIN(cat(func()), 3)");
-//   check(2, MIN(cat(FUNC()), 3), "MIN(cat(FUNC()), 3)");
-// 
+  // check(3, MAX(2, 3), "MAX(2, 3)");
+  check(2, MIN(2, 3), "MIN(2, 3)");
+  check(2, MIN(func(), 3), "MIN(func(), 3)");
+  check(2, MIN(FUNC(), 3), "MIN(FUNC(), 3)");
+  check(2, MIN(cat(func()), 3), "MIN(cat(func()), 3)");
+  check(2, MIN(cat(FUNC()), 3), "MIN(cat(FUNC()), 3)");
+
 //   // stringizing
 //   CHECK(1, ONE);
 //   CHECK(2, TWO);

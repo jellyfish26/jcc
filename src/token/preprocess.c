@@ -14,10 +14,22 @@ struct IncludePath {
   IncludePath *next;
 };
 
+typedef struct MacroArg MacroArg;
+struct MacroArg {
+  char *name;
+  MacroArg *next;
+
+  // The expand_tkn variable stores the token to be replaced and
+  // is used when expanding the macro.
+  Token *expand_tkn;
+};
+
 typedef struct {
   char *name;
   bool is_objlike;
+
   Token *expand_tkn;
+  MacroArg *args;
 } Macro;
 
 static IncludePath *include_paths;
@@ -42,12 +54,22 @@ static bool add_macro(char *name, Macro *macro) {
   return true;
 }
 
-static bool define_macro(char *name, bool is_objlike, Token *expand_tkn) {
+static bool define_macro(char *name, bool is_objlike, Token *expand_tkn, MacroArg *args) {
   Macro *macro = calloc(1, sizeof(Macro));
   macro->name = name;
   macro->is_objlike = is_objlike;
   macro->expand_tkn = expand_tkn;
+  macro->args = args;
   return add_macro(name, macro);
+}
+
+static MacroArg *find_macro_arg(Macro *macro, char *name) {
+  for (MacroArg *arg = macro->args; arg != NULL; arg = arg->next) {
+    if (strcmp(arg->name, name) == 0) {
+      return arg;
+    }
+  }
+  return NULL;
 }
 
 // mask: 0 is all space, 1 is only ' ', 2 is only '\n'
@@ -142,28 +164,115 @@ static Token *copy_token(Token *tkn) {
   return cpy;
 }
 
-static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
+static Token *expand_macro(Token *head);
+
+static Token *copy_arg_expand_tkn(MacroArg *arg, Token *ref_tkn) {
   Token head = {};
-  Token *tkn = &head;
+  Token *cur = &head;
 
-  for (Token *expand_tkn = macro->expand_tkn; expand_tkn != NULL; expand_tkn = expand_tkn->next) {
-    tkn->next = calloc(1, sizeof(Token));
-    memcpy(tkn->next, expand_tkn, sizeof(Token));
+  for (Token *expand_tkn = arg->expand_tkn; expand_tkn != NULL; expand_tkn = expand_tkn->next) {
+    cur->next = calloc(1, sizeof(Token));
+    memcpy(cur->next, expand_tkn, sizeof(Token));
 
-    tkn = tkn->next;
-    tkn->ref_tkn = copy_token(ref_tkn);
+    cur = cur->next;
+    cur->ref_tkn = copy_token(ref_tkn);
   }
 
   return head.next;
 }
 
+static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
+  Token *head = calloc(1, sizeof(Token));
+  Token *cur = head;
+
+  for (Token *expand_tkn = macro->expand_tkn; expand_tkn != NULL; expand_tkn = expand_tkn->next) {
+    cur->next = calloc(1, sizeof(Token));
+    memcpy(cur->next, expand_tkn, sizeof(Token));
+
+    cur = cur->next;
+    cur->ref_tkn = copy_token(ref_tkn);
+  }
+
+  // Expand macro arguments
+  cur = head;
+  while (cur->next != NULL) {
+    if (cur->next->kind != TK_IDENT) {
+      cur = cur->next;
+      continue;
+    }
+
+    MacroArg *arg = find_macro_arg(macro, get_ident(cur->next));
+    if (arg == NULL) {
+      cur = cur->next;
+      continue;
+    }
+
+    Token *expand_tkn = copy_arg_expand_tkn(arg, cur->next);
+    expand_macro(expand_tkn);
+
+    get_tail_token(expand_tkn)->next = cur->next->next;
+    cur->next = expand_tkn;
+  }
+
+  return head->next;
+}
+
+static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
+  if (!consume(tkn, &tkn, "(")) {
+    errorf_tkn(ER_COMPILE, tkn, "Unexpected macro");
+  }
+
+  MacroArg *arg = macro->args;
+
+  bool need_commma = false;
+  while (!equal(tkn, ")")) {
+    if (arg == NULL) {
+      errorf_tkn(ER_COMPILE, tkn, "The number of arguments does not match");
+    }
+
+    if (need_commma) {
+      tkn = skip(tkn, ",");
+    }
+    need_commma = true;
+
+    Token *expand_tkn = tkn;
+    int pass_lparenthese = 0;
+    while (true) {
+      if (pass_lparenthese != 0 && equal(tkn, ")")) {
+        pass_lparenthese--;
+      }
+
+      if (equal(tkn, "(")) {
+        pass_lparenthese++;
+      }
+
+      if (pass_lparenthese == 0 && (equal(tkn->next, ",") || equal(tkn->next, ")"))) {
+        Token *tail = tkn->next;
+        tkn->next = NULL;
+        tkn = tail;
+        break;
+      }
+
+      tkn = tkn->next;
+    }
+
+    arg->expand_tkn = expand_tkn;
+    arg = arg->next;
+  }
+
+  if (arg != NULL) {
+    errorf_tkn(ER_COMPILE, tkn, "The number of arguments does not match");
+  }
+
+  *end_tkn = tkn->next;
+}
 
 static Token *expand_macro(Token *head) {
   Token *tkn = calloc(1, sizeof(Token));
   tkn->next = head;
   head = tkn;
 
-  while (!is_eof(tkn->next)) {
+  while (tkn->next != NULL && !is_eof(tkn->next)) {
     if (tkn->next->kind == TK_IDENT && find_macro(tkn->next)) {
       Macro *macro = find_macro(tkn->next);
       Token *ref_tkn = tkn->next;
@@ -175,8 +284,7 @@ static Token *expand_macro(Token *head) {
       tkn->next = tkn->next->next;
 
       if (!macro->is_objlike) {
-        tkn->next = skip(tkn->next, "(");
-        tkn->next = skip(tkn->next, ")");
+        set_macro_args(macro, tkn->next, &(tkn->next));
       }
 
       Token *expand_tkn = copy_expand_tkn(macro, ref_tkn);
@@ -185,7 +293,7 @@ static Token *expand_macro(Token *head) {
       continue;
     }
 
-    if (is_eof(tkn->next->next)) {
+    if (tkn->next->next == NULL || is_eof(tkn->next->next)) {
       tkn = tkn->next;
       continue;
     }
@@ -202,12 +310,27 @@ static Token *expand_macro(Token *head) {
       bool is_objlike = true;
       expand_tkn = expand_tkn->next;
 
+      MacroArg head = {};
+      MacroArg *cur = &head;
+
       if (consume(expand_tkn, &expand_tkn, "(")) {
-        expand_tkn = skip(expand_tkn, ")");
         is_objlike = false;
+
+        while (!consume(expand_tkn, &expand_tkn, ")")) {
+          if (cur != &head) {
+            expand_tkn = skip(expand_tkn, ",");
+          }
+
+          MacroArg *arg = calloc(1, sizeof(MacroArg));
+          arg->name = get_ident(expand_tkn);
+          cur->next = arg;
+          cur = arg;
+
+          expand_tkn = expand_tkn->next;
+        }
       }
 
-      define_macro(name, is_objlike, expand_tkn);
+      define_macro(name, is_objlike, expand_tkn, head.next);
       continue;
     }
 

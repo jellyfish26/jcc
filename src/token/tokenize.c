@@ -19,9 +19,7 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_start(ap, fmt);
 
   if (tkn->ref_tkn != NULL) {
-    for (Token *ref_tkn = tkn->ref_tkn; ref_tkn != NULL; ref_tkn = ref_tkn->ref_tkn) {
-      errorf_at(ER_NOTE, ref_tkn->file, ref_tkn->loc, ref_tkn->len, "in expansion of macro");
-    }
+    errorf_tkn(ER_NOTE, tkn->ref_tkn, "in expansion of macro");
   }
 
   errorf_at(type, tkn->file, tkn->loc, tkn->len, fmt, ap);
