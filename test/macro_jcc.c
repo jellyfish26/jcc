@@ -182,6 +182,10 @@ int main() {
   CHECK(182, LINEREV);
   CHECK(183, CON3(__LI, NE__));
 
+  CHECK(0, __COUNTER__);
+  CHECK(1, __COUNTER__);
+  CHECK(2, __COUNTER__);
+
   CHECK(5, ({
     int TMP = 3;
 #define TMP 2

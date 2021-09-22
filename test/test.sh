@@ -49,6 +49,9 @@ check include1_jcc.c
 compile_only_jcc include2_jcc
 check include2_jcc.c
 
+compile_only_jcc bslash_jcc
+check bslash_jcc.c
+
 for src_file in `\find . -name '*.c' -not -name '*jcc.c' -not -name '*gcc.c' -not -name 'function_abi.c'`; do
   compile $src_file
   check $src_file

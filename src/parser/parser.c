@@ -324,13 +324,6 @@ static bool is_typename(Token *tkn) {
   return find_type_def(strndup(tkn->loc, tkn->len));
 }
 
-static char *get_ident(Token *tkn) {
-  if (tkn->kind != TK_IDENT) {
-    errorf_tkn(ER_COMPILE, tkn, "Expected an identifier");
-  }
-  return strndup(tkn->loc, tkn->len);
-}
-
 // The type of array, structure, enum and a initializer end with '}' or ',' and '}'.
 static bool consume_close_brace(Token *tkn, Token **end_tkn) {
   if (equal(tkn, "}")) {
@@ -2483,6 +2476,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     Obj *obj = find_var(get_ident(tkn));
 
     if (obj == NULL) {
+      printf("%s\n", get_ident(tkn));
       errorf_tkn(ER_COMPILE, tkn, "This object is not declaration.");
     }
 

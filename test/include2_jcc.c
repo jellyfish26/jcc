@@ -1,5 +1,7 @@
 #include "include2_jcc.h"
 
+// #include <stdio.h>
+
 int main() {
   CHECK(2, a);
   CHECK(3, b);

@@ -1,6 +1,16 @@
 #pragma once
 #define _POSIX_C_SOURCE 200809L
 
+#include <stdbool.h>
+
+//
+// util.c
+//
+
+int ignore_to_newline(char *ptr, char **endptr);
+char *erase_bslash_str(char *ptr, int len);
+bool isident(char c);
+
 //
 // file.c
 //

@@ -80,22 +80,9 @@ static bool strcaseeq(char *ptr, char *eq) {
   return strncasecmp(ptr, eq, strlen(eq)) == 0;
 }
 
-static bool is_useable_char(char c) {
-  bool ret = false;
-  ret |= ('a' <= c && c <= 'z');
-  ret |= ('A' <= c && c <= 'Z');
-  ret |= (c == '_');
-  return ret;
-}
-
-bool is_ident_char(char c) {
-  return is_useable_char(c) || ('0' <= c && c <= '9');
-}
-
 static bool str_check(char *top_str, char *comp_str) {
   int comp_len = strlen(comp_str);
-  return (strncmp(top_str, comp_str, comp_len) == 0 &&
-          !is_ident_char(*(top_str + comp_len)));
+  return strncmp(top_str, comp_str, comp_len) == 0 && !isident(*(top_str + comp_len));
 }
 
 static char *permit_panct[] = {
@@ -285,11 +272,55 @@ Token *get_tail_token(Token *tkn) {
   return tkn;
 }
 
+char *get_ident(Token *tkn) {
+  if (tkn->kind != TK_IDENT) {
+    errorf_tkn(ER_COMPILE, tkn, "Expected an identifier");
+  }
+  return erase_bslash_str(tkn->loc, tkn->len);
+}
+
+
 Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
   Token head;
   Token *cur = &head;
 
   while (*ptr != '\0' && ptr != tokenize_end) {
+    // Comment out of line
+    if (streq(ptr, "//")) {
+      while (*ptr != '\n') {
+        ptr++;
+      }
+      ptr++;
+      continue;
+    }
+
+    // Comment out of block
+    if (streq(ptr, "/*")) {
+      while (!streq(ptr, "*/")) {
+        ptr++;
+      }
+      ptr += 2;
+      continue;
+    }
+
+    // Back slash
+    if (*ptr == '\\') {
+      while (*ptr != '\n') {
+        ptr++;
+      }
+      ptr++;
+      continue;
+    }
+
+    // Skip space
+    if (isspace(*ptr)) {
+      if (cur->kind != TK_PP_SPACE) {
+        cur = cur->next = new_token(TK_PP_SPACE, ptr, 1);
+      }
+      ptr++;
+      continue;
+    }
+
     if (streq(ptr, "#include")) {
       ptr += 8;
       cur->next = read_include(ptr, &ptr);
@@ -333,32 +364,6 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
       continue;
     }
 
-    // Comment out of line
-    if (streq(ptr, "//")) {
-      while (*ptr != '\n') {
-        ptr++;
-      }
-      ptr++;
-      continue;
-    }
-
-    // Comment out of block
-    if (streq(ptr, "/*")) {
-      while (!streq(ptr, "*/")) {
-        ptr++;
-      }
-      ptr += 2;
-      continue;
-    }
-
-    // Skip space
-    if (isspace(*ptr)) {
-      if (cur->kind != TK_PP_SPACE) {
-        cur = cur->next = new_token(TK_PP_SPACE, ptr, 1);
-      }
-      ptr++;
-      continue;
-    }
 
     // Numerical literal
     if (isdigit(*ptr)) {
@@ -403,7 +408,7 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
     // Check keywords
     for (int i = 0; i < sizeof(permit_keywords) / sizeof(char *); ++i) {
       int keyword_len = strlen(permit_keywords[i]);
-      if (strncmp(ptr, permit_keywords[i], keyword_len) == 0 && !is_ident_char(*(ptr + keyword_len))) {
+      if (strncmp(ptr, permit_keywords[i], keyword_len) == 0 && !isident(*(ptr + keyword_len))) {
         cur = cur->next = new_token(TK_KEYWORD, ptr, keyword_len);
         ptr += keyword_len;
         check = true;
@@ -415,13 +420,18 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
       continue;
     }
 
-    if (is_useable_char(*ptr)) {
-      char *start = ptr;
-      while (is_ident_char(*ptr)) {
+    if (isident(*ptr) && !isdigit(*ptr)) {
+      int len = 0;
+      while (isident(*ptr) || *ptr == '\\') {
+        if (*ptr == '\\') {
+          len += ignore_to_newline(ptr, &ptr);
+          continue;
+        }
+
         ptr++;
+        len++;
       }
-      int ident_len = ptr - start;
-      cur->next = new_token(TK_IDENT, start, ident_len);
+      cur->next = new_token(TK_IDENT, ptr - len, len);
 
       Macro *macro = enable_macro ? find_macro(cur->next) : NULL;
       if (macro != NULL && (*ptr == '(') != macro->is_objlike) {
@@ -433,6 +443,7 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
       cur = get_tail_token(cur);
       continue;
     }
+
     errorf_at(ER_TOKENIZE, current_file, ptr, 1, "Unexpected tokenize");
   }
 

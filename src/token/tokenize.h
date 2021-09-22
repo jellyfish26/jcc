@@ -28,6 +28,8 @@ struct Token {
   char *loc;       // Token String
   int len;         // Token length
 
+  char *ident;     // Identifier
+
   // When a macro is expanded,
   // the macro identifier disappears from the token list,
   // but the token before the macro is expanded is needed
@@ -49,9 +51,9 @@ bool is_eof(Token *tkn);
 
 Token *new_token(TokenKind kind, char *loc, int len);
 Token *copy_token(Token *tkn);
-bool is_ident_char(char c);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
+char *get_ident(Token *tkn);
 Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro);
 Token *tokenize_file(File *file, bool enable_macro);
 Token *tokenize(char *file_name);
