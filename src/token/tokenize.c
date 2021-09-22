@@ -18,8 +18,10 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
 
-  if (tkn->macro_tkn != NULL) {
-    errorf_tkn(ER_NOTE, tkn->macro_tkn, "in expansion of macro");
+  if (tkn->ref_tkn != NULL) {
+    for (Token *ref_tkn = tkn->ref_tkn; ref_tkn != NULL; ref_tkn = ref_tkn->ref_tkn) {
+      errorf_at(ER_NOTE, ref_tkn->file, ref_tkn->loc, ref_tkn->len, "in expansion of macro");
+    }
   }
 
   errorf_at(type, tkn->file, tkn->loc, tkn->len, fmt, ap);
@@ -61,6 +63,16 @@ Token *new_token(TokenKind kind, char *loc, int len) {
   tkn->loc = loc;
   tkn->len = len;
   return tkn;
+}
+
+Token *copy_token(Token *tkn) {
+  Token *cpy = calloc(1, sizeof(Token));
+  memcpy(cpy, tkn, sizeof(Token));
+
+  cpy->ref_tkn = NULL;
+  cpy->next = NULL;
+
+  return cpy;
 }
 
 static bool streq(char *ptr, char *eq) {
@@ -404,9 +416,9 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
         if (!macro->is_objlike) {
           set_macro_args(macro, current_file, ptr, &ptr);
         }
+        macro->ref_tkn = cur->next;
         cur->next = expand_macro(cur->next);
       }
-
       cur = get_tail_token(cur);
       continue;
     }

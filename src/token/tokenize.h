@@ -32,8 +32,8 @@ struct Token {
   // the macro identifier disappears from the token list,
   // but the token before the macro is expanded is needed
   // to output error messages, expand the __LINE__ predefiend macro,
-  // etc., so it is stored in the macro_tkn variable.
-  Token *macro_tkn;
+  // etc., so it is stored in the ref_tkn variable.
+  Token *ref_tkn;
 
   void *ty;          // Type if kind is TK_NUM
   int64_t val;       // Value if kind is TK_NUM 
@@ -48,6 +48,7 @@ Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
 
 Token *new_token(TokenKind kind, char *loc, int len);
+Token *copy_token(Token *tkn);
 bool is_ident_char(char c);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
@@ -75,6 +76,7 @@ struct MacroArg {
 typedef struct {
   char *name;
   bool is_objlike;
+  Token *ref_tkn;
 
   char *conv;
   Token *conv_tkn;

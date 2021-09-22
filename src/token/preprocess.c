@@ -46,9 +46,7 @@ static Token *copy_conv_tkn(Token *tkn) {
   
   int cnt = 0;
   for (Token *conv_tkn = tkn; conv_tkn != NULL; conv_tkn = conv_tkn->next) {
-    cur->next = calloc(1, sizeof(Token));
-    memcpy(cur->next, conv_tkn, sizeof(Token));
-    cur = cur->next;
+    cur = cur->next = copy_token(conv_tkn);
   }
 
   return head.next;
@@ -313,7 +311,7 @@ Token *expand_macro(Token *tkn) {
       free(lstr), free(rstr);
 
       Token *con_tkn = tokenize_file(new_file("builtin", str));
-      get_tail_token(con_tkn)->next = tkn->next->next->next->next;  // lol
+      get_tail_token(con_tkn)->next = tkn->next->next->next->next;
       tkn->next = con_tkn;
       continue;
     }
@@ -354,6 +352,7 @@ Token *expand_macro(Token *tkn) {
     if (tkn->next->kind != TK_IDENT || (macro = find_macro(tkn->next)) == NULL) {
       continue;
     }
+    macro->ref_tkn = copy_token(tkn->next);
 
     if (macro->is_objlike) {
       Token *macro_tkn = expand_macro(tkn->next);
@@ -390,6 +389,13 @@ Token *expand_macro(Token *tkn) {
     char *ptr = stringizing(arg_head, false);
     set_macro_args(macro, tkn->file, ptr, &ptr);
     concat_token(tkn, expand_macro(ident_tkn));
+  }
+
+  // Set ref_tkn
+  for (Token *tkn = head; tkn != NULL; tkn = tkn->next) {
+    Token *ref_tkn = copy_token(macro->ref_tkn);
+    ref_tkn->ref_tkn = tkn->ref_tkn;
+    tkn->ref_tkn = ref_tkn;
   }
 
   return head->next;
