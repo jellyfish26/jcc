@@ -69,9 +69,6 @@ Token *copy_token(Token *tkn) {
   Token *cpy = calloc(1, sizeof(Token));
   memcpy(cpy, tkn, sizeof(Token));
 
-  cpy->ref_tkn = NULL;
-  cpy->next = NULL;
-
   return cpy;
 }
 
@@ -416,7 +413,6 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
         if (!macro->is_objlike) {
           set_macro_args(macro, current_file, ptr, &ptr);
         }
-        macro->ref_tkn = cur->next;
         cur->next = expand_macro(cur->next);
       }
       cur = get_tail_token(cur);

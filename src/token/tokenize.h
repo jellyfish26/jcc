@@ -81,6 +81,8 @@ typedef struct {
   char *conv;
   Token *conv_tkn;
 
+  Token *(*macro_handler_fn)(Token *tkn);
+
   // Function-like macro
   MacroArg *args;
 } Macro;

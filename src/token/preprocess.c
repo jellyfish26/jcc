@@ -46,6 +46,49 @@ static void predefine_macro(char *name, char *conv) {
   define_macro(name, true, tkn, NULL);
 }
 
+static void predefine_handler_macro(char *name, Token *(*handler)(Token *tkn)) {
+  Macro *macro = calloc(1, sizeof(Macro));
+  macro->name = name;
+  macro->is_objlike = true;
+  macro->macro_handler_fn = handler;
+  add_macro(name, macro);
+}
+
+static Token *counter_macro(Token *tkn) {
+  static int count = 0;
+
+  char *str = calloc(16, sizeof(char));
+  sprintf(str, "%d", count);
+  return tokenize_file(new_file("builtin", str));
+}
+
+static Token *file_macro(Token *tkn) {
+  while (tkn->ref_tkn != NULL) {
+    tkn = tkn->ref_tkn;
+  }
+
+  char *str = calloc(256, sizeof(char));
+  sprintf(str, "\"%s\"", tkn->file->name);
+  return tokenize_file(new_file("builtin", str));
+}
+
+static Token *line_macro(Token *tkn) {
+  while (tkn->ref_tkn != NULL) {
+    tkn = tkn->ref_tkn;
+  }
+
+  int line_no = 1;
+  for (char *loc = tkn->file->contents; loc != tkn->loc; loc++) {
+    if (*loc == '\n') {
+      line_no++;
+    }
+  }
+
+  char *str = calloc(16, sizeof(char));
+  sprintf(str, "%d", line_no);
+  return tokenize_file(new_file("builtin", str));
+}
+
 // __DATE__ needs to be expanded to the current date and time,
 // such as "Sep 22 2021".
 static char *to_format_date(struct tm *tm) {
@@ -75,6 +118,9 @@ void init_macro() {
   struct tm *tm = localtime(&now);
   predefine_macro("__DATE__", to_format_date(tm));
   predefine_macro("__TIME__", to_format_time(tm));
+
+  predefine_handler_macro("__LINE__", line_macro);
+  predefine_handler_macro("__FILE__", file_macro);
 }
 
 static Token *copy_conv_tkn(Token *tkn) {
@@ -309,10 +355,23 @@ Token *expand_macro(Token *tkn) {
   if (macro == NULL) {
     return NULL;
   }
+  macro->ref_tkn = tkn;
 
   Token *head = calloc(1, sizeof(Token));
-  head->next = extract_tkn(macro);
+
+  if (macro->macro_handler_fn != NULL) {
+    head->next = macro->macro_handler_fn(macro->ref_tkn);
+  } else {
+    head->next = extract_tkn(macro);
+  }
   head->next = delete_pp_token(head->next);
+
+  // Set ref_tkn
+  for (Token *tkn = head; tkn != NULL; tkn = tkn->next) {
+    Token *ref_tkn = copy_token(macro->ref_tkn);
+    ref_tkn->ref_tkn = tkn->ref_tkn;
+    tkn->ref_tkn = ref_tkn;
+  }
 
   // Extract macro arguments
   Token *pass_sharp = NULL;
@@ -376,6 +435,13 @@ Token *expand_macro(Token *tkn) {
     if (tkn->next->kind == TK_IDENT && find_macro_arg(macro, tkn->next) != NULL) {
       MacroArg *arg = find_macro_arg(macro, tkn->next);
       Token *macro_tkn = tokenize_str(arg->conv, arg->conv + arg->convlen, true);
+
+      for (Token *tkn = macro_tkn; tkn != NULL; tkn = tkn->next) {
+        Token *ref_tkn = copy_token(macro->ref_tkn);
+        ref_tkn->ref_tkn = tkn->ref_tkn;
+        tkn->ref_tkn = ref_tkn;
+      }
+
       tkn->next = tkn->next->next;
       concat_token(tkn, macro_tkn);
       continue;
@@ -389,7 +455,6 @@ Token *expand_macro(Token *tkn) {
     if (tkn->next->kind != TK_IDENT || (macro = find_macro(tkn->next)) == NULL) {
       continue;
     }
-    macro->ref_tkn = copy_token(tkn->next);
 
     if (macro->is_objlike) {
       Token *macro_tkn = expand_macro(tkn->next);
@@ -426,13 +491,6 @@ Token *expand_macro(Token *tkn) {
     char *ptr = stringizing(arg_head, false);
     set_macro_args(macro, tkn->file, ptr, &ptr);
     concat_token(tkn, expand_macro(ident_tkn));
-  }
-
-  // Set ref_tkn
-  for (Token *tkn = head; tkn != NULL; tkn = tkn->next) {
-    Token *ref_tkn = copy_token(macro->ref_tkn);
-    ref_tkn->ref_tkn = tkn->ref_tkn;
-    tkn->ref_tkn = ref_tkn;
   }
 
   return head->next;
