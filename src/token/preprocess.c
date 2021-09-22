@@ -1,6 +1,7 @@
 #include "token/tokenize.h"
 #include "util/util.h"
 
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,13 +14,81 @@ struct IncludePath {
   IncludePath *next;
 };
 
-static IncludePath *include_paths;
+typedef struct {
+  char *name;
+  Token *expand_tkn;
+} Macro;
 
-static bool consume_pp_space(Token *tkn, Token **end_tkn) {
-  bool chk = (tkn->kind == TK_PP && *(tkn->loc) == ' ');
-  *end_tkn = (chk ? tkn->next : tkn);
+static IncludePath *include_paths;
+static HashMap macros;
+
+void add_include_path(char *path) {
+  IncludePath *include_path = calloc(1, sizeof(IncludePath));
+  include_path->path = path;
+  include_path->next = include_paths;
+  include_paths = include_path;
+}
+
+static Macro *find_macro(Token *tkn) {
+  return hashmap_nget(&macros, tkn->loc, tkn->len);
+}
+
+static bool add_macro(char *name, Macro *macro) {
+  if (hashmap_get(&macros, name) != NULL) {
+    return false;
+  }
+  hashmap_insert(&macros, name, macro);
+  return true;
+}
+
+static bool define_macro(char *name, Token *expand_tkn) {
+  Macro *macro = calloc(1, sizeof(Macro));
+  macro->name = name;
+  macro->expand_tkn = expand_tkn;
+  return add_macro(name, macro);
+}
+
+// mask: 0 is all space, 1 is only ' ', 2 is only '\n'
+static bool consume_pp_space(Token *tkn, Token **end_tkn, int mask) {
+  bool chk = false;
+  while (!is_eof(tkn)) {
+    char c = *(tkn->loc);
+    if (tkn->kind != TK_PP) {
+      break;
+    }
+
+    if (mask == 0 && !isspace(c)) {
+      break;
+    }
+
+    if (mask == 1 && c != ' ') {
+      break;
+    }
+
+    if (mask == 2 && c != '\n') {
+      break;
+    }
+
+    chk = true;
+    tkn = tkn->next;
+  }
+
+  *end_tkn = tkn;
   return chk;
 }
+
+static void ignore_to_newline(Token *tkn, Token **endtkn) {
+  while (!is_eof(tkn)) {
+    if (tkn->kind == TK_PP && *(tkn->loc) == '\n') {
+      break;
+    }
+
+    tkn = tkn->next;
+  }
+
+  *endtkn = tkn;
+}
+
 
 static Token *concat_separate_ident_token(Token *head) {
   Token *tkn = calloc(1, sizeof(Token));
@@ -51,7 +120,7 @@ static Token *delete_pp_token(Token *tkn) {
   Token *now = before->next = tkn;
   tkn = before;
 
-  while (now != NULL) {
+  while (!is_eof(now)) {
     if (now->kind == TK_PP) {
       before->next = now = now->next;
       continue;
@@ -64,11 +133,63 @@ static Token *delete_pp_token(Token *tkn) {
   return tkn->next;
 }
 
-void add_include_path(char *path) {
-  IncludePath *include_path = calloc(1, sizeof(IncludePath));
-  include_path->path = path;
-  include_path->next = include_paths;
-  include_paths = include_path;
+static Token *copy_token(Token *tkn) {
+  Token *cpy = calloc(1, sizeof(Token));
+  memcpy(cpy, tkn, sizeof(Token));
+  cpy->next = NULL;
+  return cpy;
+}
+
+static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
+  Token head = {};
+  Token *tkn = &head;
+
+  for (Token *expand_tkn = macro->expand_tkn; expand_tkn != NULL; expand_tkn = expand_tkn->next) {
+    tkn->next = calloc(1, sizeof(Token));
+    memcpy(tkn->next, expand_tkn, sizeof(Token));
+
+    tkn = tkn->next;
+    tkn->ref_tkn = copy_token(ref_tkn);
+  }
+
+  return head.next;
+}
+
+
+static Token *expand_macro(Token *head) {
+  Token *tkn = calloc(1, sizeof(Token));
+  tkn->next = head;
+  head = tkn;
+
+  while (!is_eof(tkn->next)) {
+    if (tkn->next->kind == TK_IDENT && find_macro(tkn->next)) {
+      Macro *macro = find_macro(tkn->next);
+      Token *expand_tkn = copy_expand_tkn(macro, tkn->next);
+      get_tail_token(expand_tkn)->next = tkn->next->next;
+      tkn->next = expand_tkn;
+      continue;
+    }
+
+    if (is_eof(tkn->next->next)) {
+      tkn = tkn->next;
+      continue;
+    }
+
+    if (equal(tkn->next, "#") && equal(tkn->next->next, "define")) {
+      Token *expand_tkn = tkn->next->next->next, *tail;
+      consume_pp_space(expand_tkn, &expand_tkn, 1);
+      ignore_to_newline(expand_tkn, &tail);
+
+      tkn->next = tail->next;
+      tail->next = NULL;
+      define_macro(get_ident(expand_tkn), expand_tkn->next);
+      continue;
+    }
+
+    tkn = tkn->next;
+  }
+
+  return head->next;
 }
 
 static Token *read_include(char *name, bool allow_curdir) {
@@ -107,13 +228,13 @@ static Token *expand_include(Token *head) {
   head = tkn;
 
   while (!is_eof(tkn->next) && !is_eof(tkn->next->next)) {
-    if (!equal(tkn->next, "#") && !equal(tkn->next->next, "include")) {
+    if (!(equal(tkn->next, "#") && equal(tkn->next->next, "include"))) {
       tkn = tkn->next;
       continue;
     }
 
     Token *inc_tkn = tkn->next->next->next;
-    consume_pp_space(inc_tkn, &inc_tkn);
+    consume_pp_space(inc_tkn, &inc_tkn, 0);
 
     char *name = inc_tkn->loc;
     bool allow_curdir = true;
@@ -143,6 +264,7 @@ static Token *expand_include(Token *head) {
 Token *preprocess(Token *tkn) {
   tkn = concat_separate_ident_token(tkn);
   tkn = expand_include(tkn);
+  tkn = expand_macro(tkn);
   tkn = delete_pp_token(tkn);
   return tkn;
 }

@@ -39,8 +39,8 @@ rm function_abi_gcc.o
 check function_abi_jcc.c
 
 # Check macro
-# compile_only_jcc macro_jcc
-# check macro_jcc.c
+compile_only_jcc macro_jcc
+check macro_jcc.c
 
 # Check include
 compile_only_jcc include1_jcc

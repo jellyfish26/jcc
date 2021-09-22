@@ -6,19 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Return move length
-int skip_to_newline(char *ptr, char **endptr) {
-  int len = 0;
-
-  while (*ptr != '\n' && *ptr != '\0') {
-    ptr++;
-    len++;
-  }
-
-  *endptr = ptr + (*ptr != '\0');
-  return len + (*ptr != '\0');
-}
-
 // In the C language, there were no characters from backslash to newline.
 // For example, "abc\ \ndef" becomes "abcdef".
 char *erase_bslash_str(char *ptr, int len) {

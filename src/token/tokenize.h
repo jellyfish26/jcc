@@ -50,7 +50,6 @@ Token *skip(Token *tkn, char *op);
 bool is_eof(Token *tkn);
 
 Token *new_token(TokenKind kind, char *loc, int len);
-Token *copy_token(Token *tkn);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
 char *get_ident(Token *tkn);
@@ -64,4 +63,5 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 // preprocess.c
 //
 
+void add_include_path(char *path);
 Token *preprocess(Token *tkn);

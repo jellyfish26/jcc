@@ -310,18 +310,16 @@ Token *tokenize_str(char *ptr, char *tokenize_end) {
 
     // Back slash
     if (*ptr == '\\') {
-      skip_to_newline(ptr, &ptr);
+      while (*ptr != '\n') {
+        ptr++;
+      }
+      ptr++;
       continue;
     }
 
     // Skip space
     if (isspace(*ptr)) {
-      if (cur->kind != TK_PP || equal(cur, " ")) {
-        cur = cur->next = new_token(TK_PP, ptr, 1);
-      } else {
-        (cur->len)++;
-      }
-
+      cur = cur->next = new_token(TK_PP, ptr, 1);
       ptr++;
       continue;
     }
