@@ -182,5 +182,14 @@ int main() {
   CHECK(182, LINEREV);
   CHECK(183, CON3(__LI, NE__));
 
+  CHECK(5, ({
+    int TMP = 3;
+#define TMP 2
+    int a = TMP;
+#undef TMP
+    int b = TMP;
+    a + b;
+  }));
+
   return 0;
 }

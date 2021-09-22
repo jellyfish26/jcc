@@ -318,6 +318,21 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
       continue;
     }
 
+    // Undefine macro
+    if (enable_macro && streq(ptr, "#undef ")) {
+      ptr += 7;
+
+      int len = 0;
+      while (*ptr != '\n' && *ptr != '\0') {
+        ptr++;
+        len++;
+      }
+      char name[256] = {};
+      strncpy(name, ptr - len, len);
+      undefine_macro(name);
+      continue;
+    }
+
     // Comment out of line
     if (streq(ptr, "//")) {
       while (*ptr != '\n') {

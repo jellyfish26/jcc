@@ -54,6 +54,10 @@ static void predefine_handler_macro(char *name, Token *(*handler)(Token *tkn)) {
   add_macro(name, macro);
 }
 
+void undefine_macro(char *name) {
+  hashmap_delete(&macros, name);
+}
+
 static Token *counter_macro(Token *tkn) {
   static int count = 0;
 
