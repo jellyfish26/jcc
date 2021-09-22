@@ -16,6 +16,7 @@ struct IncludePath {
 
 typedef struct {
   char *name;
+  bool is_objlike;
   Token *expand_tkn;
 } Macro;
 
@@ -41,9 +42,10 @@ static bool add_macro(char *name, Macro *macro) {
   return true;
 }
 
-static bool define_macro(char *name, Token *expand_tkn) {
+static bool define_macro(char *name, bool is_objlike, Token *expand_tkn) {
   Macro *macro = calloc(1, sizeof(Macro));
   macro->name = name;
+  macro->is_objlike = is_objlike;
   macro->expand_tkn = expand_tkn;
   return add_macro(name, macro);
 }
@@ -120,7 +122,7 @@ static Token *delete_pp_token(Token *tkn) {
   Token *now = before->next = tkn;
   tkn = before;
 
-  while (!is_eof(now)) {
+  while (now != NULL) {
     if (now->kind == TK_PP) {
       before->next = now = now->next;
       continue;
@@ -164,8 +166,21 @@ static Token *expand_macro(Token *head) {
   while (!is_eof(tkn->next)) {
     if (tkn->next->kind == TK_IDENT && find_macro(tkn->next)) {
       Macro *macro = find_macro(tkn->next);
-      Token *expand_tkn = copy_expand_tkn(macro, tkn->next);
-      get_tail_token(expand_tkn)->next = tkn->next->next;
+      Token *ref_tkn = tkn->next;
+
+      if (!macro->is_objlike && !equal(tkn->next->next, "(")) {
+        tkn = tkn->next;
+        continue;
+      }
+      tkn->next = tkn->next->next;
+
+      if (!macro->is_objlike) {
+        tkn->next = skip(tkn->next, "(");
+        tkn->next = skip(tkn->next, ")");
+      }
+
+      Token *expand_tkn = copy_expand_tkn(macro, ref_tkn);
+      get_tail_token(expand_tkn)->next = tkn->next;
       tkn->next = expand_tkn;
       continue;
     }
@@ -177,12 +192,22 @@ static Token *expand_macro(Token *head) {
 
     if (equal(tkn->next, "#") && equal(tkn->next->next, "define")) {
       Token *expand_tkn = tkn->next->next->next, *tail;
-      consume_pp_space(expand_tkn, &expand_tkn, 1);
       ignore_to_newline(expand_tkn, &tail);
 
       tkn->next = tail->next;
       tail->next = NULL;
-      define_macro(get_ident(expand_tkn), expand_tkn->next);
+      expand_tkn = delete_pp_token(expand_tkn);
+
+      char *name = get_ident(expand_tkn);
+      bool is_objlike = true;
+      expand_tkn = expand_tkn->next;
+
+      if (consume(expand_tkn, &expand_tkn, "(")) {
+        expand_tkn = skip(expand_tkn, ")");
+        is_objlike = false;
+      }
+
+      define_macro(name, is_objlike, expand_tkn);
       continue;
     }
 

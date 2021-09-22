@@ -10,9 +10,9 @@ void checkstr(char *expected, char *actual, char *str);
 #define HELLO "hello"
 #define ARRAY_INITIALIZER {1, 2, 3, 4, 5};
 
-// #define FOO() 10
-// 
-// #define FUNC() func()
+#define FOO() 10
+
+#define FUNC() func()
 // #define MAX(a, b) a > b ? a : b
 // #define MIN(a, b) (MAX(a, b)) == a ? b : a
 // 
@@ -23,11 +23,11 @@ void checkstr(char *expected, char *actual, char *str);
 // #define LINEREV LINE
 // 
 // #define CON3(expr1, expr2) expr1 ## expr2
-// 
-// int func() {
-//   return 2;
-// }
-// 
+
+int func() {
+  return 2;
+}
+
 // int cat(int a) {
 //   return a;
 // }
@@ -86,13 +86,13 @@ int main() {
     a[0] + a[1] + a[2] + a[3] + a[4];
   }), "ARRAY_INITIALIZER_2");
 
-//   check(19, ({
-//     int FOO = 9;
-//     int BAR = FOO();
-//     FOO + BAR;
-//   }), "FOO");
-// 
-//   check(2, FUNC(), "FUNC()");
+  check(19, ({
+    int FOO = 9;
+    int BAR = FOO();
+    FOO + BAR;
+  }), "FOO");
+
+  check(2, FUNC(), "FUNC()");
 //   check(3, MAX(2, 3), "MAX(2, 3)");
 //   check(2, MIN(2, 3), "MIN(2, 3)");
 //   check(2, MIN(func(), 3), "MIN(func(), 3)");
