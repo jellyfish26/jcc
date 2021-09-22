@@ -86,6 +86,7 @@ typedef struct {
 } Macro;
 
 Macro *find_macro(Token *tkn);
+void init_macro();
 Token *delete_pp_token(Token *tkn);
 void define_objlike_macro(char *name, char *ptr, char **endptr);
 void define_funclike_macro(char *name, char *ptr, char **endptr);

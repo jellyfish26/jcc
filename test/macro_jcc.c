@@ -168,5 +168,8 @@ int main() {
   CHECK(3, VA2(1, 2));
   CHECK(6, VA2(1, 2, 3));
 
+  CHECKSTR(__TIME__, __TIME__);
+  CHECK(201112l, __STDC_VERSION__);
+
   return 0;
 }
