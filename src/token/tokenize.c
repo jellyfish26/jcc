@@ -424,10 +424,10 @@ Token *tokenize_str(char *ptr, char *tokenize_end, bool enable_macro) {
   return head.next;
 }
 
-Token *tokenize_file(File *file) {
+Token *tokenize_file(File *file, bool enable_macro) {
   File *store_file = current_file;
   current_file = file;
-  Token *tkn = tokenize_str(file->contents, NULL, true);
+  Token *tkn = tokenize_str(file->contents, NULL, enable_macro);
 
   current_file = store_file;
   return tkn;
@@ -438,7 +438,7 @@ Token *tokenize(char *path) {
   init_macro();
   File *file = read_file(path);
 
-  Token *tkn = tokenize_file(file);
+  Token *tkn = tokenize_file(file, true);
   get_tail_token(tkn)->next = new_token(TK_EOF, NULL, 1);
   tkn = delete_pp_token(tkn);
 

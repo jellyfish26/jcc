@@ -42,7 +42,7 @@ static bool define_macro(char *name, bool is_objlike, Token *conv_tkn, MacroArg 
 }
 
 static void predefine_macro(char *name, char *conv) {
-  Token *tkn = tokenize_file(new_file("builtin", conv));
+  Token *tkn = tokenize_file(new_file("builtin", conv), false);
   define_macro(name, true, tkn, NULL);
 }
 
@@ -59,7 +59,7 @@ static Token *counter_macro(Token *tkn) {
 
   char *str = calloc(16, sizeof(char));
   sprintf(str, "%d", count);
-  return tokenize_file(new_file("builtin", str));
+  return tokenize_file(new_file("builtin", str), false);
 }
 
 static Token *file_macro(Token *tkn) {
@@ -69,7 +69,7 @@ static Token *file_macro(Token *tkn) {
 
   char *str = calloc(256, sizeof(char));
   sprintf(str, "\"%s\"", tkn->file->name);
-  return tokenize_file(new_file("builtin", str));
+  return tokenize_file(new_file("builtin", str), false);
 }
 
 static Token *line_macro(Token *tkn) {
@@ -86,7 +86,7 @@ static Token *line_macro(Token *tkn) {
 
   char *str = calloc(16, sizeof(char));
   sprintf(str, "%d", line_no);
-  return tokenize_file(new_file("builtin", str));
+  return tokenize_file(new_file("builtin", str), false);
 }
 
 // __DATE__ needs to be expanded to the current date and time,
@@ -366,13 +366,6 @@ Token *expand_macro(Token *tkn) {
   }
   head->next = delete_pp_token(head->next);
 
-  // Set ref_tkn
-  for (Token *tkn = head; tkn != NULL; tkn = tkn->next) {
-    Token *ref_tkn = copy_token(macro->ref_tkn);
-    ref_tkn->ref_tkn = tkn->ref_tkn;
-    tkn->ref_tkn = ref_tkn;
-  }
-
   // Extract macro arguments
   Token *pass_sharp = NULL;
   for (Token *tkn = head; tkn != NULL && tkn->next != NULL; tkn = tkn->next) {
@@ -406,7 +399,7 @@ Token *expand_macro(Token *tkn) {
       strcat(str, lstr), strcat(str, rstr);
       free(lstr), free(rstr);
 
-      Token *con_tkn = tokenize_file(new_file("builtin", str));
+      Token *con_tkn = tokenize_file(new_file("builtin", str), false);
       get_tail_token(con_tkn)->next = tkn->next->next->next->next;
       tkn->next = con_tkn;
       continue;
@@ -424,7 +417,7 @@ Token *expand_macro(Token *tkn) {
       }
 
       Token *macro_tkn = tokenize_str(arg->conv, arg->conv + arg->convlen, false);
-      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn, true)));
+      macro_tkn = tokenize_file(new_file("builtin", stringizing(macro_tkn, true)), false);
 
       macro_tkn->next = tkn->next = tkn->next->next;
       pass_sharp->next = macro_tkn;
@@ -436,16 +429,22 @@ Token *expand_macro(Token *tkn) {
       MacroArg *arg = find_macro_arg(macro, tkn->next);
       Token *macro_tkn = tokenize_str(arg->conv, arg->conv + arg->convlen, true);
 
-      for (Token *tkn = macro_tkn; tkn != NULL; tkn = tkn->next) {
-        Token *ref_tkn = copy_token(macro->ref_tkn);
-        ref_tkn->ref_tkn = tkn->ref_tkn;
-        tkn->ref_tkn = ref_tkn;
-      }
-
       tkn->next = tkn->next->next;
       concat_token(tkn, macro_tkn);
       continue;
     }
+  }
+
+  // Set ref_tkn
+  for (Token *tkn = head; tkn != NULL; tkn = tkn->next) {
+    Token *ref_tkn = copy_token(macro->ref_tkn);
+    Token *tail = ref_tkn;
+    while (tail->ref_tkn != NULL) {
+      tail = tail->ref_tkn;
+    }
+
+    tail->ref_tkn = tkn->ref_tkn;
+    tkn->ref_tkn = ref_tkn;
   }
 
   // Extract macro
@@ -531,7 +530,7 @@ static Token *expand_include(char *inc_path, bool allow_relative) {
   }
   fclose(fp);
 
-  return tokenize_file(read_file(path));
+  return tokenize_file(read_file(path), true);
 }
 
 

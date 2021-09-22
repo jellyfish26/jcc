@@ -22,6 +22,8 @@ void checkstr(char *expected, char *actual, char *str);
 #define LINE __LINE__
 #define LINEREV LINE
 
+#define CON3(expr1, expr2) expr1 ## expr2
+
 int func() {
   return 2;
 }
@@ -175,9 +177,10 @@ int main() {
   CHECK(201112l, __STDC_VERSION__);
 
   CHECKSTR("macro_jcc.c", __FILE__);
-  CHECK(178, __LINE__);
-  CHECK(179, LINE);
-  // CHECK(180, LINEREV);
+  CHECK(180, __LINE__);
+  CHECK(181, LINE);
+  CHECK(182, LINEREV);
+  CHECK(183, CON3(__LI, NE__));
 
   return 0;
 }
