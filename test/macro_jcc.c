@@ -185,15 +185,15 @@ int main() {
   CHECK(0, __COUNTER__);
   CHECK(1, __COUNTER__);
   CHECK(2, __COUNTER__);
-// 
-//   CHECK(5, ({
-//     int TMP = 3;
-// #define TMP 2
-//     int a = TMP;
-// #undef TMP
-//     int b = TMP;
-//     a + b;
-//   }));
+
+  CHECK(5, ({
+    int TMP = 3;
+#define TMP 2
+    int a = TMP;
+#undef TMP
+    int b = TMP;
+    a + b;
+  }));
 
   return 0;
 }

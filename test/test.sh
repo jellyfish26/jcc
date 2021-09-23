@@ -46,8 +46,8 @@ check macro_jcc.c
 compile_only_jcc include1_jcc
 check include1_jcc.c
 
-# compile_only_jcc include2_jcc
-# check include2_jcc.c
+compile_only_jcc include2_jcc
+check include2_jcc.c
  
 # compile_only_jcc bslash_jcc
 # check bslash_jcc.c

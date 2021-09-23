@@ -82,6 +82,10 @@ static void predefine_handler_macro(char *name, macro_handler_fn *handler) {
   add_macro(name, macro);
 }
 
+static void undefine_macro(char *name) {
+  hashmap_delete(&macros, name);
+}
+
 static Token *counter_macro(Token *tkn) {
   static int count = 0;
 
@@ -559,6 +563,16 @@ static Token *expand_macro(Token *head) {
       }
 
       define_macro(name, is_objlike, expand_tkn, head.next);
+      continue;
+    }
+
+    if (equal(tkn->next, "#") && equal(tkn->next->next, "undef")) {
+      Token *expand_tkn = tkn->next->next->next, *tail;
+      ignore_to_newline(expand_tkn, &tail);
+      expand_tkn = delete_pp_token(expand_tkn);
+
+      undefine_macro(get_ident(expand_tkn));
+      tkn->next = tail->next;
       continue;
     }
 
