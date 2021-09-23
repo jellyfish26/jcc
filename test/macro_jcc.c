@@ -243,9 +243,37 @@ int main() {
     a;
   }));
 
-  return 0;
+  CHECK(1, ({
+    int a = 2;
+#if defined(TWO)
+    a = 1;
+#endif
+    a;
+  }));
 
-  return 0;
+  CHECK(2, ({
+    int a = 2;
+#if defined(TEN)
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(1, ({
+    int a = 2;
+#if defined TWO
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(2, ({
+    int a = 2;
+#if defined TEN
+    a = 1;
+#endif
+    a;
+  }));
 
   return 0;
 }

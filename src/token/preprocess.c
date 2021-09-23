@@ -653,6 +653,42 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
 
 #undef EVAL_OP
 
+static Token *expand_defined_op(Token *tkn) {
+  Token *head = calloc(1, sizeof(Token));
+  head->next = tkn;
+  tkn = head;
+
+  while (head->next != NULL) {
+
+    if (consume(head->next, &(head->next), "defined")) {
+      Token *ref_tkn = NULL;
+      Macro *macro = NULL;
+      if (consume(head->next, &(head->next), "(")) {
+        ref_tkn = head->next;
+        macro = find_macro(head->next);
+        head->next = skip(head->next->next, ")");
+      } else {
+        ref_tkn = head->next;
+        macro = find_macro(head->next);
+        head->next = head->next->next;
+      }
+
+      Token *val_tkn = copy_token(ref_tkn);
+      val_tkn->kind = TK_NUM;
+      val_tkn->val = macro != NULL;
+      val_tkn->ref_tkn = ref_tkn;
+
+      val_tkn->next = head->next;
+      head->next = val_tkn;
+      continue;
+    }
+
+    head = head->next;
+  }
+
+  return tkn->next;
+}
+
 static Token *expand_if_group(Token *tkn, Token **end_tkn) {
   Token *head = NULL;
 
@@ -676,6 +712,7 @@ static Token *expand_if_group(Token *tkn, Token **end_tkn) {
       tail->next = NULL;
 
       expand_tkn = delete_pp_token(expand_tkn);
+      expand_tkn = expand_defined_op(expand_tkn);
       expand_tkn = expand_preprocess(expand_tkn);
 
       int64_t val = eval_const_expr(expand_tkn, &expand_tkn, 12);
