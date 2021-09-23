@@ -8,7 +8,7 @@
 
 File *new_file(char *name, char *contents) {
   File *file = calloc(1, sizeof(File));
-  file->name = name;
+  file->name = strdup(name);
   file->contents = contents;
   return file;
 }

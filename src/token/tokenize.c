@@ -397,6 +397,7 @@ Token *tokenize_str(char *ptr, char *tokenize_end) {
 Token *tokenize_file(File *file) {
   File *store_file = current_file;
   current_file = file;
+
   Token *tkn = tokenize_str(file->contents, NULL);
 
   current_file = store_file;

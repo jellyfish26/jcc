@@ -28,8 +28,6 @@ struct Token {
   char *loc;       // Token String
   int len;         // Token length
 
-  char *ident;     // Identifier
-
   // When a macro is expanded,
   // the macro identifier disappears from the token list,
   // but the token before the macro is expanded is needed

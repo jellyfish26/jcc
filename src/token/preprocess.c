@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -204,7 +205,6 @@ static void ignore_to_newline(Token *tkn, Token **endtkn) {
 
     tkn = tkn->next;
   }
-
   *endtkn = tkn;
 }
 
@@ -227,7 +227,6 @@ static Token *concat_separate_ident_token(Token *head) {
     char *endptr = second->loc + second->len;
 
     first = new_token(TK_IDENT, ptr, endptr - ptr);
-    printf("%s\n", get_ident(first));
     first->next = second->next;
     tkn->next = first;
   }
@@ -276,7 +275,7 @@ static Token *copy_token(Token *tkn) {
   return cpy;
 }
 
-static Token *expand_macro(Token *head);
+static Token *expand_preprocess(Token *head);
 
 static Token *copy_arg_expand_tkn(MacroArg *arg, Token *ref_tkn) {
   Token head = {};
@@ -432,7 +431,7 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
     }
 
     Token *expand_tkn = copy_arg_expand_tkn(arg, cur->next);
-    expand_tkn = expand_macro(expand_tkn);
+    expand_tkn = expand_preprocess(expand_tkn);
 
     get_tail_token(expand_tkn)->next = cur->next->next;
     cur->next = expand_tkn;
@@ -492,7 +491,198 @@ static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
   *end_tkn = tkn->next;
 }
 
-static Token *expand_macro(Token *head) {
+#define EVAL_OP(op, mask) \
+  if (consume(tkn, &tkn, #op)) { \
+    return val op eval_const_expr(tkn, end_tkn, mask); \
+  }
+
+
+static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
+  if (mask == 0) {
+    if (consume(tkn, &tkn, "(")) {
+      int64_t val = eval_const_expr(tkn, &tkn, 12);
+      tkn = skip(tkn, ")");
+
+      *end_tkn = tkn;
+      return val;
+    }
+
+    if (tkn->kind == TK_NUM) {
+      *end_tkn = tkn->next;
+      return tkn->val;
+    }
+  }
+
+  // mask 1: unary
+  if (mask == 1) {
+    if (consume(tkn, &tkn, "+")) {
+      return eval_const_expr(tkn, end_tkn, 0);
+    }
+
+    if (consume(tkn, &tkn, "-")) {
+      return -eval_const_expr(tkn, end_tkn, 0);
+    }
+
+    if (consume(tkn, &tkn, "~")) {
+      return ~eval_const_expr(tkn, end_tkn, 0);
+    }
+
+    if (consume(tkn, &tkn, "!")) {
+      return !eval_const_expr(tkn, end_tkn, 0);
+    }
+
+    return eval_const_expr(tkn, end_tkn, 0);
+  }
+
+  // mask 2: mul
+  if (mask == 2) {
+    int val = eval_const_expr(tkn, &tkn, 1);
+    EVAL_OP(*, 2)
+    EVAL_OP(/, 2)
+    EVAL_OP(%, 2)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 3: add
+  if (mask == 3) {
+    int val = eval_const_expr(tkn, &tkn, 2);
+    EVAL_OP(+, 3)
+    EVAL_OP(-, 3)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 4: bitshift
+  if (mask == 4) {
+    int val = eval_const_expr(tkn, &tkn, 3);
+    EVAL_OP(<<, 4)
+    EVAL_OP(>>, 4)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 5: relational
+  if (mask == 5) {
+    int val = eval_const_expr(tkn, &tkn, 4);
+    EVAL_OP(<, 5);
+    EVAL_OP(<=, 5);
+    EVAL_OP(>=, 5);
+    EVAL_OP(>=, 5);
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 6: quality
+  if (mask == 6) {
+    int val = eval_const_expr(tkn, &tkn, 5);
+    EVAL_OP(==, 6)
+    EVAL_OP(!=, 6)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 7: bitand
+  if (mask == 7) {
+    int val = eval_const_expr(tkn, &tkn, 6);
+    EVAL_OP(&, 7);
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 8: bitxor
+  if (mask == 8) {
+    int val = eval_const_expr(tkn, &tkn, 7);
+    EVAL_OP(^, 8)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 9: bitor
+  if (mask == 9) {
+    int val = eval_const_expr(tkn, &tkn, 8);
+    EVAL_OP(|, 9)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 10: logand
+  if (mask == 10) {
+    int val = eval_const_expr(tkn, &tkn, 9);
+    EVAL_OP(&&, 10)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 11: logor
+  if (mask == 11) {
+    int val = eval_const_expr(tkn, &tkn, 10);
+    EVAL_OP(||, 11)
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  // mask 12: cond
+  if (mask == 12) {
+    int val = eval_const_expr(tkn, &tkn, 11);
+
+    if (consume(tkn, &tkn, "?")) {
+      int lval = eval_const_expr(tkn, &tkn, 12);
+      tkn = skip(tkn, ":");
+      int rval = eval_const_expr(tkn, end_tkn, 12);
+      return val ? lval : rval;
+    }
+
+    *end_tkn = tkn;
+    return val;
+  }
+
+  errorf_tkn(ER_COMPILE, tkn, "Invalid preprocess");
+  return 0;
+}
+
+#undef EVAL_OP
+
+static Token *expand_if_group(Token *tkn, Token **end_tkn) {
+  if (equal(tkn, "#") && equal(tkn->next, "if")) {
+    Token *expand_tkn = tkn->next->next, *tail;
+    ignore_to_newline(expand_tkn, &tail);
+    expand_tkn = delete_pp_token(expand_tkn);
+    tkn->next = tail->next;
+    tail->next = NULL;
+
+    expand_tkn = expand_preprocess(expand_tkn);
+    int64_t val = eval_const_expr(expand_tkn, &expand_tkn, 12);
+
+    Token *head = NULL;
+    if (val) {
+      head = tkn->next;
+    }
+
+    while (!(equal(tkn->next, "#") && equal(tkn->next->next, "endif"))) {
+      tkn = tkn->next;
+    }
+
+    *end_tkn = tkn->next->next;
+    tkn->next = NULL;
+    return head;
+  }
+
+  errorf_tkn(ER_COMPILE, tkn, "Invalid preprocess");
+  return NULL;
+}
+
+static Token *expand_preprocess(Token *head) {
   Token *tkn = calloc(1, sizeof(Token));
   tkn->next = head;
   head = tkn;
@@ -518,17 +708,17 @@ static Token *expand_macro(Token *head) {
       continue;
     }
 
-    if (tkn->next->next == NULL || is_eof(tkn->next->next)) {
-      tkn = tkn->next;
-      continue;
+    if (!equal(tkn->next, "#") || tkn->next->next == NULL || is_eof(tkn->next->next)) {
+        tkn = tkn->next;
+        continue;
     }
 
-    if (equal(tkn->next, "#") && equal(tkn->next->next, "define")) {
+    if (equal(tkn->next->next, "define")) {
       Token *expand_tkn = tkn->next->next->next, *tail;
       ignore_to_newline(expand_tkn, &tail);
-
       tkn->next = tail->next;
       tail->next = NULL;
+
       expand_tkn = delete_pp_token(expand_tkn);
 
       char *name = get_ident(expand_tkn);
@@ -567,13 +757,27 @@ static Token *expand_macro(Token *head) {
       continue;
     }
 
-    if (equal(tkn->next, "#") && equal(tkn->next->next, "undef")) {
+    if (equal(tkn->next->next, "undef")) {
       Token *expand_tkn = tkn->next->next->next, *tail;
       ignore_to_newline(expand_tkn, &tail);
-      expand_tkn = delete_pp_token(expand_tkn);
-
-      undefine_macro(get_ident(expand_tkn));
       tkn->next = tail->next;
+      tail->next = NULL;
+
+      expand_tkn = delete_pp_token(expand_tkn);
+      undefine_macro(get_ident(expand_tkn));
+      continue;
+    }
+
+    if (equal(tkn->next->next, "if")) {
+      Token *expand_tkn = tkn->next, *tail;
+      expand_tkn = expand_if_group(expand_tkn, &tail);
+
+      if (expand_tkn == NULL) {
+        tkn->next = tail->next;
+      } else {
+        get_tail_token(expand_tkn)->next = tail->next;
+        tkn->next = expand_tkn;
+      }
       continue;
     }
 
@@ -608,6 +812,7 @@ static Token *read_include(char *name, bool allow_curdir) {
   if (fp == NULL) {
     return NULL;
   }
+
   fclose(fp);
 
   return tokenize_file(read_file(path));
@@ -627,7 +832,9 @@ static Token *expand_include(Token *head) {
     Token *inc_tkn = tkn->next->next->next;
     consume_pp_space(inc_tkn, &inc_tkn, 0);
 
-    char *name = inc_tkn->loc;
+    File *file = tkn->next->file;
+    char *head_loc = inc_tkn->loc;
+    char *name = inc_tkn->loc + inc_tkn->len;
     bool allow_curdir = true;
 
     if (equal(inc_tkn, "<")) {
@@ -646,6 +853,11 @@ static Token *expand_include(Token *head) {
     inc_tkn = inc_tkn->next;
 
     tkn->next = read_include(name, allow_curdir);
+    if (tkn->next == NULL) {
+      errorf_at(ER_COMPILE, file, head_loc, inc_tkn->loc - head_loc, "Cannot include this file");
+    }
+
+    tkn->next = concat_separate_ident_token(tkn->next);
     get_tail_token(tkn->next)->next = inc_tkn->next;
   }
 
@@ -655,7 +867,7 @@ static Token *expand_include(Token *head) {
 Token *preprocess(Token *tkn) {
   tkn = concat_separate_ident_token(tkn);
   tkn = expand_include(tkn);
-  tkn = expand_macro(tkn);
+  tkn = expand_preprocess(tkn);
   tkn = delete_pp_token(tkn);
   return tkn;
 }
