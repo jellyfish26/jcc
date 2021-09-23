@@ -1,7 +1,7 @@
 void check(int expected, int actual, char *str);
 void checkstr(char *expected, char *actual, char *str);
-// #define CHECK(expected, actual) check(expected, actual, #actual)
-// #define CHECKSTR(expected, actual) checkstr(expected, actual, #actual)
+#define CHECK(expected, actual) check(expected, actual, #actual)
+#define CHECKSTR(expected, actual) checkstr(expected, actual, #actual)
 
 #define ONE 1
 #define MACRO_INVOCATE TWO
@@ -32,8 +32,8 @@ int cat(int a) {
   return a;
 }
 
-// #define xstr(x) str(x)
-// #define str(x) #x
+#define xstr(x) str(x)
+#define str(x) #x
 // 
 // #define VA1(a, b, c, name, ...) name
 // #define VA2(...) VA1(__VA_ARGS__, sum3, sum2)(__VA_ARGS__)
@@ -47,122 +47,122 @@ int cat(int a) {
 // }
 
 int main() {
-  check(1, ONE, "ONE");
-  check(2, TWO, "TWO");
-  check(2, MACRO_INVOCATE, "MACRO_INVOCATE");
+   check(1, ONE, "ONE");
+   check(2, TWO, "TWO");
+   check(2, MACRO_INVOCATE, "MACRO_INVOCATE");
+ 
+   check(3, ({
+     MACRO_STRUCT {
+       int a;
+     };
+     MACRO_STRUCT tmp = {3};
+     tmp.a;
+   }), "MACRO_STRUCT_1");
+ 
+   check(3, ({
+     typedef MACRO_STRUCT A;
+     MACRO_STRUCT {
+       int a;
+     };
+     A tmp = {3};
+     tmp.a;
+   }), "MACRO_STRUCT_2");
+ 
+ #define THREE 3
+   check(3, THREE, "THREE");
+ 
+   check(108, ({
+     char *str = HELLO;
+     str[2];
+   }), "HEELO");
+ 
+   check(15, ({
+     int a[5] = ARRAY_INITIALIZER
+     a[0] + a[1] + a[2] + a[3] + a[4];
+   }), "ARRAY_INITIALIZER_1");
+ 
+   check(15, ({
+     int a[5] = ARRAY_INITIALIZER
+     a[0] + a[1] + a[2] + a[3] + a[4];
+   }), "ARRAY_INITIALIZER_2");
+ 
+   check(19, ({
+     int FOO = 9;
+     int BAR = FOO();
+     FOO + BAR;
+   }), "FOO");
+ 
+   check(2, FUNC(), "FUNC()");
+   // check(3, MAX(2, 3), "MAX(2, 3)");
+   check(2, MIN(2, 3), "MIN(2, 3)");
+   check(2, MIN(func(), 3), "MIN(func(), 3)");
+   check(2, MIN(FUNC(), 3), "MIN(FUNC(), 3)");
+   check(2, MIN(cat(func()), 3), "MIN(cat(func()), 3)");
+   check(2, MIN(cat(FUNC()), 3), "MIN(cat(FUNC()), 3)");
+ 
+   // stringizing
+   CHECK(1, ONE);
+   CHECK(2, TWO);
+   CHECK(2, MACRO_INVOCATE);
+ 
+   CHECK(3, ({
+     MACRO_STRUCT {
+       int a;
+     };
+     MACRO_STRUCT tmp = {3};
+     tmp.a;
+   }));
+ 
+   CHECK(3, ({
+     typedef MACRO_STRUCT A;
+     MACRO_STRUCT {
+       int a;
+     };
+     A tmp = {3};
+     tmp.a;
+   }));
+ 
+   CHECK(3, THREE);
+ 
+   CHECK(108, ({
+     char *str = HELLO;
+     str[2];
+   }));
+ 
+   CHECK(15, ({
+     int a[5] = ARRAY_INITIALIZER
+     a[0] + a[1] + a[2] + a[3] + a[4];
+   }));
+ 
+   CHECK(15, ({
+     int a[5] = ARRAY_INITIALIZER
+     a[0] + a[1] + a[2] + a[3] + a[4];
+   }));
+ 
+   CHECK(19, ({
+     int FOO = 9;
+     int BAR = FOO();
+     FOO + BAR;
+   }));
+ 
+   CHECK(2, FUNC());
+   CHECK(3, MAX(2, 3));
+   CHECK(2, MIN(2, 3));
+   CHECK(2, MIN(func(), 3));
+   CHECK(2, MIN(FUNC(), 3));
+   CHECK(2, MIN(cat(func()), 3));
+   CHECK(2, MIN(cat(FUNC()), 3));
+ 
+   CHECK(84, ({
+     char *str = str(THREE);
+     *str;
+   }));
 
-  check(3, ({
-    MACRO_STRUCT {
-      int a;
-    };
-    MACRO_STRUCT tmp = {3};
-    tmp.a;
-  }), "MACRO_STRUCT_1");
+  CHECK(51, ({
+    char *str = xstr(THREE);
+    *str;
+  }));
 
-  check(3, ({
-    typedef MACRO_STRUCT A;
-    MACRO_STRUCT {
-      int a;
-    };
-    A tmp = {3};
-    tmp.a;
-  }), "MACRO_STRUCT_2");
-
-#define THREE 3
-  check(3, THREE, "THREE");
-
-  check(108, ({
-    char *str = HELLO;
-    str[2];
-  }), "HEELO");
-
-  check(15, ({
-    int a[5] = ARRAY_INITIALIZER
-    a[0] + a[1] + a[2] + a[3] + a[4];
-  }), "ARRAY_INITIALIZER_1");
-
-  check(15, ({
-    int a[5] = ARRAY_INITIALIZER
-    a[0] + a[1] + a[2] + a[3] + a[4];
-  }), "ARRAY_INITIALIZER_2");
-
-  check(19, ({
-    int FOO = 9;
-    int BAR = FOO();
-    FOO + BAR;
-  }), "FOO");
-
-  check(2, FUNC(), "FUNC()");
-  // check(3, MAX(2, 3), "MAX(2, 3)");
-  check(2, MIN(2, 3), "MIN(2, 3)");
-  check(2, MIN(func(), 3), "MIN(func(), 3)");
-  check(2, MIN(FUNC(), 3), "MIN(FUNC(), 3)");
-  check(2, MIN(cat(func()), 3), "MIN(cat(func()), 3)");
-  check(2, MIN(cat(FUNC()), 3), "MIN(cat(FUNC()), 3)");
-
-//   // stringizing
-//   CHECK(1, ONE);
-//   CHECK(2, TWO);
-//   CHECK(2, MACRO_INVOCATE);
-// 
-//   CHECK(3, ({
-//     MACRO_STRUCT {
-//       int a;
-//     };
-//     MACRO_STRUCT tmp = {3};
-//     tmp.a;
-//   }));
-// 
-//   CHECK(3, ({
-//     typedef MACRO_STRUCT A;
-//     MACRO_STRUCT {
-//       int a;
-//     };
-//     A tmp = {3};
-//     tmp.a;
-//   }));
-// 
-//   CHECK(3, THREE);
-// 
-//   CHECK(108, ({
-//     char *str = HELLO;
-//     str[2];
-//   }));
-// 
-//   CHECK(15, ({
-//     int a[5] = ARRAY_INITIALIZER
-//     a[0] + a[1] + a[2] + a[3] + a[4];
-//   }));
-// 
-//   CHECK(15, ({
-//     int a[5] = ARRAY_INITIALIZER
-//     a[0] + a[1] + a[2] + a[3] + a[4];
-//   }));
-// 
-//   CHECK(19, ({
-//     int FOO = 9;
-//     int BAR = FOO();
-//     FOO + BAR;
-//   }));
-// 
-//   CHECK(2, FUNC());
-//   CHECK(3, MAX(2, 3));
-//   CHECK(2, MIN(2, 3));
-//   CHECK(2, MIN(func(), 3));
-//   CHECK(2, MIN(FUNC(), 3));
-//   CHECK(2, MIN(cat(func()), 3));
-//   CHECK(2, MIN(cat(FUNC()), 3));
-// 
-//   CHECK(51, ({
-//     char *str = xstr(THREE);
-//     *str;
-//   }));
-// 
-//   CHECK(84, ({
-//     char *str = str(THREE);
-//     *str;
-//   }));
-// 
 //   CHECK(3, ({
 //     int CON1(foo) = 3;
 //     foofoo;

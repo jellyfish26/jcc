@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -181,6 +182,31 @@ static Token *copy_arg_expand_tkn(MacroArg *arg, Token *ref_tkn) {
   return head.next;
 }
 
+static Token *stringizing(Token *tkn) {
+  char *buf;
+  size_t buflen;
+  FILE *fp = open_memstream(&buf, &buflen);
+
+  putc('"', fp);
+  while (tkn != NULL) {
+    if (consume_pp_space(tkn, &tkn, 0)) {
+      putc(' ', fp);
+      continue;
+    }
+
+    char *str = erase_bslash_str(tkn->loc, tkn->len);
+    fwrite(str, sizeof(char), strlen(str), fp);
+    free(str);
+    tkn = tkn->next;
+  }
+  putc('"', fp);
+
+  fflush(fp);
+  fclose(fp);
+
+  return tokenize_file(new_file("builtin", buf));
+}
+
 static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
   Token *head = calloc(1, sizeof(Token));
   Token *cur = head;
@@ -196,6 +222,23 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
   // Expand macro arguments
   cur = head;
   while (cur->next != NULL) {
+    if (equal(cur->next, "#") && cur->next->next != NULL) {
+      MacroArg *arg = find_macro_arg(macro, get_ident(cur->next->next));
+      if (arg == NULL) {
+        errorf_tkn(ER_COMPILE, cur->next, "'#' is not follwed by a macro parameter");
+      }
+
+      char *loc = cur->next->loc;
+      int len = cur->next->next->loc - loc + cur->next->next->len;
+      Token *ref_tkn = new_token(TK_IDENT, loc, len);
+      Token *tail = cur->next->next->next;
+
+      cur->next = stringizing(copy_arg_expand_tkn(arg, ref_tkn));
+      cur->next->ref_tkn = ref_tkn;
+      cur->next->next = tail;
+      continue;
+    }
+
     if (cur->next->kind != TK_IDENT) {
       cur = cur->next;
       continue;
@@ -208,7 +251,7 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
     }
 
     Token *expand_tkn = copy_arg_expand_tkn(arg, cur->next);
-    expand_macro(expand_tkn);
+    expand_tkn = expand_macro(expand_tkn);
 
     get_tail_token(expand_tkn)->next = cur->next->next;
     cur->next = expand_tkn;
