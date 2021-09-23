@@ -211,5 +211,41 @@ int main() {
     a;
   }));
 
+  CHECK(3, ({
+    int a = 2;
+#if THREE == 2
+    a = 2;
+#elif THREE == 3
+    a = 3;
+#endif
+    a;
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+#if THREE == 2
+    a = 2;
+#else
+    a = 3;
+#endif
+    a;
+  }));
+
+  CHECK(1, ({
+    int a = 2;
+#if THREE == 2
+    a = 2;
+#elif THREE == 5
+    a = 3;
+#else
+    a = 1;
+#endif
+    a;
+  }));
+
+  return 0;
+
+  return 0;
+
   return 0;
 }

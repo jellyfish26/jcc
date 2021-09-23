@@ -99,7 +99,7 @@ static char *permit_keywords[] = {
   "switch", "case", "default", "goto", "sizeof", "_Alignof",
   "signed", "unsigned", "void", "_Bool", "char", "short", "int",
   "long", "float", "double", "enum", "struct", "union",
-  "auto", "const", "static", "typdef"};
+  "auto", "const", "static", "typedef"};
 
 static bool convert_tkn_int(Token *tkn) {
   char *ptr = tkn->loc;
@@ -281,7 +281,6 @@ char *get_ident(Token *tkn) {
   }
   return erase_bslash_str(tkn->loc, tkn->len);
 }
-
 
 Token *tokenize_str(char *ptr, char *tokenize_end) {
   Token head;

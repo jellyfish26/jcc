@@ -492,7 +492,7 @@ static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
 }
 
 #define EVAL_OP(op, mask) \
-  if (consume(tkn, &tkn, #op)) { \
+  if (tkn != NULL && consume(tkn, &tkn, #op)) { \
     return val op eval_const_expr(tkn, end_tkn, mask); \
   }
 
@@ -636,7 +636,7 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
   if (mask == 12) {
     int val = eval_const_expr(tkn, &tkn, 11);
 
-    if (consume(tkn, &tkn, "?")) {
+    if (tkn != NULL && consume(tkn, &tkn, "?")) {
       int lval = eval_const_expr(tkn, &tkn, 12);
       tkn = skip(tkn, ":");
       int rval = eval_const_expr(tkn, end_tkn, 12);
@@ -654,32 +654,47 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
 #undef EVAL_OP
 
 static Token *expand_if_group(Token *tkn, Token **end_tkn) {
-  if (equal(tkn, "#") && equal(tkn->next, "if")) {
-    Token *expand_tkn = tkn->next->next, *tail;
-    ignore_to_newline(expand_tkn, &tail);
-    expand_tkn = delete_pp_token(expand_tkn);
-    tkn->next = tail->next;
-    tail->next = NULL;
+  Token *head = NULL;
 
-    expand_tkn = expand_preprocess(expand_tkn);
-    int64_t val = eval_const_expr(expand_tkn, &expand_tkn, 12);
-
-    Token *head = NULL;
-    if (val) {
-      head = tkn->next;
+  while (!(equal(tkn, "#") && equal(tkn->next, "endif"))) {
+    if (equal(tkn->next, "#")) {
+      Token *tmp = tkn->next;
+      tkn->next = NULL;
+      tkn = tmp;
+      continue;
     }
 
-    while (!(equal(tkn->next, "#") && equal(tkn->next->next, "endif"))) {
+    if (!equal(tkn, "#")) {
       tkn = tkn->next;
+      continue;
     }
 
-    *end_tkn = tkn->next->next;
-    tkn->next = NULL;
-    return head;
+    if (equal(tkn->next, "if") || (head == NULL && equal(tkn->next, "elif"))) {
+      Token *expand_tkn = tkn->next->next, *tail;
+      ignore_to_newline(expand_tkn, &tail);
+      tkn->next = tail->next;
+      tail->next = NULL;
+
+      expand_tkn = delete_pp_token(expand_tkn);
+      expand_tkn = expand_preprocess(expand_tkn);
+
+      int64_t val = eval_const_expr(expand_tkn, &expand_tkn, 12);
+
+      if (val) {
+        head = tkn->next;
+      }
+      continue;
+    }
+
+    if (head == NULL && equal(tkn->next, "else")) {
+      head = tkn->next->next;
+    }
+
+    tkn = tkn->next;
   }
 
-  errorf_tkn(ER_COMPILE, tkn, "Invalid preprocess");
-  return NULL;
+  *end_tkn = tkn->next->next;
+  return head;
 }
 
 static Token *expand_preprocess(Token *head) {
@@ -773,9 +788,9 @@ static Token *expand_preprocess(Token *head) {
       expand_tkn = expand_if_group(expand_tkn, &tail);
 
       if (expand_tkn == NULL) {
-        tkn->next = tail->next;
+        tkn->next = tail;
       } else {
-        get_tail_token(expand_tkn)->next = tail->next;
+        get_tail_token(expand_tkn)->next = tail;
         tkn->next = expand_tkn;
       }
       continue;
