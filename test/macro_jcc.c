@@ -16,9 +16,9 @@ void checkstr(char *expected, char *actual, char *str);
 #define MAX(a, b) a > b ? a : b
 #define MIN(a, b) (MAX(a, b)) == a ? b : a
 
-// #define CON1(expr) expr ## expr
-// #define CON2(expr) expr##_hello
-// 
+#define CON1(expr) expr ## expr
+#define CON2(expr) expr##_hello
+
 // #define LINE __LINE__
 // #define LINEREV LINE
 // 
@@ -163,13 +163,13 @@ int main() {
     *str;
   }));
 
-//   CHECK(3, ({
-//     int CON1(foo) = 3;
-//     foofoo;
-//   }));
-// 
-//   CHECKSTR("a_hello aCON2(a) a", xstr(CON1(CON2(a) a)));
-// 
+  CHECK(3, ({
+    int CON1(foo) = 3;
+    foofoo;
+  }));
+
+  CHECKSTR("a_hello aCON2(a) a", xstr(CON1(CON2(a) a)));
+
 //   CHECK(3, VA2(1, 2));
 //   CHECK(6, VA2(1, 2, 3));
 // 

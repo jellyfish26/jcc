@@ -158,6 +158,22 @@ static Token *delete_pp_token(Token *tkn) {
   return tkn->next;
 }
 
+static Token *delete_enclose_pp_token(Token *tkn) {
+  consume_pp_space(tkn, &tkn, 0);
+  Token *head = tkn;
+
+  Token *tail = tkn;
+  while (tkn != NULL) {
+    if (tkn->kind != TK_PP) {
+      tail = tkn;
+    }
+    tkn = tkn->next;
+  }
+  tail->next = NULL;
+
+  return head;
+}
+
 static Token *copy_token(Token *tkn) {
   Token *cpy = calloc(1, sizeof(Token));
   memcpy(cpy, tkn, sizeof(Token));
@@ -182,12 +198,17 @@ static Token *copy_arg_expand_tkn(MacroArg *arg, Token *ref_tkn) {
   return head.next;
 }
 
-static Token *stringizing(Token *tkn) {
+static char *stringizing(Token *tkn, bool has_dquote) {
+  tkn = delete_enclose_pp_token(tkn);
+
   char *buf;
   size_t buflen;
   FILE *fp = open_memstream(&buf, &buflen);
 
-  putc('"', fp);
+  if (has_dquote) {
+    putc('"', fp);
+  }
+
   while (tkn != NULL) {
     if (consume_pp_space(tkn, &tkn, 0)) {
       putc(' ', fp);
@@ -199,12 +220,16 @@ static Token *stringizing(Token *tkn) {
     free(str);
     tkn = tkn->next;
   }
-  putc('"', fp);
+
+  if (has_dquote) {
+    putc('"', fp);
+  }
+  putc('\0', fp);
 
   fflush(fp);
   fclose(fp);
 
-  return tokenize_file(new_file("builtin", buf));
+  return buf;
 }
 
 static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
@@ -222,6 +247,7 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
   // Expand macro arguments
   cur = head;
   while (cur->next != NULL) {
+    // Stringizing
     if (equal(cur->next, "#") && cur->next->next != NULL) {
       MacroArg *arg = find_macro_arg(macro, get_ident(cur->next->next));
       if (arg == NULL) {
@@ -233,9 +259,58 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
       Token *ref_tkn = new_token(TK_IDENT, loc, len);
       Token *tail = cur->next->next->next;
 
-      cur->next = stringizing(copy_arg_expand_tkn(arg, ref_tkn));
+      char *str = stringizing(copy_arg_expand_tkn(arg, ref_tkn), true);
+      cur->next = tokenize_file(new_file("builtin", str));
       cur->next->ref_tkn = ref_tkn;
       cur->next->next = tail;
+      continue;
+    }
+
+    // Concatenate
+    if (cur->next->next != NULL && equal(cur->next->next, "##")) {
+      Token *lhs = cur->next;
+      Token *rhs = cur->next->next->next;
+      Token *tail = rhs->next;
+
+      if (rhs == NULL) {
+        errorf_tkn(ER_COMPILE, lhs->next, "'##' cannot appear at end of macro expansion");
+      }
+
+      Token *ref_tkn = new_token(TK_IDENT, lhs->loc, rhs->loc - lhs->loc + rhs->len);
+      char *lstr;
+      char *rstr;
+
+      MacroArg *arg = NULL;
+      if ((arg = find_macro_arg(macro, get_ident(lhs))) != NULL) {
+        lhs = copy_arg_expand_tkn(arg, ref_tkn);
+        lhs = delete_enclose_pp_token(lhs);
+      }
+      lstr = stringizing(lhs, false);
+
+      if ((arg = find_macro_arg(macro, get_ident(rhs))) != NULL) {
+        rhs = copy_arg_expand_tkn(arg, ref_tkn);
+        rhs = delete_enclose_pp_token(rhs);
+      }
+      rstr = stringizing(rhs, false);
+
+      char *str = calloc(strlen(lstr) + strlen(rstr) + 8, sizeof(char));
+      strcat(str, lstr), strcat(str, rstr);
+      free(lstr), free(rstr);
+
+      Token *con_tkn = tokenize_file(new_file("builtin", str));
+
+      // Set reference token
+      for (Token *tkn = con_tkn; tkn != NULL; tkn = tkn->next) {
+        Token *ref = tkn;
+        for (;ref->ref_tkn != NULL; ref = ref->ref_tkn) {
+          ref = ref->ref_tkn;
+        }
+        ref->ref_tkn = ref_tkn;
+      }
+
+      get_tail_token(con_tkn)->next = tail;
+      cur->next = con_tkn;
+      cur = get_tail_token(con_tkn);
       continue;
     }
 
@@ -316,7 +391,7 @@ static Token *expand_macro(Token *head) {
   head = tkn;
 
   while (tkn->next != NULL && !is_eof(tkn->next)) {
-    if (tkn->next->kind == TK_IDENT && find_macro(tkn->next)) {
+    if (tkn->next->kind == TK_IDENT && find_macro(tkn->next) != NULL) {
       Macro *macro = find_macro(tkn->next);
       Token *ref_tkn = tkn->next;
 
