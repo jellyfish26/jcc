@@ -26,12 +26,16 @@ struct MacroArg {
   Token *expand_tkn;
 };
 
+typedef Token *macro_handler_fn(Token *tkn);
+
 typedef struct {
   char *name;
   bool is_objlike;
 
   Token *expand_tkn;
   MacroArg *args;
+
+  macro_handler_fn *handler;
 } Macro;
 
 static IncludePath *include_paths;
@@ -70,6 +74,49 @@ static void predefine_macro(char *name, char *conv) {
   define_macro(name, true, tkn, NULL);
 }
 
+static void predefine_handler_macro(char *name, macro_handler_fn *handler) {
+  Macro *macro = calloc(1, sizeof(Macro));
+  macro->name = name;
+  macro->is_objlike = true;
+  macro->handler = handler;
+  add_macro(name, macro);
+}
+
+static Token *counter_macro(Token *tkn) {
+  static int count = 0;
+
+  char *str = calloc(16, sizeof(char));
+  sprintf(str, "%d", count++);
+  return tokenize_file(new_file("builtin", str));
+}
+
+static Token *file_macro(Token *tkn) {
+  while (tkn->ref_tkn != NULL) {
+    tkn = tkn->ref_tkn;
+  }
+
+  char *str = calloc(256, sizeof(char));
+  sprintf(str, "\"%s\"", tkn->file->name);
+  return tokenize_file(new_file("builtin", str));
+}
+
+static Token *line_macro(Token *tkn) {
+  while (tkn->ref_tkn != NULL) {
+    tkn = tkn->ref_tkn;
+  }
+
+  int line_no = 1;
+  for (char *loc = tkn->file->contents; loc != tkn->loc; loc++) {
+    if (*loc == '\n') {
+      line_no++;
+    }
+  }
+
+  char *str = calloc(16, sizeof(char));
+  sprintf(str, "%d", line_no);
+  return tokenize_file(new_file("builtin", str));
+}
+
 // __DATE__ needs to be expanded to the current date and time,
 // such as "Sep 22 2021".
 static char *to_format_date(struct tm *tm) {
@@ -101,6 +148,10 @@ void init_macro() {
   struct tm *tm = localtime(&now);
   predefine_macro("__DATE__", to_format_date(tm));
   predefine_macro("__TIME__", to_format_time(tm));
+
+  predefine_handler_macro("__COUNTER__", counter_macro);
+  predefine_handler_macro("__LINE__", line_macro);
+  predefine_handler_macro("__FILE__", file_macro);
 }
 
 static MacroArg *find_macro_arg(Macro *macro, char *name) {
@@ -275,6 +326,14 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
   Token *head = calloc(1, sizeof(Token));
   Token *cur = head;
 
+  if (macro->handler != NULL) {
+    cur->next = macro->handler(ref_tkn);
+    for (Token *expand_tkn = cur->next; cur != NULL; cur = cur->next) {
+      expand_tkn->ref_tkn = copy_token(ref_tkn);
+    }
+    return head->next;
+  }
+
   for (Token *expand_tkn = macro->expand_tkn; expand_tkn != NULL; expand_tkn = expand_tkn->next) {
     cur->next = calloc(1, sizeof(Token));
     memcpy(cur->next, expand_tkn, sizeof(Token));
@@ -295,7 +354,9 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
 
       char *loc = cur->next->loc;
       int len = cur->next->next->loc - loc + cur->next->next->len;
-      Token *ref_tkn = new_token(TK_IDENT, loc, len);
+      Token *ref_tkn = copy_token(cur->next);
+      ref_tkn->len = len;
+
       Token *tail = cur->next->next->next;
 
       char *str = stringizing(copy_arg_expand_tkn(arg, ref_tkn), true);
@@ -315,7 +376,8 @@ static Token *copy_expand_tkn(Macro *macro, Token *ref_tkn) {
         errorf_tkn(ER_COMPILE, lhs->next, "'##' cannot appear at end of macro expansion");
       }
 
-      Token *ref_tkn = new_token(TK_IDENT, lhs->loc, rhs->loc - lhs->loc + rhs->len);
+      Token *ref_tkn = copy_token(lhs);
+      ref_tkn->len = rhs->loc - lhs->loc + rhs->len;
       char *lstr;
       char *rstr;
 
