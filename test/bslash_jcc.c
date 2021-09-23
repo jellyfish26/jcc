@@ -18,7 +18,7 @@ de = 2;
     abcde + 3;
   }));
 
-  CHECK(16, __LI\
+  CHECK(21, __LI\
 NE__);
 
   CHECK(3, THREE);

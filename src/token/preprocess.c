@@ -49,7 +49,7 @@ void add_include_path(char *path) {
 }
 
 static Macro *find_macro(Token *tkn) {
-  return hashmap_nget(&macros, tkn->loc, tkn->len);
+  return hashmap_get(&macros, get_ident(tkn));
 }
 
 static bool add_macro(char *name, Macro *macro) {
@@ -227,6 +227,7 @@ static Token *concat_separate_ident_token(Token *head) {
     char *endptr = second->loc + second->len;
 
     first = new_token(TK_IDENT, ptr, endptr - ptr);
+    printf("%s\n", get_ident(first));
     first->next = second->next;
     tkn->next = first;
   }
