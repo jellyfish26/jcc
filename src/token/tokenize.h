@@ -63,5 +63,6 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...);
 // preprocess.c
 //
 
+void init_macro();
 void add_include_path(char *path);
 Token *preprocess(Token *tkn);

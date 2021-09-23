@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef struct IncludePath IncludePath;
@@ -62,6 +63,44 @@ static bool define_macro(char *name, bool is_objlike, Token *expand_tkn, MacroAr
   macro->expand_tkn = expand_tkn;
   macro->args = args;
   return add_macro(name, macro);
+}
+
+static void predefine_macro(char *name, char *conv) {
+  Token *tkn = tokenize_file(new_file("builtin", conv));
+  define_macro(name, true, tkn, NULL);
+}
+
+// __DATE__ needs to be expanded to the current date and time,
+// such as "Sep 22 2021".
+static char *to_format_date(struct tm *tm) {
+  static char *month[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Out", "Nov", "Dec",
+  };
+
+  char *str = calloc(16, sizeof(char));
+  sprintf(str, "\"%s %2d %d\"", month[tm->tm_mon], tm->tm_mday, tm->tm_year + 1900);
+  return str;
+}
+
+static char *to_format_time(struct tm *tm) {
+  char *str = calloc(16, sizeof(char));
+  sprintf(str, "\"%02d:%02d:%02d\"", tm->tm_hour, tm->tm_min, tm->tm_sec);
+  return str;
+}
+
+void init_macro() {
+  macros = (HashMap){0};
+
+  // Predefine macros
+  predefine_macro("__STDC__", "1");
+  predefine_macro("__STDC_VERSION__", "201112L");
+  predefine_macro("__STDC_HOSTED__", "1");
+
+  time_t now = time(NULL);
+  struct tm *tm = localtime(&now);
+  predefine_macro("__DATE__", to_format_date(tm));
+  predefine_macro("__TIME__", to_format_time(tm));
 }
 
 static MacroArg *find_macro_arg(Macro *macro, char *name) {

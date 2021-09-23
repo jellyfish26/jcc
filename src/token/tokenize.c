@@ -405,7 +405,7 @@ Token *tokenize_file(File *file) {
 
 // Update source token
 Token *tokenize(char *path) {
-  // init_macro();
+  init_macro();
   File *file = read_file(path);
 
   Token *tkn = tokenize_file(file);

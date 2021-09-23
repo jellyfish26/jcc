@@ -173,9 +173,9 @@ int main() {
   CHECK(3, VA2(1, 2));
   CHECK(6, VA2(1, 2, 3));
 
-//   CHECKSTR(__TIME__, __TIME__);
-//   CHECK(201112l, __STDC_VERSION__);
-// 
+  CHECKSTR(__TIME__, __TIME__);
+  CHECK(201112l, __STDC_VERSION__);
+
 //   CHECKSTR("macro_jcc.c", __FILE__);
 //   CHECK(180, __LINE__);
 //   CHECK(181, LINE);
