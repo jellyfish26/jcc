@@ -705,6 +705,24 @@ static Token *expand_if_group(Token *tkn, Token **end_tkn) {
       continue;
     }
 
+    if (equal(tkn->next, "ifdef") || equal(tkn->next, "ifndef")) {
+      bool negative = equal(tkn->next, "ifndef");
+
+      Token *expand_tkn = tkn->next->next, *tail;
+      ignore_to_newline(expand_tkn, &tail);
+      tkn->next = tail->next;
+      tail->next = NULL;
+
+      expand_tkn = delete_pp_token(expand_tkn);
+      Macro *macro = NULL;
+      macro = find_macro(expand_tkn);
+
+      if (negative ^ (macro != NULL)) {
+        head = tkn->next;
+      }
+      continue;
+    }
+
     if (equal(tkn->next, "if") || (head == NULL && equal(tkn->next, "elif"))) {
       Token *expand_tkn = tkn->next->next, *tail;
       ignore_to_newline(expand_tkn, &tail);
@@ -820,7 +838,7 @@ static Token *expand_preprocess(Token *head) {
       continue;
     }
 
-    if (equal(tkn->next->next, "if")) {
+    if (equal(tkn->next->next, "if") || equal(tkn->next->next, "ifdef") || equal(tkn->next->next, "ifndef")) {
       Token *expand_tkn = tkn->next, *tail;
       expand_tkn = expand_if_group(expand_tkn, &tail);
 

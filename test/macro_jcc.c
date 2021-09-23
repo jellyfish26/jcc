@@ -275,5 +275,81 @@ int main() {
     a;
   }));
 
+  CHECK(1, ({
+    int a = 2;
+#ifdef TWO
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(2, ({
+    int a = 2;
+#ifndef TWO
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(2, ({
+    int a = 2;
+#ifdef TEN
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(1, ({
+    int a = 2;
+#ifndef TEN
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+#ifdef TEN
+    a = 1;
+#elif THREE == 3
+    a = 3;
+#endif
+    a;
+  }));
+
+  CHECK(3, ({
+    int a = 2;
+#ifndef TWO
+    a = 1;
+#elif THREE == 3
+    a = 3;
+#endif
+    a;
+  }));
+
+  CHECK(10, ({
+    int a = 2;
+#ifdef TEN
+    a = 1;
+#elif THREE == 2
+    a = 3;
+#else
+    a = 10;
+#endif
+    a;
+  }));
+
+  CHECK(10, ({
+    int a = 2;
+#ifndef TWO
+    a = 1;
+#elif THREE == 2
+    a = 3;
+#else 
+    a = 10;
+#endif
+    a;
+  }));
+
   return 0;
 }
