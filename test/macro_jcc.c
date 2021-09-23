@@ -34,17 +34,17 @@ int cat(int a) {
 
 #define xstr(x) str(x)
 #define str(x) #x
-// 
-// #define VA1(a, b, c, name, ...) name
-// #define VA2(...) VA1(__VA_ARGS__, sum3, sum2)(__VA_ARGS__)
-// 
-// int sum2(int a, int b) {
-//   return a + b;
-// }
-// 
-// int sum3(int a, int b, int c) {
-//   return a + b + c;
-// }
+
+#define VA1(a, b, c, name, ...) name
+#define VA2(...) VA1(__VA_ARGS__, sum3, sum2)(__VA_ARGS__)
+
+int sum2(int a, int b) {
+  return a + b;
+}
+
+int sum3(int a, int b, int c) {
+  return a + b + c;
+}
 
 int main() {
    check(1, ONE, "ONE");
@@ -170,9 +170,9 @@ int main() {
 
   CHECKSTR("a_hello aCON2(a) a", xstr(CON1(CON2(a) a)));
 
-//   CHECK(3, VA2(1, 2));
-//   CHECK(6, VA2(1, 2, 3));
-// 
+  CHECK(3, VA2(1, 2));
+  CHECK(6, VA2(1, 2, 3));
+
 //   CHECKSTR(__TIME__, __TIME__);
 //   CHECK(201112l, __STDC_VERSION__);
 // 

@@ -354,6 +354,7 @@ static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
     need_commma = true;
 
     Token *expand_tkn = tkn;
+    bool is_va_args = (strcmp(arg->name, "__VA_ARGS__") == 0);
     int pass_lparenthese = 0;
     while (true) {
       if (pass_lparenthese != 0 && equal(tkn, ")")) {
@@ -364,7 +365,7 @@ static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
         pass_lparenthese++;
       }
 
-      if (pass_lparenthese == 0 && (equal(tkn->next, ",") || equal(tkn->next, ")"))) {
+      if (pass_lparenthese == 0 && ((!is_va_args && equal(tkn->next, ",")) || equal(tkn->next, ")"))) {
         Token *tail = tkn->next;
         tkn->next = NULL;
         tkn = tail;
@@ -378,7 +379,7 @@ static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
     arg = arg->next;
   }
 
-  if (arg != NULL) {
+  if (arg != NULL && strcmp(arg->name, "__VA_ARGS__") != 0) {
     errorf_tkn(ER_COMPILE, tkn, "The number of arguments does not match");
   }
 
@@ -439,11 +440,19 @@ static Token *expand_macro(Token *head) {
             expand_tkn = skip(expand_tkn, ",");
           }
 
-          MacroArg *arg = calloc(1, sizeof(MacroArg));
-          arg->name = get_ident(expand_tkn);
-          cur->next = arg;
-          cur = arg;
+          cur->next = calloc(1, sizeof(MacroArg));
+          cur = cur->next;
 
+          if (equal(expand_tkn, ".")) {
+            for (int i = 0; i < 3; i++) {
+              expand_tkn = skip(expand_tkn, ".");
+            }
+            cur->name = "__VA_ARGS__";
+            expand_tkn = skip(expand_tkn, ")");
+            break;
+          }
+
+          cur->name = get_ident(expand_tkn);
           expand_tkn = expand_tkn->next;
         }
       }
