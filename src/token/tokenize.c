@@ -22,7 +22,7 @@ void errorf_tkn(ERROR_TYPE type, Token *tkn, char *fmt, ...) {
     errorf_tkn(ER_NOTE, tkn->ref_tkn, "in expansion of macro");
   }
 
-  errorf_at(type, tkn->file, tkn->loc, tkn->len, fmt, ap);
+  verrorf_at(type, tkn->file, tkn->loc, tkn->len, fmt, ap);
 }
 
 bool equal(Token *tkn, char *op) {
@@ -275,6 +275,12 @@ Token *get_tail_token(Token *tkn) {
   return tkn;
 }
 
+void add_eof_token(Token *head) {
+  Token *tail = get_tail_token(head);
+  tail->next = new_token(TK_EOF, tail->loc + strlen(tail->loc) - 1, 1);
+  tail->next->file = tail->file;
+}
+
 char *get_ident(Token *tkn) {
   if (tkn->kind != TK_IDENT) {
     errorf_tkn(ER_COMPILE, tkn, "Expected an identifier");
@@ -409,8 +415,7 @@ Token *tokenize(char *path) {
   File *file = read_file(path);
 
   Token *tkn = tokenize_file(file);
-  Token *tail = get_tail_token(tkn);
-  tail->next = new_token(TK_EOF, tail->loc + strlen(tail->loc), 1);
+  add_eof_token(tkn);
 
   return preprocess(tkn);
 }

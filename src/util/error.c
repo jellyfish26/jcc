@@ -7,9 +7,7 @@
 #include <string.h>
 
 
-void errorf(ERROR_TYPE type, char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
+void verrorf(ERROR_TYPE type, char *fmt, va_list ap) {
   char *err_type;
   switch (type) {
     case ER_TOKENIZE:
@@ -33,10 +31,13 @@ void errorf(ERROR_TYPE type, char *fmt, ...) {
   }
 }
 
-void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, ...) {
+void errorf(ERROR_TYPE type, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
+  verrorf(type, fmt, ap);
+}
 
+void verrorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, va_list ap) {
   char *color = NULL, *cerase = "\x1b[39m\x1b[0m";
   switch (type) {
     case ER_NOTE:
@@ -88,7 +89,7 @@ void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *
     default:
       fprintf(stderr, "\x1b[31merror:\x1b[39m\x1b[0m ");
   }
-  fprintf(stderr, fmt, ap);
+  vfprintf(stderr, fmt, ap);
 
   // Prine line
   fprintf(stderr, "\n   %d | %s", hloc, code);
@@ -122,3 +123,8 @@ void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *
   }
 }
 
+void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  verrorf_at(type, file, loc, underline_len, fmt, ap);
+}

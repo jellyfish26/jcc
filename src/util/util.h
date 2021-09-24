@@ -1,4 +1,5 @@
 #pragma once
+#include <stdarg.h>
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdbool.h>
@@ -60,4 +61,6 @@ typedef enum {
 } ERROR_TYPE;
 
 void errorf(ERROR_TYPE type, char *format, ...);
+void verrorf(ERROR_TYPE type, char *format, va_list ap);
 void errorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, ...);
+void verrorf_at(ERROR_TYPE type, File *file, char *loc, int underline_len, char *fmt, va_list ap);

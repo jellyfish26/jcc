@@ -491,14 +491,37 @@ static void set_macro_args(Macro *macro, Token *tkn, Token **end_tkn) {
   *end_tkn = tkn->next;
 }
 
+// Logical expressions need to have val variable in front,
+// since the back may not be evaluated.
 #define EVAL_OP(op, mask) \
-  if (tkn != NULL && consume(tkn, &tkn, #op)) { \
-    return val op eval_const_expr(tkn, end_tkn, mask); \
+  if (!is_eof(tkn) && consume(tkn, &tkn, #op)) { \
+    val = (eval_const_expr(tkn, end_tkn, mask) op val); \
+    return val; \
   }
 
+#define EVAL_UNARY_OP(op, mask) \
+  if (!is_eof(tkn) && consume(tkn, &tkn, #op)) { \
+    int64_t val = op eval_const_expr(tkn, end_tkn, mask); \
+    return val; \
+  }
 
 static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
   if (mask == 0) {
+    if (is_eof(tkn)) {
+      *end_tkn = tkn;
+      return 0;
+    }
+
+    if (tkn->kind == TK_NUM) {
+      *end_tkn = tkn->next;
+      return tkn->val;
+    }
+
+    if (tkn->kind == TK_IDENT) {
+      *end_tkn = tkn->next;
+      return 0;
+    }
+
     if (consume(tkn, &tkn, "(")) {
       int64_t val = eval_const_expr(tkn, &tkn, 12);
       tkn = skip(tkn, ")");
@@ -506,32 +529,18 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
       *end_tkn = tkn;
       return val;
     }
-
-    if (tkn->kind == TK_NUM) {
-      *end_tkn = tkn->next;
-      return tkn->val;
-    }
   }
 
   // mask 1: unary
   if (mask == 1) {
-    if (consume(tkn, &tkn, "+")) {
-      return eval_const_expr(tkn, end_tkn, 0);
-    }
+    EVAL_UNARY_OP(+, 1)
+    EVAL_UNARY_OP(-, 1)
+    EVAL_UNARY_OP(~, 1)
+    EVAL_UNARY_OP(!, 1)
 
-    if (consume(tkn, &tkn, "-")) {
-      return -eval_const_expr(tkn, end_tkn, 0);
-    }
-
-    if (consume(tkn, &tkn, "~")) {
-      return ~eval_const_expr(tkn, end_tkn, 0);
-    }
-
-    if (consume(tkn, &tkn, "!")) {
-      return !eval_const_expr(tkn, end_tkn, 0);
-    }
-
-    return eval_const_expr(tkn, end_tkn, 0);
+    int64_t val = eval_const_expr(tkn, &tkn, 0);
+    *end_tkn = tkn;
+    return val;
   }
 
   // mask 2: mul
@@ -569,8 +578,8 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
   if (mask == 5) {
     int val = eval_const_expr(tkn, &tkn, 4);
     EVAL_OP(<, 5);
-    EVAL_OP(<=, 5);
-    EVAL_OP(>=, 5);
+    EVAL_OP(>, 5);
+    EVAL_OP(<=, 7);
     EVAL_OP(>=, 5);
 
     *end_tkn = tkn;
@@ -636,7 +645,7 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
   if (mask == 12) {
     int val = eval_const_expr(tkn, &tkn, 11);
 
-    if (tkn != NULL && consume(tkn, &tkn, "?")) {
+    if (!is_eof(tkn) && consume(tkn, &tkn, "?")) {
       int lval = eval_const_expr(tkn, &tkn, 12);
       tkn = skip(tkn, ":");
       int rval = eval_const_expr(tkn, end_tkn, 12);
@@ -652,6 +661,7 @@ static int64_t eval_const_expr(Token *tkn, Token **end_tkn, int mask) {
 }
 
 #undef EVAL_OP
+#undef EVAL_UNARY_OP
 
 static Token *expand_defined_op(Token *tkn) {
   Token *head = calloc(1, sizeof(Token));
@@ -663,6 +673,7 @@ static Token *expand_defined_op(Token *tkn) {
     if (consume(head->next, &(head->next), "defined")) {
       Token *ref_tkn = NULL;
       Macro *macro = NULL;
+
       if (consume(head->next, &(head->next), "(")) {
         ref_tkn = head->next;
         macro = find_macro(head->next);
@@ -672,9 +683,8 @@ static Token *expand_defined_op(Token *tkn) {
         macro = find_macro(head->next);
         head->next = head->next->next;
       }
-
-      Token *val_tkn = copy_token(ref_tkn);
-      val_tkn->kind = TK_NUM;
+      
+      Token *val_tkn = new_token(TK_NUM, strdup("10"), 2);
       val_tkn->val = macro != NULL;
       val_tkn->ref_tkn = ref_tkn;
 
@@ -732,6 +742,7 @@ static Token *expand_if_group(Token *tkn, Token **end_tkn) {
       expand_tkn = delete_pp_token(expand_tkn);
       expand_tkn = expand_defined_op(expand_tkn);
       expand_tkn = expand_preprocess(expand_tkn);
+      add_eof_token(expand_tkn);
 
       int64_t val = eval_const_expr(expand_tkn, &expand_tkn, 12);
 

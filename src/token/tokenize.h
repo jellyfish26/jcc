@@ -50,6 +50,7 @@ bool is_eof(Token *tkn);
 Token *new_token(TokenKind kind, char *loc, int len);
 char read_char(char *str, char **end_ptr);
 Token *get_tail_token(Token *tkn);
+void add_eof_token(Token *tkn);
 char *get_ident(Token *tkn);
 Token *tokenize(char *file_name);
 Token *tokenize_file(File *file);

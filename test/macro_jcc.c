@@ -277,6 +277,22 @@ int main() {
 
   CHECK(1, ({
     int a = 2;
+#if !defined TEN
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(1, ({
+    int a = 2;
+#if ((!defined TEN) || 3)
+    a = 1;
+#endif
+    a;
+  }));
+
+  CHECK(1, ({
+    int a = 2;
 #ifdef TWO
     a = 1;
 #endif
