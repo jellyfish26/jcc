@@ -898,6 +898,21 @@ static Type *type_suffix(Token *tkn, Token **end_tkn, Type *ty) {
 static Type *declarator(Token *tkn, Token **end_tkn, Type *ty) {
   ty = pointer(tkn, &tkn, ty);
 
+  if (equal(tkn, "(")) {
+    Token *head = tkn;
+    Type *new_ty = declarator(tkn->next, &tkn, ty);
+
+    if (new_ty == NULL) {
+      tkn = head;
+    } else {
+      ty = new_ty;
+      tkn = skip(tkn, ")");
+
+      *end_tkn = tkn;
+      return vla_to_arr(ty);
+    }
+  }
+
   if (tkn->kind != TK_IDENT) {
     return NULL;
   }

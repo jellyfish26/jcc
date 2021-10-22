@@ -565,6 +565,16 @@ int main() {
     ivla_3(a, foo);
   }));
 
+  CHECK(2, ({
+    int (a) = 2;
+    a;
+  }));
+
+  CHECK(7, ({
+    int (((((((a))))))) = 5, (b) = 2;
+    a + b;
+  }));
+
   return 0;
 }
 
