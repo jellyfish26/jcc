@@ -144,7 +144,11 @@ static void add_tmp_node(Node *node) {
 
 static Node *new_strlit(Token *tkn) {
   Initializer *init = new_initializer(tkn->ty, false);
-  string_initializer(tkn, NULL, init);
+
+  {
+    Token *dummy;
+    string_initializer(tkn, &dummy, init);
+  }
 
   Node *node = new_node(ND_INIT, tkn);
 
@@ -363,7 +367,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "This tag is not an enum tag");
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ty;
   }
 
@@ -412,7 +416,7 @@ static Type *enumspec(Token *tkn, Token **end_tkn) {
     add_tag(ty, tag);
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ty;
 }
 
@@ -472,7 +476,7 @@ static void construct_members(Token *tkn, Token **end_tkn, Type *ty) {
 
   ty->num_members = num_members;
   ty->members = head.next;
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
 }
 
 static void struct_specifier(Token *tkn, Token **end_tkn, Type *ty) {
@@ -507,7 +511,7 @@ static void struct_specifier(Token *tkn, Token **end_tkn, Type *ty) {
   ty->var_size = bytes + align_to(bit_offset, 8) / 8;
   ty->align = align;
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
 }
 
 static void union_specifier(Token *tkn, Token **end_tkn, Type *ty) {
@@ -526,7 +530,7 @@ static void union_specifier(Token *tkn, Token **end_tkn, Type *ty) {
   ty->var_size = bytes;
   ty->align = align;
 
-  if (end_tkn != NULL) *end_tkn = tkn; 
+ *end_tkn = tkn; 
 }
 
 // struct-or-union-specifier = struct-or-union identifier |
@@ -562,7 +566,7 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
       errorf_tkn(ER_COMPILE, tkn, "This tag is not an %s tag", kind == TY_STRUCT ? "struct" : "union");
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ty;
   }
 
@@ -752,7 +756,7 @@ static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
   }
   ty->is_const = is_const;
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ty;
 }
 
@@ -773,7 +777,7 @@ static Type *pointer(Token *tkn, Token **end_tkn, Type *ty) {
     }
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ty;
 }
 
@@ -864,7 +868,7 @@ static Type *param_list(Token *tkn, Token **end_tkn, Type *ty) {
   }
 
   ty->params = head.next;
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ty;
 }
 
@@ -977,7 +981,7 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   // Otherwise, char number store in each elements of Array.
   if (init->ty->kind == TY_PTR) {
     init->node = new_strlit(tkn);
-    if (end_tkn != NULL) *end_tkn = tkn->next;
+   *end_tkn = tkn->next;
     return;
   }
 
@@ -993,7 +997,7 @@ static void string_initializer(Token *tkn, Token **end_tkn, Initializer *init) {
   }
 
   tkn = tkn->next;
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
 }
 
 // initializer-list = "{" designation? initializer_only ("," designation? initializer_only)* ","? "}" | "{" "}"
@@ -1050,7 +1054,7 @@ static void initializer_list(Token *tkn, Token **end_tkn, Initializer *init) {
     }
     idx++;
   }
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
 }
 
 // initializer = array_initializer | string_initializer | assign
@@ -1373,7 +1377,7 @@ static Node *declaration(Token *tkn, Token **end_tkn, Type *base_ty, bool is_glo
     cur = cur->next;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return head.next;
 }
 
@@ -1386,7 +1390,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
     ty->name = NULL;
     add_type_def(ty, name);
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return new_node(ND_VOID, tkn);
   }
 
@@ -1403,7 +1407,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
       errorf_tkn(ER_COMPILE, tkn, "Conflict declaration");
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -1418,7 +1422,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
     node->next = new_var(tkn, obj);
     add_var(obj, true);
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -1452,7 +1456,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
       node->lhs->var->fval = node->rhs->init->fval;
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
 
     if (attr->is_static) {
       return new_static_var(node);
@@ -1461,7 +1465,7 @@ static Node *initdecl(Token *tkn, Token **end_tkn, Type *ty, bool is_global, Var
     }
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
 
   if (attr->is_static) {
     return new_static_var(new_var(tkn, obj));
@@ -1579,7 +1583,7 @@ static Node *funcdef(Token *tkn, Token **end_tkn, Type *base_ty, VarAttr *attr) 
     stmt->label = label;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -1648,7 +1652,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   // compound-statement
   Node *node = comp_stmt(tkn, &tkn);
   if (node != NULL) {
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -1669,7 +1673,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
       leave_scope();
     }
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -1745,7 +1749,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
     break_label = break_store;
     conti_label = conti_store;
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -1768,7 +1772,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
     break_label = break_store;
     conti_label = conti_store;
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -1808,7 +1812,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
 
     break_label = break_store;
     conti_label = conti_store;
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -1820,7 +1824,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     goto_node = node;
 
     tkn = skip(tkn->next->next, ";");
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -1834,7 +1838,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     ret->conti_label = conti_label;
     tkn = skip(tkn->next, ";");
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -1848,7 +1852,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     ret->break_label = break_label;
     tkn = skip(tkn->next, ";");
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -1864,7 +1868,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
     }
     tkn = skip(tkn, ";");
 
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -1873,7 +1877,7 @@ static Node *statement(Token *tkn, Token **end_tkn) {
   node = expr(tkn, &tkn);
   tkn = skip(tkn, ";");
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -1900,7 +1904,7 @@ static Node *comp_stmt(Token *tkn, Token **end_tkn) {
     }
 
     ret->deep = head.next;
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -1929,7 +1933,7 @@ static Node *expr(Token *tkn, Token **end_tkn) {
     node = new_commma(node->tkn, node);
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -1991,7 +1995,7 @@ static Node *assign(Token *tkn, Token **end_tkn) {
   }
 
   add_type(node);
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -2011,7 +2015,7 @@ static Node *conditional(Token *tkn, Token **end_tkn) {
     node = cond_expr;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -2030,7 +2034,7 @@ static Node *logical_or(Token *tkn, Token **end_tkn) {
     ret->rhs = new_calc(ND_NEQ, operand, ret->rhs, new_num(operand, 0));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2049,7 +2053,7 @@ static Node *logical_and(Token *tkn, Token **end_tkn) {
     ret->rhs = new_calc(ND_NEQ, operand, ret->rhs, new_num(operand, 0));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2066,7 +2070,7 @@ static Node *bitor(Token *tkn, Token **end_tkn) {
     ret = new_calc(ND_BITWISEOR, operand, ret, bitxor(tkn->next, &tkn));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2083,7 +2087,7 @@ static Node *bitxor(Token *tkn, Token **end_tkn) {
     ret = new_calc(ND_BITWISEXOR, operand, ret, bitand(tkn->next, &tkn));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2100,7 +2104,7 @@ static Node *bitand(Token *tkn, Token **end_tkn) {
     ret = new_calc(ND_BITWISEAND, operand, ret, equality(tkn->next, &tkn));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2122,7 +2126,7 @@ static Node *equality(Token *tkn, Token **end_tkn) {
     node = eq_expr;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -2153,7 +2157,7 @@ static Node *relational(Token *tkn, Token **end_tkn) {
     node = rel_expr;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -2172,7 +2176,7 @@ static Node *bitshift(Token *tkn, Token **end_tkn) {
     ret = new_calc(kind, operand, ret, add(tkn->next, &tkn));
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2197,7 +2201,7 @@ static Node *add(Token *tkn, Token **end_tkn) {
     }
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return ret;
 }
 
@@ -2229,7 +2233,7 @@ static Node *mul(Token *tkn, Token **end_tkn) {
     node = mul_node;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -2315,7 +2319,7 @@ static Node *unary(Token *tkn, Token **end_tkn) {
       ty = abstract_declarator(tkn, &tkn, ty);
 
       tkn = skip(tkn, ")");
-      if (end_tkn != NULL) *end_tkn = tkn;
+     *end_tkn = tkn;
 
       if (is_sizeof && ty->kind == TY_VLA) {
         return ty->vla_size;
@@ -2438,7 +2442,7 @@ static Node *postfix(Token *tkn, Token **end_tkn) {
     tkn = tkn->next->next;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn;
+ *end_tkn = tkn;
   return node;
 }
 
@@ -2459,7 +2463,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
  
     tkn = skip(tkn, ")");
  
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return ret;
   }
 
@@ -2467,7 +2471,7 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     Node *node = expr(tkn->next, &tkn);
 
     tkn = skip(tkn, ")");
-    if (end_tkn != NULL) *end_tkn = tkn;
+   *end_tkn = tkn;
     return node;
   }
 
@@ -2482,12 +2486,12 @@ static Node *primary(Token *tkn, Token **end_tkn) {
     Node *node = new_var(tkn, obj);
     add_type(node);
 
-    if (end_tkn != NULL) *end_tkn = tkn->next;
+   *end_tkn = tkn->next;
     return node;
   }
 
   if (tkn->kind == TK_STR) {
-    if (end_tkn != NULL) *end_tkn = tkn->next;
+   *end_tkn = tkn->next;
     return new_strlit(tkn);
   }
 
@@ -2515,6 +2519,6 @@ static Node *constant(Token *tkn, Token **end_tkn) {
       node->val = tkn->val;
   }
 
-  if (end_tkn != NULL) *end_tkn = tkn->next;
+ *end_tkn = tkn->next;
   return node;
 }
