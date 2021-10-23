@@ -63,12 +63,18 @@ static void gen_expr(Node *node) {
     break;
   case ND_LCMP:
   case ND_LECMP:
+  case ND_EQ:
+  case ND_NEQ:
     println("  cmp %%rdi, %%rax");
 
     if (node->kind == ND_LCMP) {
       println("  setl %%al");
-    } else {
+    } else if (node->kind == ND_LECMP) {
       println("  setle %%al");
+    } else if (node->kind == ND_EQ) {
+      println("  sete %%al");
+    } else {
+      println("  setne %%al");
     }
 
     println("  movzx %%al, %%rax");

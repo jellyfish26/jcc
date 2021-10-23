@@ -15,6 +15,8 @@ typedef enum {
   ND_RSHIFT,
   ND_LCMP,
   ND_LECMP,
+  ND_EQ,
+  ND_NEQ,
 } NodeKind;
 
 typedef struct Node Node;
