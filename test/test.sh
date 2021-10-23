@@ -1,9 +1,11 @@
 #!/bin/sh
 
+
 compile() {
-  ../jcc $1 $3.s
+  echo $1 > tmp.c
+  ../jcc tmp.c $3.s
   gcc -static -g -o tmp $3.s
-  rm $3.s
+  rm tmp.c $3.s
   ./tmp
   if [ $? -eq $2 ]; then
     echo "test $3 passed."

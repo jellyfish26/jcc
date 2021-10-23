@@ -22,4 +22,4 @@ struct Token {
 
 bool equal(Token *tkn, char *str);
 bool consume(Token *tkn, Token **endtkn, char *str);
-Token *tokenize(char *str);
+Token *tokenize(char *path);

@@ -6,7 +6,7 @@
 int main(int argc, char **argv) {
   if (argc != 3) {
     fprintf(stderr, "Invalid arguments.\n");
-    fprintf(stderr, "Usage: jcc <expr> <output_file>\n");
+    fprintf(stderr, "Usage: jcc <input_path> <output_path>\n");
     exit(1);
   }
 

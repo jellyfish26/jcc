@@ -1,4 +1,5 @@
 #include "token/tokenize.h"
+#include "util/util.h"
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -33,7 +34,7 @@ bool consume(Token *tkn, Token **endtkn, char *str) {
   return false;
 }
 
-Token *tokenize(char *str) {
+static Token *tokenize_str(char *str) {
   Token head = {};
   Token *cur = &head;
 
@@ -81,4 +82,9 @@ Token *tokenize(char *str) {
 
   cur->next = new_token(TK_EOF, str, 1);
   return head.next;
+}
+
+Token *tokenize(char *path) {
+  File *file = read_file(path);
+  return tokenize_str(file->contents);
 }
