@@ -21,14 +21,31 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
 
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
+static Node *mul(Token *tkn, Token **endtkn);
 
 static Node *add(Token *tkn, Token **endtkn) {
-  Node *node = num(tkn, &tkn);
+  Node *node = mul(tkn, &tkn);
   
   while (equal(tkn, "+") || equal(tkn, "-")) {
     NodeKind kind = ND_ADD;
     if (equal(tkn, "-")) {
       kind = ND_SUB;
+    }
+
+    node = new_side(kind, tkn, node, mul(tkn->next, &tkn));
+  }
+
+  *endtkn = tkn;
+  return node;
+}
+
+static Node *mul(Token *tkn, Token **endtkn) {
+  Node *node = num(tkn, &tkn);
+
+  while (equal(tkn, "*") || equal(tkn, "/")) {
+    NodeKind kind = ND_MUL;
+    if (equal(tkn, "/")) {
+      kind = ND_DIV;
     }
 
     node = new_side(kind, tkn, node, num(tkn->next, &tkn));

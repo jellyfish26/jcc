@@ -27,9 +27,12 @@ static void gen_expr(Node *node) {
     return;
   }
 
+  gen_expr(node->lhs);
+  gen_push("rax");
+
   gen_expr(node->rhs);
   println("  mov %%rax, %%rdi");
-  gen_expr(node->lhs);
+  gen_pop("rax");
 
   switch (node->kind) {
   case ND_ADD:
@@ -37,6 +40,13 @@ static void gen_expr(Node *node) {
     break;
   case ND_SUB:
     println("  sub %%rdi, %%rax");
+    break;
+  case ND_MUL:
+    println("  imul %%rdi, %%rax");
+    break;
+  case ND_DIV:
+    println("  cqo");
+    println("  idiv %%rdi");
     break;
   default:
     break;
