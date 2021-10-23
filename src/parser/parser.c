@@ -57,7 +57,7 @@ static Node *mul(Token *tkn, Token **endtkn) {
 
 static Node *num(Token *tkn, Token **endtkn) {
   if (tkn->kind != TK_NUM) {
-    fprintf(stderr, "Parse error");
+    errorf_tkn(ER_ERROR, tkn, "Need numerical constant");
   }
 
   Node *node = new_node(ND_NUM, tkn);
