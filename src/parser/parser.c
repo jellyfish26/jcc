@@ -19,11 +19,34 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Node *relational(Token *tkn, Token **endtkn);
 static Node *shift(Token *tkn, Token **endtkn);
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
+
+// relational-expression:
+//   shift-expression (("<" | ">" | "<=" | ">=") shift-expression)
+static Node *relational(Token *tkn, Token **endtkn) {
+  Node *node = shift(tkn, &tkn);
+
+  while (equal(tkn, "<") | equal(tkn, ">") | equal(tkn, "<=") | equal(tkn, ">=")) {
+    NodeKind kind = ND_LECMP;
+    if (equal(tkn, "<=") | equal(tkn, ">=")) {
+      kind = ND_LECMP;
+    }
+
+    if (equal(tkn, "<") | equal(tkn, "<=")) {
+      node = new_side(kind, tkn, node, shift(tkn->next, &tkn));
+    } else {
+      node = new_side(kind, tkn, shift(tkn->next, &tkn), node);
+    }
+  }
+
+  *endtkn = tkn;
+  return node;
+}
 
 // shift-expression:
 //   additive-expression (("<<" | ">>") additive-expression)
@@ -109,5 +132,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return shift(tkn, &tkn);
+  return relational(tkn, &tkn);
 }
