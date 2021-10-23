@@ -120,12 +120,12 @@ static Token *new_token(TokenKind kind, char *loc, int len) {
   return tkn;
 }
 
-bool equal(Token *tkn, char *str) {
-  if (tkn->kind == TK_EOF) {
-    return false;
-  }
+bool is_eof(Token *tkn) {
+  return tkn->kind == TK_EOF;
+}
 
-  return strncmp(tkn->loc, str, strlen(str)) == 0;
+bool equal(Token *tkn, char *str) {
+  return !is_eof(tkn) && strncmp(tkn->loc, str, strlen(str)) == 0;
 }
 
 bool consume(Token *tkn, Token **endtkn, char *str) {
@@ -136,6 +136,13 @@ bool consume(Token *tkn, Token **endtkn, char *str) {
 
   *endtkn = tkn;
   return false;
+}
+
+Token *skip(Token *tkn, char *str) {
+  if (!equal(tkn, str)) {
+    errorf_tkn(ER_ERROR, tkn, "%s is expected to be here.", str);
+  }
+  return tkn->next;
 }
 
 static Token *tokenize_str(char *str) {
@@ -162,7 +169,7 @@ static Token *tokenize_str(char *str) {
 
     if (ispunct(*str)) {
       static char *pancts[] = {
-        "+", "-", "*", "/", "%"
+        "+", "-", "*", "/", "%", "(", ")"
       };
 
       int sz = sizeof(pancts) / sizeof(char *), idx = 0;

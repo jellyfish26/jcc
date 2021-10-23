@@ -22,6 +22,7 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
+static Node *primary(Token *tkn, Token **endtkn);
 
 static Node *add(Token *tkn, Token **endtkn) {
   Node *node = mul(tkn, &tkn);
@@ -40,7 +41,7 @@ static Node *add(Token *tkn, Token **endtkn) {
 }
 
 static Node *mul(Token *tkn, Token **endtkn) {
-  Node *node = num(tkn, &tkn);
+  Node *node = primary(tkn, &tkn);
 
   while (equal(tkn, "*") || equal(tkn, "/") || equal(tkn, "%")) {
     NodeKind kind = ND_MUL;
@@ -50,14 +51,14 @@ static Node *mul(Token *tkn, Token **endtkn) {
       kind = ND_MOD;
     }
 
-    node = new_side(kind, tkn, node, num(tkn->next, &tkn));
+    node = new_side(kind, tkn, node, primary(tkn->next, &tkn));
   }
 
   *endtkn = tkn;
   return node;
 }
 
-static Node *num(Token *tkn, Token **endtkn) {
+static Node *constant(Token *tkn, Token **endtkn) {
   if (tkn->kind != TK_NUM) {
     errorf_tkn(ER_ERROR, tkn, "Need numerical constant");
   }
@@ -67,6 +68,18 @@ static Node *num(Token *tkn, Token **endtkn) {
 
   *endtkn = tkn->next;
   return node;
+}
+
+static Node *primary(Token *tkn, Token **endtkn) {
+  if (equal(tkn, "(")) {
+    Node *node = add(tkn->next, &tkn);
+    tkn = skip(tkn, ")");
+
+    *endtkn = tkn;
+    return node;
+  }
+
+  return constant(tkn, endtkn);
 }
 
 Node *parser(Token *tkn) {

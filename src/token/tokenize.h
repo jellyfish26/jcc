@@ -23,8 +23,10 @@ struct Token {
   int64_t val;
 };
 
+bool is_eof(Token *tkn);
 bool equal(Token *tkn, char *str);
 bool consume(Token *tkn, Token **endtkn, char *str);
+Token *skip(Token *tkn, char *str);
 Token *tokenize(char *path);
 
 typedef enum {
