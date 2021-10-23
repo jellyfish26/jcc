@@ -42,10 +42,12 @@ static Node *add(Token *tkn, Token **endtkn) {
 static Node *mul(Token *tkn, Token **endtkn) {
   Node *node = num(tkn, &tkn);
 
-  while (equal(tkn, "*") || equal(tkn, "/")) {
+  while (equal(tkn, "*") || equal(tkn, "/") || equal(tkn, "%")) {
     NodeKind kind = ND_MUL;
     if (equal(tkn, "/")) {
       kind = ND_DIV;
+    } else if (equal(tkn, "%")) {
+      kind = ND_MOD;
     }
 
     node = new_side(kind, tkn, node, num(tkn->next, &tkn));

@@ -45,8 +45,13 @@ static void gen_expr(Node *node) {
     println("  imul %%rdi, %%rax");
     break;
   case ND_DIV:
+  case ND_MOD:
     println("  cqo");
     println("  idiv %%rdi");
+
+    if (node->kind == ND_MOD) {
+      println("  mov %%rdx, %%rax");
+    }
     break;
   default:
     break;

@@ -10,6 +10,7 @@ typedef enum {
   ND_MUL,
   ND_DIV,
   ND_NUM,
+  ND_MOD,
 } NodeKind;
 
 typedef struct Node Node;

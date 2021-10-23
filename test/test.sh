@@ -22,3 +22,4 @@ compile 2-1 1 minus
 compile 2*4 8 mul1
 compile 6/2 3 div1
 compile 2*4+2 10 mul2
+compile 5%2 1 mod1
