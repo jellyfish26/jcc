@@ -99,6 +99,18 @@ static void gen_expr(Node *node) {
     println("  mov $0, %%rax");
     println("2:");
     break;
+  case ND_LOGOR:
+    println("  cmp $0, %%rax");
+    println("  jne 1f");
+    println("  cmp $0, %%rdi");
+    println("  je 2f");
+    println("1:");
+    println("  mov $1, %%rax");
+    println("  jmp 3f");
+    println("2:");
+    println("  mov $0, %%rax");
+    println("3:");
+    break;
   default:
     break;
   }
