@@ -79,6 +79,9 @@ static void gen_expr(Node *node) {
 
     println("  movzx %%al, %%rax");
     break;
+  case ND_BITAND:
+    println("  and %%rdi, %%rax");
+    break;
   default:
     break;
   }

@@ -27,6 +27,19 @@ static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
 
+// AND-expression:
+//   quality-expression ("&" quality-expression)*
+static Node *bitand(Token *tkn, Token **endtkn) {
+  Node *node = quality(tkn, &tkn);
+
+  while (equal(tkn, "&")) {
+    node = new_side(ND_BITAND, tkn, node, quality(tkn->next, &tkn));
+  }
+
+  *endtkn = tkn;
+  return node;
+}
+
 // quality-expression:
 //   relational-expression (("==" | "!=") relational-expression)*
 static Node *quality(Token *tkn, Token **endtkn) {
@@ -151,5 +164,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return quality(tkn, &tkn);
+  return bitand(tkn, &tkn);
 }

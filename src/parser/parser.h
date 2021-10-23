@@ -17,6 +17,7 @@ typedef enum {
   ND_LECMP,
   ND_EQ,
   ND_NEQ,
+  ND_BITAND,
 } NodeKind;
 
 typedef struct Node Node;
