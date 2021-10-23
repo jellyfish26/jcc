@@ -87,6 +87,18 @@ static void gen_expr(Node *node) {
     break;
   case ND_BITOR:
     println("  or %%rdi, %%rax");
+    break;
+  case ND_LOGAND:
+    println("  cmp $0, %$rax");
+    println("  je 1f");
+    println("  cmp $0, %%rdi");
+    println("  je 1f");
+    println("  mov $1, %%rax");
+    println("  jmp 2f");
+    println("1:");
+    println("  mov $0, %%rax");
+    println("2:");
+    break;
   default:
     break;
   }
