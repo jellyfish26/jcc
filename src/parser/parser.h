@@ -19,6 +19,7 @@ typedef enum {
   ND_NEQ,
   ND_BITAND,
   ND_BITXOR,
+  ND_BITOR,
 } NodeKind;
 
 typedef struct Node Node;

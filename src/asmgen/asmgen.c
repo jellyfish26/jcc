@@ -85,6 +85,8 @@ static void gen_expr(Node *node) {
   case ND_BITXOR:
     println("  xor %%rdi, %%rax");
     break;
+  case ND_BITOR:
+    println("  or %%rdi, %%rax");
   default:
     break;
   }
