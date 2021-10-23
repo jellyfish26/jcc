@@ -53,6 +53,14 @@ static void gen_expr(Node *node) {
       println("  mov %%rdx, %%rax");
     }
     break;
+  case ND_LSHIFT:
+    println("  mov %%rdi, %%rcx");
+    println("  sal %%cl, %%rax");
+    break;
+  case ND_RSHIFT:
+    println("  mov %%rdi, %%rcx");
+    println("  sar %%cl, %%rax");
+    break;
   default:
     break;
   }

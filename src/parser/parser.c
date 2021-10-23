@@ -19,11 +19,32 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Node *shift(Token *tkn, Token **endtkn);
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
 
+// shift-expression:
+//   additive-expression (("<<" | ">>") additive-expression)
+static Node *shift(Token *tkn, Token **endtkn) {
+  Node *node = add(tkn, &tkn);
+
+  while (equal(tkn, "<<") | equal(tkn, ">>")) {
+    NodeKind kind = ND_LSHIFT;
+    if (equal(tkn, ">>")) {
+      kind = ND_RSHIFT;
+    }
+
+    node = new_side(kind, tkn, node, add(tkn->next, &tkn));
+  }
+
+  *endtkn = tkn;
+  return node;
+}
+
+// additive-expression:
+//   multiplicative-expression (("+" | "-") multiplicative-expression)
 static Node *add(Token *tkn, Token **endtkn) {
   Node *node = mul(tkn, &tkn);
   
@@ -40,6 +61,8 @@ static Node *add(Token *tkn, Token **endtkn) {
   return node;
 }
 
+// multiplicative-expression:
+//   primary-expression (("*" | "/" | "%") primary-expression)*
 static Node *mul(Token *tkn, Token **endtkn) {
   Node *node = primary(tkn, &tkn);
 
@@ -70,9 +93,12 @@ static Node *constant(Token *tkn, Token **endtkn) {
   return node;
 }
 
+// primary-expression:
+//   constant |
+//   "(" shift-expression ")"
 static Node *primary(Token *tkn, Token **endtkn) {
   if (equal(tkn, "(")) {
-    Node *node = add(tkn->next, &tkn);
+    Node *node = shift(tkn->next, &tkn);
     tkn = skip(tkn, ")");
 
     *endtkn = tkn;
@@ -83,5 +109,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return add(tkn, &tkn);
+  return shift(tkn, &tkn);
 }

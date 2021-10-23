@@ -1,27 +1,33 @@
 #!/bin/sh
 
+assert() {
+  expected="$1"
+  input="$2"
 
-compile() {
-  echo $1 > tmp.c
-  ../jcc tmp.c $3.s
-  gcc -static -g -o tmp $3.s
-  rm tmp.c $3.s
+  echo "$input" > tmp.c
+  ../jcc tmp.c tmp.s
+  gcc -static -o tmp tmp.s
   ./tmp
-  if [ $? -eq $2 ]; then
-    echo "test $3 passed."
-    rm tmp
+  actual="$?"
+
+  rm tmp tmp.s tmp.c
+  if [ "$actual" = "$expected" ]; then
+    echo -e "\e[32m[ OK ]\e[m $input => $actual"
   else
-    echo "test $3 failed."
-    rm tmp
+    echo -e "\e[31m[ NG ]\e[m $input => $expected expected, but got $actual"
     exit 1
   fi
 }
 
-compile "1+2" 3 plus
-compile "2-1" 1 minus
-compile "2*4" 8 mul1
-compile "6/2" 3 div1
-compile "2*4+2" 10 mul2
-compile "5%2" 1 mod1
-compile "(2+5)*7" 49 parentheses1
-compile "(2+5)%(3-1)" 1 parentheses2
+assert 3 "1+2" 
+assert 1 "2-1" 
+assert 8 "2*4" 
+assert 3 "6/2" 
+assert 10 "2*4+2"
+assert 1 "5%2"
+assert 49 "(2+5)*7"
+assert 1 "(2+5)%(3-1)"
+assert 6 "3<<1"
+assert 32 "8<<2"
+assert 1 "3>>1"
+assert 4 "8>>1"

@@ -11,6 +11,8 @@ typedef enum {
   ND_DIV,
   ND_NUM,
   ND_MOD,
+  ND_LSHIFT,
+  ND_RSHIFT,
 } NodeKind;
 
 typedef struct Node Node;
