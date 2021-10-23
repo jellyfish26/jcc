@@ -19,6 +19,8 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Node *bitxor(Token *tkn, Token **endtkn);
+static Node *bitand(Token *tkn, Token **endtkn);
 static Node *quality(Token *tkn, Token **endtkn);
 static Node *relational(Token *tkn, Token **endtkn);
 static Node *shift(Token *tkn, Token **endtkn);
@@ -26,6 +28,19 @@ static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
+
+// exclusive-OR-expression:
+//   AND-expression ("^" AND-expression)*
+static Node *bitxor(Token *tkn, Token **endtkn) {
+  Node *node = bitand(tkn, &tkn);
+
+  while (equal(tkn, "^")) {
+    node = new_side(ND_BITXOR, tkn, node, bitand(tkn->next, &tkn));
+  }
+
+  *endtkn = tkn;
+  return node;
+}
 
 // AND-expression:
 //   quality-expression ("&" quality-expression)*
@@ -164,5 +179,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return bitand(tkn, &tkn);
+  return bitxor(tkn, &tkn);
 }
