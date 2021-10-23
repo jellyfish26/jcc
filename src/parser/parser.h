@@ -22,6 +22,7 @@ typedef enum {
   ND_BITOR,
   ND_LOGAND,
   ND_LOGOR,
+  ND_COND,
 } NodeKind;
 
 typedef struct Node Node;
@@ -31,6 +32,8 @@ struct Node {
   NodeKind kind;
   Node *lhs;
   Node *rhs;
+
+  Node *cond;
 
   int64_t val;
 };

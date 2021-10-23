@@ -19,6 +19,8 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Node *expr(Token *tkn, Token **endtkn);
+static Node *cond(Token *tkn, Token **endtkn);
 static Node *logor(Token *tkn, Token **endtkn);
 static Node *logand(Token *tkn, Token **endtkn);
 static Node *bitor(Token *tkn, Token **endtkn);
@@ -32,8 +34,32 @@ static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
 
-// logical-AND-expression
-//   inclusive-OR-expression ("&&" inclusive-OR-expression)*
+// expression
+static Node *expr(Token *tkn, Token **endtkn) {
+  return cond(tkn, endtkn);
+}
+
+// conditional-expression:
+//   logical-OR-expression |
+//   logical-OR-expression "?" expression ":" conditional-expression
+static Node *cond(Token *tkn, Token **endtkn) {
+  Node *node = logor(tkn, &tkn);
+
+  if (equal(tkn, "?")) {
+    Node *cond_node = new_node(ND_COND, tkn);
+    cond_node->lhs = expr(tkn->next, &tkn);
+    tkn = skip(tkn, ":");
+    cond_node->rhs = cond(tkn, &tkn);
+    cond_node->cond = node;
+    node = cond_node;
+  }
+  
+  *endtkn = tkn;
+  return node;
+}
+
+// logical-OR-expression
+//   logical-AND-expression ("||" logical-AND-expression)*
 static Node *logor(Token *tkn, Token **endtkn) {
   Node *node = logand(tkn, &tkn);
 
@@ -207,7 +233,7 @@ static Node *constant(Token *tkn, Token **endtkn) {
 
 // primary-expression:
 //   constant |
-//   "(" shift-expression ")"
+//   "(" expression ")"
 static Node *primary(Token *tkn, Token **endtkn) {
   if (equal(tkn, "(")) {
     Node *node = shift(tkn->next, &tkn);
@@ -221,5 +247,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return logor(tkn, &tkn);
+  return expr(tkn, &tkn);
 }

@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 static FILE *target_file;
+static int num_labels = 0;
 
 static void println(char *fmt, ...) {
   va_list ap;
@@ -26,6 +27,24 @@ static void gen_expr(Node *node) {
     println("  mov $%ld, %%rax", node->val);
     return;
   }
+
+  switch (node->kind) {
+  case ND_COND: {
+    int label = num_labels++;
+    gen_expr(node->cond);
+    println("  cmp $0, %%rax");
+    println("  je .Lfalse%d", label);
+    gen_expr(node->lhs);
+    println("  jmp .Lnext%d", label);
+    println(".Lfalse%d:", label);
+    gen_expr(node->rhs);
+    println(".Lnext%d:", label);
+    return;
+  }
+  default:
+    break;
+  }
+
 
   gen_expr(node->lhs);
   gen_push("rax");
