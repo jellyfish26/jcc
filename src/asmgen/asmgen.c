@@ -1,4 +1,5 @@
 #include "asmgen/asmgen.h"
+#include "parser/parser.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -44,7 +45,6 @@ static void gen_expr(Node *node) {
   default:
     break;
   }
-
 
   gen_expr(node->lhs);
   gen_push("rax");
@@ -135,6 +135,18 @@ static void gen_expr(Node *node) {
   }
 }
 
+void gen_stmt(Node *node) {
+  switch (node->kind) {
+  case ND_BLOCK:
+    for (Node *expr = node->lhs; expr != NULL; expr = expr->next) {
+      gen_expr(expr);
+    }
+    break;
+  default:
+    gen_expr(node);
+  }
+}
+
 void asmgen(Node *node, char *filename) {
   target_file = fopen(filename, "w");
 
@@ -147,7 +159,7 @@ void asmgen(Node *node, char *filename) {
   gen_push("rbp");
   println("  mov %%rsp, %%rbp");
 
-  gen_expr(node);
+  gen_stmt(node);
   
   println("  mov %%rbp, %%rsp");
   gen_pop("rbp");

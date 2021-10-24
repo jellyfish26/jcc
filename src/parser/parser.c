@@ -24,7 +24,7 @@ static Node *expr(Token *tkn, Token **endtkn);
 static Node *cond(Token *tkn, Token **endtkn);
 static Node *logor(Token *tkn, Token **endtkn);
 static Node *logand(Token *tkn, Token **endtkn);
-static Node *bitor(Token *tkn, Token **endtkn);
+static Node *bitor(Token * tkn, Token **endtkn);
 static Node *bitxor(Token *tkn, Token **endtkn);
 static Node *bitand(Token *tkn, Token **endtkn);
 static Node *quality(Token *tkn, Token **endtkn);
@@ -50,9 +50,36 @@ static Node *expr_stmt(Token *tkn, Token **endtkn) {
   return node;
 }
 
+// compound-statement:
+//   "{" block-item-list? "}"
+// block-item-list:
+//   block-item (block-item)*
+// block-item:
+//   statement
+static Node *compound_stmt(Token *tkn, Token **endtkn) {
+  Node *node = new_node(ND_BLOCK, tkn);
+
+  Node head = {};
+  Node *cur = &head;
+
+  tkn = skip(tkn, "{");
+  while (!consume(tkn, &tkn, "}")) {
+    cur = cur->next = stmt(tkn, &tkn);
+  }
+
+  node->lhs = head.next;
+  *endtkn = tkn;
+  return node;
+}
+
 // statement:
+//   compound-statement
 //   expression-statement
 static Node *stmt(Token *tkn, Token **endtkn) {
+  if (equal(tkn, "{")) {
+    return compound_stmt(tkn, endtkn);
+  }
+
   return expr_stmt(tkn, endtkn);
 }
 
@@ -75,7 +102,7 @@ static Node *cond(Token *tkn, Token **endtkn) {
     cond_node->cond = node;
     node = cond_node;
   }
-  
+
   *endtkn = tkn;
   return node;
 }
@@ -96,10 +123,10 @@ static Node *logor(Token *tkn, Token **endtkn) {
 // logical-AND-expression
 //   inclusive-OR-expression ("&&" inclusive-OR-expression)*
 static Node *logand(Token *tkn, Token **endtkn) {
-  Node *node = bitor(tkn, &tkn);
+  Node *node = bitor (tkn, &tkn);
 
   while (equal(tkn, "&&")) {
-    node = new_side(ND_LOGAND, tkn, node, bitor(tkn->next, &tkn));
+    node = new_side(ND_LOGAND, tkn, node, bitor (tkn->next, &tkn));
   }
 
   *endtkn = tkn;
@@ -108,7 +135,7 @@ static Node *logand(Token *tkn, Token **endtkn) {
 
 // inclusive-OR-expression
 //   exclusive-OR-expression ("|" exclusive-OR-expression)*
-static Node *bitor(Token *tkn, Token **endtkn) {
+static Node * bitor (Token * tkn, Token **endtkn) {
   Node *node = bitxor(tkn, &tkn);
 
   while (equal(tkn, "|")) {
@@ -168,7 +195,8 @@ static Node *quality(Token *tkn, Token **endtkn) {
 static Node *relational(Token *tkn, Token **endtkn) {
   Node *node = shift(tkn, &tkn);
 
-  while (equal(tkn, "<") | equal(tkn, ">") | equal(tkn, "<=") | equal(tkn, ">=")) {
+  while (equal(tkn, "<") | equal(tkn, ">") | equal(tkn, "<=") |
+         equal(tkn, ">=")) {
     NodeKind kind = ND_LECMP;
     if (equal(tkn, "<=") | equal(tkn, ">=")) {
       kind = ND_LECMP;
@@ -207,7 +235,7 @@ static Node *shift(Token *tkn, Token **endtkn) {
 //   multiplicative-expression (("+" | "-") multiplicative-expression)*
 static Node *add(Token *tkn, Token **endtkn) {
   Node *node = mul(tkn, &tkn);
-  
+
   while (equal(tkn, "+") || equal(tkn, "-")) {
     NodeKind kind = ND_ADD;
     if (equal(tkn, "-")) {
