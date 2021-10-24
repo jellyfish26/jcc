@@ -45,6 +45,7 @@ static Node *shift(Token *tkn, Token **endtkn);
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
+static Node *postfix(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
 
 // function-definition:
@@ -413,9 +414,9 @@ static Node *add(Token *tkn, Token **endtkn) {
 }
 
 // multiplicative-expression:
-//   primary-expression (("*" | "/" | "%") primary-expression)*
+//   postfix-expression (("*" | "/" | "%") postfix-expression)*
 static Node *mul(Token *tkn, Token **endtkn) {
-  Node *node = primary(tkn, &tkn);
+  Node *node = postfix(tkn, &tkn);
 
   while (equal(tkn, "*") || equal(tkn, "/") || equal(tkn, "%")) {
     NodeKind kind = ND_MUL;
@@ -425,14 +426,47 @@ static Node *mul(Token *tkn, Token **endtkn) {
       kind = ND_MOD;
     }
 
-    node = new_side(kind, tkn, node, primary(tkn->next, &tkn));
+    node = new_side(kind, tkn, node, postfix(tkn->next, &tkn));
   }
 
   *endtkn = tkn;
   return node;
 }
 
-// constant:
+// postfix-expression:
+//   primary-expression |
+//   primary-expression ("++" | "--")
+static Node *postfix(Token *tkn, Token **endtkn) {
+  Node *node = primary(tkn, &tkn);
+
+  if (equal(tkn, "++")) {
+    Node *num = new_node(ND_NUM, tkn);
+    num->val = 1;
+
+    node = new_side(ND_ADD, tkn, node, num);
+    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    node = new_side(ND_SUB, tkn, node, num);
+
+    *endtkn = tkn->next;
+    return node;
+  }
+
+  if (equal(tkn, "--")) {
+    Node *num = new_node(ND_NUM, tkn);
+    num->val = 1;
+
+    node = new_side(ND_SUB, tkn, node, num);
+    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    node = new_side(ND_ADD, tkn, node, num);
+
+    *endtkn = tkn->next;
+    return node;
+  }
+
+  *endtkn = tkn;
+  return node;
+}
+
 static Node *constant(Token *tkn, Token **endtkn) {
   if (tkn->kind != TK_NUM) {
     errorf_tkn(ER_ERROR, tkn, "Need numerical constant");
@@ -447,7 +481,7 @@ static Node *constant(Token *tkn, Token **endtkn) {
 
 // primary-expression:
 //   identifier |
-//   constant |
+//   constant   |
 //   "(" expression ")"
 static Node *primary(Token *tkn, Token **endtkn) {
   if (tkn->kind == TK_IDENT) {
