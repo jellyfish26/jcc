@@ -19,6 +19,7 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Node *stmt(Token *tkn, Token **endtkn);
 static Node *expr(Token *tkn, Token **endtkn);
 static Node *cond(Token *tkn, Token **endtkn);
 static Node *logor(Token *tkn, Token **endtkn);
@@ -33,6 +34,27 @@ static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
+
+// expression-statement:
+//   expression? ";"
+static Node *expr_stmt(Token *tkn, Token **endtkn) {
+  if (equal(tkn, ";")) {
+    Node *node = new_node(ND_NONE, tkn);
+    *endtkn = tkn->next;
+    return node;
+  }
+
+  Node *node = expr(tkn, &tkn);
+  tkn = skip(tkn, ";");
+  *endtkn = tkn;
+  return node;
+}
+
+// statement:
+//   expression-statement
+static Node *stmt(Token *tkn, Token **endtkn) {
+  return expr_stmt(tkn, endtkn);
+}
 
 // expression
 static Node *expr(Token *tkn, Token **endtkn) {
@@ -219,6 +241,7 @@ static Node *mul(Token *tkn, Token **endtkn) {
   return node;
 }
 
+// constant:
 static Node *constant(Token *tkn, Token **endtkn) {
   if (tkn->kind != TK_NUM) {
     errorf_tkn(ER_ERROR, tkn, "Need numerical constant");
@@ -236,7 +259,7 @@ static Node *constant(Token *tkn, Token **endtkn) {
 //   "(" expression ")"
 static Node *primary(Token *tkn, Token **endtkn) {
   if (equal(tkn, "(")) {
-    Node *node = shift(tkn->next, &tkn);
+    Node *node = expr(tkn->next, &tkn);
     tkn = skip(tkn, ")");
 
     *endtkn = tkn;
@@ -247,5 +270,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return expr(tkn, &tkn);
+  return stmt(tkn, &tkn);
 }

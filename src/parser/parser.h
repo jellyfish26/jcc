@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef enum {
+  ND_NONE,
   ND_ADD,
   ND_SUB,
   ND_MUL,
@@ -28,6 +29,7 @@ typedef enum {
 typedef struct Node Node;
 struct Node {
   Token *tkn;
+  Node *next;
 
   NodeKind kind;
   Node *lhs;
