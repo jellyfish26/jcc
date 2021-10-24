@@ -45,6 +45,7 @@ static Node *shift(Token *tkn, Token **endtkn);
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
+static Node *unary(Token *tkn, Token **endtkn);
 static Node *postfix(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
 
@@ -414,9 +415,9 @@ static Node *add(Token *tkn, Token **endtkn) {
 }
 
 // multiplicative-expression:
-//   postfix-expression (("*" | "/" | "%") postfix-expression)*
+//   unary-expression (("*" | "/" | "%") unary-expression)*
 static Node *mul(Token *tkn, Token **endtkn) {
-  Node *node = postfix(tkn, &tkn);
+  Node *node = unary(tkn, &tkn);
 
   while (equal(tkn, "*") || equal(tkn, "/") || equal(tkn, "%")) {
     NodeKind kind = ND_MUL;
@@ -426,12 +427,38 @@ static Node *mul(Token *tkn, Token **endtkn) {
       kind = ND_MOD;
     }
 
-    node = new_side(kind, tkn, node, postfix(tkn->next, &tkn));
+    node = new_side(kind, tkn, node, unary(tkn->next, &tkn));
   }
 
   *endtkn = tkn;
   return node;
 }
+
+// unary-expression:
+//   postfix-expression |
+//   ("++" | "--") postfix-expression
+static Node *unary(Token *tkn, Token **endtkn) {
+  if (equal(tkn, "++")) {
+    Node *num = new_node(ND_NUM, tkn);
+    num->val = 1;
+
+    Node *node = new_side(ND_ADD, tkn, postfix(tkn->next, endtkn), num);
+    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    return node;
+  }
+
+  if (equal(tkn, "--")) {
+    Node *num = new_node(ND_NUM, tkn);
+    num->val = 1;
+
+    Node *node = new_side(ND_SUB, tkn, postfix(tkn->next, endtkn), num);
+    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    return node;
+  }
+
+  return postfix(tkn, endtkn);
+}
+
 
 // postfix-expression:
 //   primary-expression |
