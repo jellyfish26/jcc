@@ -36,8 +36,8 @@ bool add_var(Obj *var, bool set_offset) {
   hashmap_insert(&(scope->var), var->name, var);
 
   if (set_offset) {
-    var->offset = offset;
     offset += 4;
+    var->offset = offset;
   }
   return true;
 }

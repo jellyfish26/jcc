@@ -31,9 +31,11 @@ typedef enum {
   ND_LOGAND,  // &&
   ND_LOGOR,   // ||
   ND_COND,    // ? :
+  ND_ASSIGN,  // =
   ND_BLOCK,   // {...}
   ND_FUNC,    // int hoge(...) {...}
   ND_RETURN,  // "return"
+  ND_VAR,     // variable
   ND_NUM,     // number
 } NodeKind;
 

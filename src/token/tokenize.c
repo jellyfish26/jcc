@@ -175,7 +175,7 @@ static Token *tokenize_str(char *str) {
       static char *pancts[] = {
         "+", "-", "*", "/", "%", "(", ")", "<<", ">>", "<=", ">=",
         "<", ">", "==", "!=", "&&", "&", "^", "||", "|", "?", ":",
-        ";", "{", "}",
+        ";", "{", "}", "=",
       };
 
       int sz = sizeof(pancts) / sizeof(char *), idx = 0;

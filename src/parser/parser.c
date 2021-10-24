@@ -32,6 +32,7 @@ static Obj *declarator(Token *tkn, Token **endtkn, Type *ty);
 static Type *declspec(Token *tkn, Token **endtkn);
 static Node *declaration(Token *tkn, Token **endtkn);
 static Node *expr(Token *tkn, Token **endtkn);
+static Node *assign(Token *tkn, Token **endtkn);
 static Node *cond(Token *tkn, Token **endtkn);
 static Node *logor(Token *tkn, Token **endtkn);
 static Node *logand(Token *tkn, Token **endtkn);
@@ -59,6 +60,8 @@ static Node *funcdef(Token *tkn, Token **endtkn) {
   node->obj = obj;
 
   node->lhs = compound_stmt(tkn, endtkn);
+  obj->offset = init_offset();
+
   return node;
 }
 
@@ -189,7 +192,23 @@ static Node *declaration(Token *tkn, Token **endtkn) {
 
 // expression
 static Node *expr(Token *tkn, Token **endtkn) {
-  return cond(tkn, endtkn);
+  return assign(tkn, endtkn);
+}
+
+// assignment-expression:
+//   conditional-expression |
+//   conditional-expression assignment-operator assignment-expression
+// assignment-operator:
+//   "="
+static Node *assign(Token *tkn, Token **endtkn) {
+  Node *node = cond(tkn, &tkn);
+
+  if (equal(tkn, "=")) {
+    node = new_side(ND_ASSIGN, tkn, node, assign(tkn->next, &tkn));
+  }
+
+  *endtkn = tkn;
+  return node;
 }
 
 // conditional-expression:
@@ -387,9 +406,23 @@ static Node *constant(Token *tkn, Token **endtkn) {
 }
 
 // primary-expression:
+//   identifier |
 //   constant |
 //   "(" expression ")"
 static Node *primary(Token *tkn, Token **endtkn) {
+  if (tkn->kind == TK_IDENT) {
+    Node *node = new_node(ND_VAR, tkn);
+
+    char *name = strndup(tkn->loc, tkn->len);
+    if ((node->obj = find_var(name)) == NULL) {
+      errorf_tkn(ER_ERROR, tkn, "Identifier '%s' is not found", name);
+    }
+    free(name);
+
+    *endtkn = tkn->next;
+    return node;
+  }
+
   if (equal(tkn, "(")) {
     Node *node = expr(tkn->next, &tkn);
     tkn = skip(tkn, ")");

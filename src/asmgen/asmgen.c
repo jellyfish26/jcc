@@ -45,6 +45,14 @@ static void gen_expr(Node *node) {
     gen_expr(node->rhs);
     println(".Lnext%d:", label);
     return;
+  case ND_ASSIGN:
+    gen_expr(node->rhs);
+    println("  mov %%rax, -%d(%%rbp)", node->lhs->obj->offset);
+    return;
+  case ND_VAR:
+    println("  lea -%d(%%rbp), %%rax", node->obj->offset);
+    println("  mov (%%rax), %%rax");
+    return;
   }
   default:
     break;
@@ -146,9 +154,6 @@ void gen_stmt(Node *node) {
       gen_stmt(stmt);
     }
     break;
-  case ND_FUNC:
-    gen_stmt(node->lhs);
-    break;
   case ND_RETURN:
     gen_expr(node->lhs);
     println("  mov %%rbp, %%rsp");
@@ -162,17 +167,19 @@ void gen_stmt(Node *node) {
 
 void asmgen(Node *node, char *filename) {
   target_file = fopen(filename, "w");
+  Obj *func = node->obj;
 
   println(".globl main");
   println(".text");
-  println(".type %s, @function", node->obj->name);
-  println("main:");
+  println(".type %s, @function", func->name);
+  println("%s:", func->name);
 
   // Prologue
   gen_push("rbp");
   println("  mov %%rsp, %%rbp");
+  println("  sub $%d, %%rsp", func->offset);
 
-  gen_stmt(node);
+  gen_stmt(node->lhs);
 
   println("  mov %%rbp, %%rsp");
   gen_pop("rbp");
