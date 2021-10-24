@@ -120,7 +120,7 @@ static void gen_expr(Node *node) {
     println("  or %%rdi, %%rax");
     break;
   case ND_LOGAND:
-    println("  cmp $0, %$rax");
+    println("  cmp $0, %%rax");
     println("  je 1f");
     println("  cmp $0, %%rdi");
     println("  je 1f");

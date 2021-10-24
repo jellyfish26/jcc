@@ -97,3 +97,7 @@ assert 3 "int main() { return 1 + 2; return 3 + 2; }"
 
 assert 5 "int main() { int a; a = 2; return 3 + a; }"
 assert 6 "int main() { int a; int b; a = b = 3; return a + b; }"
+assert 5 "int main() { int a; a = 3; a = a + 2; return a; }"
+assert 5 "int main() { int a; a = 3; a += 2; return a; }"
+assert 6 "int main() { int a; int b; a = b = 3; a += 2; b -= 2; return a + b; }"
+assert 18 "int main() { int a; int b; a = 24; b = 2; b += a &= 42; return a + b; }"

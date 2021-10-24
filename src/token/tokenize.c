@@ -125,7 +125,7 @@ bool is_eof(Token *tkn) {
 }
 
 bool equal(Token *tkn, char *str) {
-  return !is_eof(tkn) && strncmp(tkn->loc, str, strlen(str)) == 0;
+  return !is_eof(tkn) && strncmp(tkn->loc, str, strlen(str)) == 0 && tkn->len == strlen(str);
 }
 
 bool consume(Token *tkn, Token **endtkn, char *str) {
@@ -173,6 +173,7 @@ static Token *tokenize_str(char *str) {
 
     if (ispunct(*str)) {
       static char *pancts[] = {
+        "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
         "+", "-", "*", "/", "%", "(", ")", "<<", ">>", "<=", ">=",
         "<", ">", "==", "!=", "&&", "&", "^", "||", "|", "?", ":",
         ";", "{", "}", "=",

@@ -199,12 +199,52 @@ static Node *expr(Token *tkn, Token **endtkn) {
 //   conditional-expression |
 //   conditional-expression assignment-operator assignment-expression
 // assignment-operator:
-//   "="
+//   "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|="
 static Node *assign(Token *tkn, Token **endtkn) {
   Node *node = cond(tkn, &tkn);
 
   if (equal(tkn, "=")) {
-    node = new_side(ND_ASSIGN, tkn, node, assign(tkn->next, &tkn));
+    return new_side(ND_ASSIGN, tkn, node, assign(tkn->next, endtkn));
+  }
+
+  if (equal(tkn, "*=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_MUL, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "/=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_DIV, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "%=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_MOD, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "+=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_ADD, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "-=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_SUB, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "<<=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_LSHIFT, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, ">>=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_RSHIFT, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "&=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_BITAND, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "^=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_BITXOR, tkn, node, assign(tkn->next, endtkn)));
+  }
+
+  if (equal(tkn, "|=")) {
+    return new_side(ND_ASSIGN, tkn, node, new_side(ND_BITOR, tkn, node, assign(tkn->next, endtkn)));
   }
 
   *endtkn = tkn;
