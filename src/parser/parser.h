@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef struct Node Node;
+typedef struct Type Type;
 typedef struct Obj Obj;
 
 //
@@ -56,11 +57,22 @@ Node *parser(Token *tkn);
 // object.c
 //
 
+typedef enum {
+  TY_INT,
+  TY_FUNC,
+} TypeKind;
+
+struct Type {
+  TypeKind kind;
+};
+
 struct Obj {
+  Type *ty;
+
   char *name;
   int offset;
-}
-;
+};
+
 Obj *new_obj(char *name, int len);
 void enter_scope();
 void leave_scope();
