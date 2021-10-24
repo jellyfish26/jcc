@@ -33,6 +33,7 @@ typedef enum {
   ND_COND,    // ? :
   ND_BLOCK,   // {...}
   ND_FUNC,    // int hoge(...) {...}
+  ND_RETURN,  // "return"
   ND_NUM,     // number
 } NodeKind;
 

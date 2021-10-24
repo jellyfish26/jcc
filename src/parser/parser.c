@@ -77,6 +77,21 @@ static Node *expr_stmt(Token *tkn, Token **endtkn) {
   return node;
 }
 
+// jump-statement:
+//   "return" expression? ";"
+static Node *jump_stmt(Token *tkn, Token **endtkn) {
+  Node *node = new_node(ND_RETURN, tkn);
+  tkn = skip(tkn, "return");
+
+  if (!equal(tkn, ";")) {
+    node->lhs = expr(tkn, &tkn);
+  }
+  tkn = skip(tkn, ";");
+
+  *endtkn = tkn;
+  return node;
+}
+
 // compound-statement:
 //   "{" block-item-list? "}"
 // block-item-list:
@@ -111,9 +126,14 @@ static Node *compound_stmt(Token *tkn, Token **endtkn) {
 // statement:
 //   compound-statement
 //   expression-statement
+//   jump-statement
 static Node *stmt(Token *tkn, Token **endtkn) {
   if (equal(tkn, "{")) {
     return compound_stmt(tkn, endtkn);
+  }
+
+  if (equal(tkn, "return")) {
+    return jump_stmt(tkn, endtkn);
   }
 
   return expr_stmt(tkn, endtkn);

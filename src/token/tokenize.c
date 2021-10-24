@@ -175,7 +175,7 @@ static Token *tokenize_str(char *str) {
       static char *pancts[] = {
         "+", "-", "*", "/", "%", "(", ")", "<<", ">>", "<=", ">=",
         "<", ">", "==", "!=", "&&", "&", "^", "||", "|", "?", ":",
-        ";", "{", "}"
+        ";", "{", "}",
       };
 
       int sz = sizeof(pancts) / sizeof(char *), idx = 0;
@@ -196,7 +196,7 @@ static Token *tokenize_str(char *str) {
 
     if (isalpha(*str)) {
       static char *keywords[] = {
-        "int",
+        "int", "return"
       };
 
       int sz = sizeof(keywords) / sizeof(char *), idx = 0;

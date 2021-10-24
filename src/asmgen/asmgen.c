@@ -142,12 +142,18 @@ static void gen_expr(Node *node) {
 void gen_stmt(Node *node) {
   switch (node->kind) {
   case ND_BLOCK:
-    for (Node *expr = node->lhs; expr != NULL; expr = expr->next) {
-      gen_expr(expr);
+    for (Node *stmt = node->lhs; stmt != NULL; stmt = stmt->next) {
+      gen_stmt(stmt);
     }
     break;
   case ND_FUNC:
     gen_stmt(node->lhs);
+    break;
+  case ND_RETURN:
+    gen_expr(node->lhs);
+    println("  mov %%rbp, %%rsp");
+    gen_pop("rbp");
+    println("  ret");
     break;
   default:
     gen_expr(node);
