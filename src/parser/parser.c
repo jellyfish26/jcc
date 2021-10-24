@@ -20,7 +20,10 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Node *compound_stmt(Token *tkn, Token **endtkn);
 static Node *stmt(Token *tkn, Token **endtkn);
+static Obj *declarator(Token *tkn, Token **endtkn);
+static void declspec(Token *tkn, Token **endtkn);
 static Node *declaration(Token *tkn, Token **endtkn);
 static Node *expr(Token *tkn, Token **endtkn);
 static Node *cond(Token *tkn, Token **endtkn);
@@ -36,6 +39,19 @@ static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
+
+// function-definition:
+//   declaration-specifiers declarator compound-statement
+static Node *funcdef(Token *tkn, Token **endtkn) {
+  declspec(tkn, &tkn);
+  Obj *obj = declarator(tkn, &tkn);
+
+  Node *node = new_node(ND_FUNC, tkn);
+  node->obj = obj;
+
+  node->lhs = compound_stmt(tkn, endtkn);
+  return node;
+}
 
 // expression-statement:
 //   expression? ";"
@@ -98,21 +114,25 @@ static Node *stmt(Token *tkn, Token **endtkn) {
 //   direct-declarator
 // direct-declarator:
 //   identifier
-static void declarator(Token *tkn, Token **endtkn) {
+static Obj *declarator(Token *tkn, Token **endtkn) {
   if (tkn->kind != TK_IDENT) {
     errorf_tkn(ER_ERROR, tkn, "Unexpected identifier");
   }
 
-  if (!add_var(new_obj(tkn->loc, tkn->len), true)) {
-    errorf_tkn(ER_ERROR, tkn, "'%s' has already declared", strndup(tkn->loc, tkn->len));
-  }
-
   *endtkn = tkn->next;
+  return new_obj(tkn->loc, tkn->len);
+}
+
+// declaration-specifiers:
+//   "int"
+static void declspec(Token *tkn, Token **endtkn) {
+  tkn = skip(tkn, "int");
+  *endtkn = tkn;
 }
 
 // Warn: Return nullable
 // declaration:
-//   "int" init-declarator ";"
+//   declaration-specifiers init-declarator ";"
 // init-declarator:
 //   declarator
 static Node *declaration(Token *tkn, Token **endtkn) {
@@ -120,11 +140,15 @@ static Node *declaration(Token *tkn, Token **endtkn) {
     return NULL;
   }
 
-  tkn = skip(tkn, "int");
+  declspec(tkn, &tkn);
   Node *node = new_node(ND_NONE, tkn);
-  declarator(tkn, &tkn);
-  tkn = skip(tkn, ";");
 
+  Obj *obj = declarator(tkn, &tkn);
+  if (!add_var(obj, true)) {
+    errorf_tkn(ER_ERROR, tkn, "Variable '%s' has already declared", obj->name);
+  }
+
+  tkn = skip(tkn, ";");
   *endtkn = tkn;
   return node;
 }
@@ -344,5 +368,5 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return stmt(tkn, &tkn);
+  return funcdef(tkn, &tkn);
 }

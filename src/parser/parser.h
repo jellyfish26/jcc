@@ -31,6 +31,7 @@ typedef enum {
   ND_LOGOR,   // ||
   ND_COND,    // ? :
   ND_BLOCK,   // {...}
+  ND_FUNC,    // int hoge(...) {...}
   ND_NUM,     // number
 } NodeKind;
 
@@ -43,6 +44,8 @@ struct Node {
   Node *rhs;
 
   Node *cond;
+
+  Obj *obj;  // Variable or Function
 
   int64_t val;
 };

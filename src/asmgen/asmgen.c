@@ -146,6 +146,9 @@ void gen_stmt(Node *node) {
       gen_expr(expr);
     }
     break;
+  case ND_FUNC:
+    gen_stmt(node->lhs);
+    break;
   default:
     gen_expr(node);
   }
@@ -156,7 +159,7 @@ void asmgen(Node *node, char *filename) {
 
   println(".globl main");
   println(".text");
-  println(".type main, @function");
+  println(".type %s, @function", node->obj->name);
   println("main:");
 
   // Prologue
@@ -164,10 +167,10 @@ void asmgen(Node *node, char *filename) {
   println("  mov %%rsp, %%rbp");
 
   gen_stmt(node);
-  
+
   println("  mov %%rbp, %%rsp");
   gen_pop("rbp");
   println("  ret");
-  
+
   fclose(target_file);
 }
