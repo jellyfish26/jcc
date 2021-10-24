@@ -1,5 +1,22 @@
 #!/bin/sh
 
+check() {
+  ./tmp
+  if [ $? -eq 0 ]; then
+    echo "test $1 passed."
+    rm tmp
+  else
+    echo "test $1 failed."
+    rm tmp
+    exit 1
+  fi
+}
+
+gcc -std=c11 -static -c -o hashmap.o hashmap_gcc.c -I ../src
+gcc -static -g -o tmp ../src/util/hashmap.o hashmap.o
+rm hashmap.o
+check "hashmap.c"
+
 assert() {
   expected="$1"
   input="$2"
@@ -74,3 +91,5 @@ assert 5 "{ 1 ? 1 ? 5 : 3 : 2; }"
 assert 2 "{ 0 ? 3 : 0 ? 6 : 2; }"
 
 assert 5 "{ 1 + 2; 3 + 2; }"
+assert 5 "{ int a; 3 + 2; }"
+assert 5 "{ int a; int b; 3 + 2; }"

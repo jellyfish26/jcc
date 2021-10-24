@@ -145,6 +145,10 @@ Token *skip(Token *tkn, char *str) {
   return tkn->next;
 }
 
+static bool isident(char c) {
+  return isalpha(c) | isdigit(c) | c == '_';
+}
+
 static Token *tokenize_str(char *str) {
   Token head = {};
   Token *cur = &head;
@@ -189,6 +193,40 @@ static Token *tokenize_str(char *str) {
         continue;
       }
     }
+
+    if (isalpha(*str)) {
+      static char *keywords[] = {
+        "int",
+      };
+
+      int sz = sizeof(keywords) / sizeof(char *), idx = 0;
+      for (; idx < sz; idx++) {
+        if (strncmp(str, keywords[idx], strlen(keywords[idx])) == 0) {
+          break;
+        }
+      }
+
+      if (idx < sz) {
+        int len = strlen(keywords[idx]);
+        Token *tkn = new_token(TK_KEYWORD, str, len);
+        cur = cur->next = tkn;
+        str += len;
+        continue;
+      }
+    }
+
+    if (isalpha(*str)) {
+      int len = 0;
+      while (isident(*(str + len))) {
+        len++;
+      }
+
+      Token *tkn = new_token(TK_IDENT, str, len);
+      cur = cur->next = tkn;
+      str += len;
+      continue;
+    }
+
     errorf_at(ER_ERROR, cur_tokenize_file, str, 1, "Unexpected tokenize");
   }
 

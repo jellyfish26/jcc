@@ -24,6 +24,10 @@ static void gen_pop(const char *reg) {
 }
 
 static void gen_expr(Node *node) {
+  if (node->kind == ND_NONE) {
+    return;
+  }
+
   if (node->kind == ND_NUM) {
     println("  mov $%ld, %%rax", node->val);
     return;

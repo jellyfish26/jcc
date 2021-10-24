@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static Node *new_node(NodeKind kind, Token *tkn) {
   Node *node = calloc(1, sizeof(Node));
@@ -20,6 +21,7 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
 }
 
 static Node *stmt(Token *tkn, Token **endtkn);
+static Node *declaration(Token *tkn, Token **endtkn);
 static Node *expr(Token *tkn, Token **endtkn);
 static Node *cond(Token *tkn, Token **endtkn);
 static Node *logor(Token *tkn, Token **endtkn);
@@ -55,8 +57,11 @@ static Node *expr_stmt(Token *tkn, Token **endtkn) {
 // block-item-list:
 //   block-item (block-item)*
 // block-item:
+//   declaration
 //   statement
 static Node *compound_stmt(Token *tkn, Token **endtkn) {
+  enter_scope();
+
   Node *node = new_node(ND_BLOCK, tkn);
 
   Node head = {};
@@ -64,10 +69,16 @@ static Node *compound_stmt(Token *tkn, Token **endtkn) {
 
   tkn = skip(tkn, "{");
   while (!consume(tkn, &tkn, "}")) {
-    cur = cur->next = stmt(tkn, &tkn);
-  }
+    Node *statement = NULL;
+    if ((statement = declaration(tkn, &tkn)) == NULL) {
+      statement = stmt(tkn, &tkn);
+    }
 
+    cur = cur->next = statement;
+  }
   node->lhs = head.next;
+
+  leave_scope();
   *endtkn = tkn;
   return node;
 }
@@ -81,6 +92,41 @@ static Node *stmt(Token *tkn, Token **endtkn) {
   }
 
   return expr_stmt(tkn, endtkn);
+}
+
+// declarator:
+//   direct-declarator
+// direct-declarator:
+//   identifier
+static void declarator(Token *tkn, Token **endtkn) {
+  if (tkn->kind != TK_IDENT) {
+    errorf_tkn(ER_ERROR, tkn, "Unexpected identifier");
+  }
+
+  if (!add_var(new_obj(tkn->loc, tkn->len), true)) {
+    errorf_tkn(ER_ERROR, tkn, "'%s' has already declared", strndup(tkn->loc, tkn->len));
+  }
+
+  *endtkn = tkn->next;
+}
+
+// Warn: Return nullable
+// declaration:
+//   "int" init-declarator ";"
+// init-declarator:
+//   declarator
+static Node *declaration(Token *tkn, Token **endtkn) {
+  if (!equal(tkn, "int")) {
+    return NULL;
+  }
+
+  tkn = skip(tkn, "int");
+  Node *node = new_node(ND_NONE, tkn);
+  declarator(tkn, &tkn);
+  tkn = skip(tkn, ";");
+
+  *endtkn = tkn;
+  return node;
 }
 
 // expression

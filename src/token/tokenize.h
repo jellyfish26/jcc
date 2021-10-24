@@ -8,6 +8,8 @@
 typedef enum {
   TK_NUM,
   TK_PANCT,
+  TK_KEYWORD,
+  TK_IDENT,
   TK_EOF,
 } TokenKind;
 

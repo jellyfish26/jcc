@@ -4,6 +4,13 @@
 
 #include <stdint.h>
 
+typedef struct Node Node;
+typedef struct Obj Obj;
+
+//
+// parse.c
+//
+
 typedef enum {
   ND_NONE,    // nothing
   ND_ADD,     // +
@@ -27,7 +34,6 @@ typedef enum {
   ND_NUM,     // number
 } NodeKind;
 
-typedef struct Node Node;
 struct Node {
   Token *tkn;
   Node *next;
@@ -42,3 +48,21 @@ struct Node {
 };
 
 Node *parser(Token *tkn);
+
+//
+// object.c
+//
+
+struct Obj {
+  char *name;
+  int offset;
+}
+;
+Obj *new_obj(char *name, int len);
+void enter_scope();
+void leave_scope();
+
+bool add_var(Obj *var, bool set_offset);
+Obj *find_var(char *name);
+int init_offset();
+
