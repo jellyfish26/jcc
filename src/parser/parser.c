@@ -33,6 +33,7 @@ static void add_type(Node *node) {
   case ND_BITAND:
   case ND_BITXOR:
   case ND_BITOR:
+  case ND_BITNOT:
      node->ty = node->lhs->ty;
      break;
   case ND_LCMP:
@@ -601,7 +602,7 @@ static Node *cast(Token *tkn, Token **endtkn) {
 //   ("++" | "--") postfix-expression |
 //   unary-operator postfix-expression |
 // unary-operator:
-//   "&" | "*" | "+" | "-"
+//   "&" | "*" | "+" | "-" | "~" | "!"
 static Node *unary(Token *tkn, Token **endtkn) {
   if (equal(tkn, "++")) {
     Node *num = new_node(ND_NUM, tkn);
@@ -641,6 +642,16 @@ static Node *unary(Token *tkn, Token **endtkn) {
     Node *num = new_node(ND_NUM, tkn);
     num->val = 0;
     return new_side(ND_SUB, tkn, num, cast(tkn->next, endtkn));
+  }
+
+  if (equal(tkn, "~")) {
+    return new_side(ND_BITNOT, tkn, cast(tkn->next, endtkn), NULL);
+  }
+
+  if (equal(tkn, "!")) {
+    Node *num = new_node(ND_NUM, tkn);
+    num->val = 0;
+    return new_side(ND_EQ, tkn, cast(tkn->next, endtkn), num);
   }
 
   return postfix(tkn, endtkn);

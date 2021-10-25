@@ -114,3 +114,7 @@ assert 3 "int main() { int *a; int b; b = 5; a = &b; *a = 3; return b; }"
 assert 8 "int main() { int a; a = ({int a; int b; a = 3; b = 5; a + b;}); return a; }"
 assert 2 "int main() { int a; a = 2; return +(+(a)); }"
 assert 2 "int main() { int a; a = 2; return -(-(a)); }"
+
+assert 1 "int main() { return ~254; }"
+assert 1 "int main() { return !0; }"
+assert 0 "int main() { return !1; }"

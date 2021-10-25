@@ -79,6 +79,10 @@ static void gen_expr(Node *node) {
     gen_stmt(node->rhs);
     println(".Lnext%d:", label);
     return;
+  case ND_BITNOT:
+    gen_stmt(node->lhs);
+    println("  not %%rax");
+    return;
   case ND_ASSIGN:
     gen_stmt(node->rhs);
     gen_push("rax");
