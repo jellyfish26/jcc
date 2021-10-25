@@ -61,13 +61,26 @@ Node *parser(Token *tkn);
 //
 
 typedef enum {
+  TY_CHAR,
+  TY_SHORT,
   TY_INT,
+  TY_LONG,
   TY_FUNC,
 } TypeKind;
 
 struct Type {
   TypeKind kind;
+  int size;
 };
+
+extern Type *ty_i8;
+extern Type *ty_i16;
+extern Type *ty_i32;
+extern Type *ty_i64;
+
+Type *new_type(TypeKind kind, int size);
+Type *copy_type(Type *ty);
+void init_type();
 
 struct Obj {
   Type *ty;

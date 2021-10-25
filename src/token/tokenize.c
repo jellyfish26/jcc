@@ -197,7 +197,7 @@ static Token *tokenize_str(char *str) {
 
     if (isalpha(*str)) {
       static char *keywords[] = {
-        "int", "return"
+        "char", "short", "int", "long", "return"
       };
 
       int sz = sizeof(keywords) / sizeof(char *), idx = 0;

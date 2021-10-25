@@ -20,12 +20,6 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
-static Type *new_type(TypeKind kind) {
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = kind;
-  return ty;
-}
-
 static Node *compound_stmt(Token *tkn, Token **endtkn);
 static Node *stmt(Token *tkn, Token **endtkn);
 static Obj *declarator(Token *tkn, Token **endtkn, Type *ty);
@@ -153,6 +147,7 @@ static Obj *declarator(Token *tkn, Token **endtkn, Type *ty) {
     errorf_tkn(ER_ERROR, tkn, "Unexpected identifier");
   }
   Obj *obj = new_obj(tkn->loc, tkn->len);
+  obj->ty = ty;
 
   if (consume(tkn->next, &tkn, "(")) {
     ty->kind = TY_FUNC;
@@ -163,12 +158,63 @@ static Obj *declarator(Token *tkn, Token **endtkn, Type *ty) {
   return obj;
 }
 
+static bool is_typespec(Token *tkn) {
+  return equal(tkn, "char") | equal(tkn, "short") | equal(tkn, "int") | equal(tkn, "long");
+}
+
 // declaration-specifiers:
-//   "int"
+//   type-specifier declaration-specifiers?
+// type-specifier:
+//   "char" | "short" | "int" | "long"
 static Type *declspec(Token *tkn, Token **endtkn) {
-  tkn = skip(tkn, "int");
+  // We replace the type with a number and count it,
+  // which makes it easier to detect duplicates and types.
+  enum {
+    CHAR   = 1,
+    SHORT  = 1 << 2,
+    INT    = 1 << 4,
+    LONG   = 1 << 6,
+  };
+
+  int ty_cnt = 0;
+  Type *ty;
+
+  while (is_typespec(tkn)) {
+    if (equal(tkn, "char")) {
+      ty_cnt += CHAR;
+    } else if (equal(tkn, "short")) {
+      ty_cnt += SHORT;
+    } else if (equal(tkn, "int")) {
+      ty_cnt += INT;
+    } else if (equal(tkn, "long")) {
+      ty_cnt += LONG;
+    }
+
+    switch (ty_cnt) {
+    case CHAR:
+      ty = ty_i8;
+      break;
+    case SHORT:
+      ty = ty_i16;
+      break;
+    case INT:
+      ty = ty_i32;
+      break;
+    case LONG:
+    case LONG + INT:
+    case LONG + LONG:
+    case LONG + LONG + INT:
+      ty = ty_i64;
+      break;
+    default:
+      errorf_tkn(ER_ERROR, tkn, "Invalid type");
+    }
+
+    tkn = tkn->next;
+  }
+
   *endtkn = tkn;
-  return new_type(TY_INT);
+  return copy_type(ty);
 }
 
 // Warn: Return nullable
@@ -177,7 +223,7 @@ static Type *declspec(Token *tkn, Token **endtkn) {
 // init-declarator:
 //   declarator
 static Node *declaration(Token *tkn, Token **endtkn) {
-  if (!equal(tkn, "int")) {
+  if (!is_typespec(tkn)) {
     return NULL;
   }
 

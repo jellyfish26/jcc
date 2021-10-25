@@ -3,6 +3,31 @@
 #include <stdlib.h>
 #include <string.h>
 
+Type *ty_i8;
+Type *ty_i16;
+Type *ty_i32;
+Type *ty_i64;
+
+Type *new_type(TypeKind kind, int size) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = kind;
+  ty->size = size;
+  return ty;
+}
+
+Type *copy_type(Type *ty) {
+  Type *new_ty = calloc(1, sizeof(Type));
+  memcpy(new_ty, ty, sizeof(Type));
+  return new_ty;
+}
+
+void init_type() {
+  ty_i8 = new_type(TY_CHAR, 1);
+  ty_i16 = new_type(TY_SHORT, 2);
+  ty_i32 = new_type(TY_INT, 4);
+  ty_i64 = new_type(TY_LONG, 8);
+}
+
 Obj *new_obj(char *name, int len) {
   Obj *obj = calloc(1, sizeof(Obj));
   obj->name = strndup(name, len);
@@ -36,7 +61,7 @@ bool add_var(Obj *var, bool set_offset) {
   hashmap_insert(&(scope->var), var->name, var);
 
   if (set_offset) {
-    offset += 8;
+    offset += var->ty->size;
     var->offset = offset;
   }
   return true;
@@ -53,7 +78,7 @@ Obj *find_var(char *name) {
 }
 
 int init_offset() {
-  int sz = offset;
+  int sz = ((offset - 1) / 16 + 1) * 16;
   offset = 0;
   return sz;
 }
