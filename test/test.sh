@@ -36,10 +36,10 @@ assert() {
   fi
 }
 
-assert 3  "int main() { return 1+2; }" 
-assert 1  "int main() { return 2-1; }" 
-assert 8  "int main() { return 2*4; }" 
-assert 3  "int main() { return 6/2; }" 
+assert 3  "int main() { return 1+2; }"
+assert 1  "int main() { return 2-1; }"
+assert 8  "int main() { return 2*4; }"
+assert 3  "int main() { return 6/2; }"
 assert 10 "int main() { return 2*4+2; }"
 assert 1  "int main() { return 5%2; }"
 assert 49 "int main() { return (2+5)*7; }"
@@ -107,3 +107,5 @@ assert 3 "int main() { int a; int b; a = 2; b = a--; return a + b; }"
 assert 6 "int main() { int a; int b; a = 2; b = ++a; return a + b; }"
 assert 2 "int main() { int a; int b; a = 2; b = --a; return a + b; }"
 assert 240 "int main() { char a; a = 240; return a; }"
+
+assert 5 "int main() { int *a; int b; b = 5; a = &b; return *a; }"

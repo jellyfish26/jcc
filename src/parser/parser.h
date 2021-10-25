@@ -32,6 +32,8 @@ typedef enum {
   ND_LOGOR,   // ||
   ND_COND,    // ? :
   ND_ASSIGN,  // =
+  ND_ADDR,    // &
+  ND_DEREF,   // *
   ND_BLOCK,   // {...}
   ND_FUNC,    // int hoge(...) {...}
   ND_RETURN,  // "return"
@@ -44,6 +46,7 @@ struct Node {
   Node *next;
 
   NodeKind kind;
+  Type *ty;
   Node *lhs;
   Node *rhs;
 
@@ -65,12 +68,15 @@ typedef enum {
   TY_SHORT,
   TY_INT,
   TY_LONG,
+  TY_PTR,
   TY_FUNC,
 } TypeKind;
 
 struct Type {
   TypeKind kind;
   int size;
+
+  Type *base; // pointer
 };
 
 extern Type *ty_i8;

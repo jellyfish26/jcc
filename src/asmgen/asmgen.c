@@ -23,6 +23,10 @@ static void gen_pop(const char *reg) {
   println("  pop %%%s", reg);
 }
 
+static void gen_addr(Obj *obj) {
+  println("  lea -%d(%%rbp), %%rax", obj->offset);
+}
+
 // The value must be placed on the stack before calling this function.
 // Address is rdi
 static void gen_store(Type *ty) {
@@ -51,6 +55,8 @@ static void gen_load(Type *ty) {
   }
 }
 
+void gen_stmt(Node *node);
+
 static void gen_expr(Node *node) {
   if (node->kind == ND_NONE) {
     return;
@@ -64,17 +70,17 @@ static void gen_expr(Node *node) {
   switch (node->kind) {
   case ND_COND: {
     int label = num_labels++;
-    gen_expr(node->cond);
+    gen_stmt(node->cond);
     println("  cmp $0, %%rax");
     println("  je .Lfalse%d", label);
-    gen_expr(node->lhs);
+    gen_stmt(node->lhs);
     println("  jmp .Lnext%d", label);
     println(".Lfalse%d:", label);
-    gen_expr(node->rhs);
+    gen_stmt(node->rhs);
     println(".Lnext%d:", label);
     return;
   case ND_ASSIGN:
-    gen_expr(node->rhs);
+    gen_stmt(node->rhs);
     gen_push("rax");
     println("  lea -%d(%%rbp), %%rdi", node->lhs->obj->offset);
     gen_store(node->lhs->obj->ty);
@@ -84,14 +90,21 @@ static void gen_expr(Node *node) {
     gen_load(node->obj->ty);
     return;
   }
+  case ND_ADDR:
+    gen_addr(node->lhs->obj);
+    return;
+  case ND_DEREF:
+    gen_stmt(node->lhs);
+    gen_load(node->ty);
+    return;
   default:
     break;
   }
 
-  gen_expr(node->lhs);
+  gen_stmt(node->lhs);
   gen_push("rax");
 
-  gen_expr(node->rhs);
+  gen_stmt(node->rhs);
   println("  mov %%rax, %%rdi");
   gen_pop("rax");
 

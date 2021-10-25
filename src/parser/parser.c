@@ -20,6 +20,71 @@ static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
+static Type *to_ptr(Type *ty) {
+  Type *new_ty = new_type(TY_PTR, 8);
+  new_ty->base = ty;
+  return new_ty;
+}
+
+static void add_type(Node *node) {
+  if (node == NULL) {
+    return;
+  }
+
+  add_type(node->next);
+  add_type(node->lhs);
+  add_type(node->rhs);
+  add_type(node->cond);
+
+  switch (node->kind) {
+  case ND_ADD:
+  case ND_SUB:
+  case ND_MUL:
+  case ND_DIV:
+  case ND_MOD:
+  case ND_LSHIFT:
+  case ND_RSHIFT:
+  case ND_BITAND:
+  case ND_BITXOR:
+  case ND_BITOR:
+     node->ty = node->lhs->ty;
+     break;
+  case ND_LCMP:
+  case ND_LECMP:
+  case ND_EQ:
+  case ND_NEQ:
+  case ND_LOGAND:
+  case ND_LOGOR:
+    node->ty = copy_type(ty_i8);
+    break;
+  case ND_COND:
+    node->ty = node->lhs->ty;
+    break;
+  case ND_ADDR:
+    node->ty = to_ptr(node->lhs->ty);
+    break;
+  case ND_DEREF:
+    if (node->lhs->ty->base == NULL) {
+      errorf_tkn(ER_ERROR, node->tkn, "Unexpected dereference");
+    }
+
+    node->ty = node->lhs->ty->base;
+    break;
+  case ND_ASSIGN:
+  case ND_RETURN:
+    node->ty = node->lhs->ty;
+    break;
+  case ND_VAR:
+    node->ty = node->obj->ty;
+    break;
+  case ND_NUM:
+    node->ty = copy_type(ty_i32);
+    break;
+  default:
+    break;
+  }
+}
+
 static Node *compound_stmt(Token *tkn, Token **endtkn);
 static Node *stmt(Token *tkn, Token **endtkn);
 static Obj *declarator(Token *tkn, Token **endtkn, Type *ty);
@@ -39,6 +104,7 @@ static Node *shift(Token *tkn, Token **endtkn);
 static Node *add(Token *tkn, Token **endtkn);
 static Node *num(Token *tkn, Token **endtkn);
 static Node *mul(Token *tkn, Token **endtkn);
+static Node *cast(Token *tkn, Token **endtkn);
 static Node *unary(Token *tkn, Token **endtkn);
 static Node *postfix(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
@@ -138,14 +204,29 @@ static Node *stmt(Token *tkn, Token **endtkn) {
   return expr_stmt(tkn, endtkn);
 }
 
+// pointer:
+//  ("*")*
+static Type *pointer(Token *tkn, Token **endtkn, Type *ty) {
+  while (equal(tkn, "*")) {
+    ty = to_ptr(ty);
+    tkn = tkn->next;
+  }
+
+  *endtkn = tkn;
+  return ty;
+}
+
 // declarator:
-//   direct-declarator
+//   pointer? direct-declarator
 // direct-declarator:
 //   identifier ("()")?
 static Obj *declarator(Token *tkn, Token **endtkn, Type *ty) {
+  ty = pointer(tkn, &tkn, ty);
+
   if (tkn->kind != TK_IDENT) {
     errorf_tkn(ER_ERROR, tkn, "Unexpected identifier");
   }
+
   Obj *obj = new_obj(tkn->loc, tkn->len);
   obj->ty = ty;
 
@@ -240,7 +321,9 @@ static Node *declaration(Token *tkn, Token **endtkn) {
 
 // expression
 static Node *expr(Token *tkn, Token **endtkn) {
-  return assign(tkn, endtkn);
+  Node *node = assign(tkn, endtkn);
+  add_type(node);
+  return node;
 }
 
 // assignment-expression:
@@ -461,9 +544,9 @@ static Node *add(Token *tkn, Token **endtkn) {
 }
 
 // multiplicative-expression:
-//   unary-expression (("*" | "/" | "%") unary-expression)*
+//   cast-expression (("*" | "/" | "%") cast-expression)*
 static Node *mul(Token *tkn, Token **endtkn) {
-  Node *node = unary(tkn, &tkn);
+  Node *node = cast(tkn, &tkn);
 
   while (equal(tkn, "*") || equal(tkn, "/") || equal(tkn, "%")) {
     NodeKind kind = ND_MUL;
@@ -473,16 +556,25 @@ static Node *mul(Token *tkn, Token **endtkn) {
       kind = ND_MOD;
     }
 
-    node = new_side(kind, tkn, node, unary(tkn->next, &tkn));
+    node = new_side(kind, tkn, node, cast(tkn->next, &tkn));
   }
 
   *endtkn = tkn;
   return node;
 }
 
+// cast-expression:
+//   unary-expression
+static Node *cast(Token *tkn, Token **endtkn) {
+  return unary(tkn, endtkn);
+}
+
 // unary-expression:
 //   postfix-expression |
-//   ("++" | "--") postfix-expression
+//   ("++" | "--") postfix-expression |
+//   unary-operator postfix-expression |
+// unary-operator:
+//   "&" | "*"
 static Node *unary(Token *tkn, Token **endtkn) {
   if (equal(tkn, "++")) {
     Node *num = new_node(ND_NUM, tkn);
@@ -499,6 +591,18 @@ static Node *unary(Token *tkn, Token **endtkn) {
 
     Node *node = new_side(ND_SUB, tkn, postfix(tkn->next, endtkn), num);
     node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    return node;
+  }
+
+  if (equal(tkn, "&")) {
+    Node *node = new_node(ND_ADDR, tkn);
+    node->lhs = cast(tkn->next, endtkn);
+    return node;
+  }
+
+  if (equal(tkn, "*")) {
+    Node *node = new_node(ND_DEREF, tkn);
+    node->lhs = cast(tkn->next, endtkn);
     return node;
   }
 

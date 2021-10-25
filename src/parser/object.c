@@ -1,5 +1,6 @@
 #include "parser/parser.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,7 +10,7 @@ Type *ty_i32;
 Type *ty_i64;
 
 Type *new_type(TypeKind kind, int size) {
-  Type *ty = calloc(1, sizeof(Type));
+  Type *ty = calloc(2, sizeof(Type));
   ty->kind = kind;
   ty->size = size;
   return ty;
