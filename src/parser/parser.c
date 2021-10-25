@@ -601,7 +601,7 @@ static Node *cast(Token *tkn, Token **endtkn) {
 //   ("++" | "--") postfix-expression |
 //   unary-operator postfix-expression |
 // unary-operator:
-//   "&" | "*"
+//   "&" | "*" | "+" | "-"
 static Node *unary(Token *tkn, Token **endtkn) {
   if (equal(tkn, "++")) {
     Node *num = new_node(ND_NUM, tkn);
@@ -631,6 +631,16 @@ static Node *unary(Token *tkn, Token **endtkn) {
     Node *node = new_node(ND_DEREF, tkn);
     node->lhs = cast(tkn->next, endtkn);
     return node;
+  }
+
+  if (equal(tkn, "+")) {
+    return cast(tkn->next, endtkn);
+  }
+
+  if (equal(tkn, "-")) {
+    Node *num = new_node(ND_NUM, tkn);
+    num->val = 0;
+    return new_side(ND_SUB, tkn, num, cast(tkn->next, endtkn));
   }
 
   return postfix(tkn, endtkn);
