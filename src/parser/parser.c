@@ -6,20 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static Node *new_node(NodeKind kind, Token *tkn) {
-  Node *node = calloc(1, sizeof(Node));
-  node->kind = kind;
-  node->tkn = tkn;
-  return node;
-}
-
-static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
-  Node *node = new_node(kind, tkn);
-  node->lhs = lhs;
-  node->rhs = rhs;
-  return node;
-}
-
 static Type *to_ptr(Type *ty) {
   Type *new_ty = new_type(TY_PTR, 8);
   new_ty->base = ty;
@@ -70,7 +56,6 @@ static void add_type(Node *node) {
 
     node->ty = node->lhs->ty->base;
     break;
-  case ND_ASSIGN:
   case ND_RETURN:
     node->ty = node->lhs->ty;
     break;
@@ -92,6 +77,40 @@ static void add_type(Node *node) {
     break;
   }
 }
+
+static Node *new_node(NodeKind kind, Token *tkn) {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  node->tkn = tkn;
+  return node;
+}
+
+static Node *new_side(NodeKind kind, Token *tkn, Node *lhs, Node *rhs) {
+  Node *node = new_node(kind, tkn);
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+static Node *new_addr(Token *tkn, Node *lhs) {
+  if (lhs->kind == ND_DEREF) {
+    return lhs->lhs;
+  }
+
+  return new_side(ND_ADDR, tkn, lhs, NULL);
+}
+
+static Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
+  add_type(lhs);
+  add_type(rhs);
+
+  Node *node = new_node(ND_ASSIGN, tkn);
+  node->lhs = new_addr(tkn, lhs);
+  node->rhs = rhs;
+  node->ty = lhs->ty;
+  return node;
+}
+
 
 static Node *compound_stmt(Token *tkn, Token **endtkn);
 static Node *stmt(Token *tkn, Token **endtkn);
@@ -343,47 +362,47 @@ static Node *assign(Token *tkn, Token **endtkn) {
   Node *node = cond(tkn, &tkn);
 
   if (equal(tkn, "=")) {
-    return new_side(ND_ASSIGN, tkn, node, assign(tkn->next, endtkn));
+    return new_assign(tkn, node, assign(tkn->next, endtkn));
   }
 
   if (equal(tkn, "*=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_MUL, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_MUL, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "/=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_DIV, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_DIV, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "%=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_MOD, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_MOD, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "+=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_ADD, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_ADD, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "-=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_SUB, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_SUB, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "<<=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_LSHIFT, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_LSHIFT, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, ">>=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_RSHIFT, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_RSHIFT, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "&=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_BITAND, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_BITAND, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "^=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_BITXOR, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_BITXOR, tkn, node, assign(tkn->next, endtkn)));
   }
 
   if (equal(tkn, "|=")) {
-    return new_side(ND_ASSIGN, tkn, node, new_side(ND_BITOR, tkn, node, assign(tkn->next, endtkn)));
+    return new_assign(tkn, node, new_side(ND_BITOR, tkn, node, assign(tkn->next, endtkn)));
   }
 
   *endtkn = tkn;
@@ -589,7 +608,7 @@ static Node *unary(Token *tkn, Token **endtkn) {
     num->val = 1;
 
     Node *node = new_side(ND_ADD, tkn, postfix(tkn->next, endtkn), num);
-    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    node = new_assign(tkn, node->lhs, node);
     return node;
   }
 
@@ -598,7 +617,7 @@ static Node *unary(Token *tkn, Token **endtkn) {
     num->val = 1;
 
     Node *node = new_side(ND_SUB, tkn, postfix(tkn->next, endtkn), num);
-    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    node = new_assign(tkn, node->lhs, node);
     return node;
   }
 
@@ -629,7 +648,7 @@ static Node *postfix(Token *tkn, Token **endtkn) {
     num->val = 1;
 
     node = new_side(ND_ADD, tkn, node, num);
-    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    node = new_assign(tkn, node->lhs, node);
     node = new_side(ND_SUB, tkn, node, num);
 
     *endtkn = tkn->next;
@@ -641,7 +660,7 @@ static Node *postfix(Token *tkn, Token **endtkn) {
     num->val = 1;
 
     node = new_side(ND_SUB, tkn, node, num);
-    node = new_side(ND_ASSIGN, tkn, node->lhs, node);
+    node = new_assign(tkn, node->lhs, node);
     node = new_side(ND_ADD, tkn, node, num);
 
     *endtkn = tkn->next;

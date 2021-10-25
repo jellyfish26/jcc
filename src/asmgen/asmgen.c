@@ -82,8 +82,9 @@ static void gen_expr(Node *node) {
   case ND_ASSIGN:
     gen_stmt(node->rhs);
     gen_push("rax");
-    println("  lea -%d(%%rbp), %%rdi", node->lhs->obj->offset);
-    gen_store(node->lhs->obj->ty);
+    gen_stmt(node->lhs);
+    println("  mov %%rax, %%rdi");
+    gen_store(node->ty);
     return;
   case ND_VAR:
     println("  lea -%d(%%rbp), %%rax", node->obj->offset);
