@@ -197,6 +197,9 @@ void gen_stmt(Node *node) {
       gen_stmt(stmt);
     }
     break;
+  case ND_GNU_STMT:
+    gen_stmt(node->lhs);
+    break;
   case ND_RETURN:
     gen_expr(node->lhs);
     println("  mov %%rbp, %%rsp");

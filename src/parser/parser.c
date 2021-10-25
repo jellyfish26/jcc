@@ -80,6 +80,14 @@ static void add_type(Node *node) {
   case ND_NUM:
     node->ty = copy_type(ty_i32);
     break;
+  case ND_GNU_STMT: {
+    Type *tail;
+    for (Node *stmt = node->lhs->lhs; stmt != NULL; stmt = stmt->next) {
+      tail = stmt->ty;
+    }
+    node->ty = tail;
+    return;
+  }
   default:
     break;
   }
@@ -659,7 +667,8 @@ static Node *constant(Token *tkn, Token **endtkn) {
 // primary-expression:
 //   identifier |
 //   constant   |
-//   "(" expression ")"
+//   "(" expression ")" |
+//   "(" compound-statement ")" | -> GNU extension
 static Node *primary(Token *tkn, Token **endtkn) {
   if (tkn->kind == TK_IDENT) {
     Node *node = new_node(ND_VAR, tkn);
@@ -671,6 +680,15 @@ static Node *primary(Token *tkn, Token **endtkn) {
     free(name);
 
     *endtkn = tkn->next;
+    return node;
+  }
+
+  if (equal(tkn, "(") && equal(tkn->next, "{")) {
+    Node *node = new_node(ND_GNU_STMT, tkn);
+    node->lhs = compound_stmt(tkn->next, &tkn);
+    tkn = skip(tkn, ")");
+
+    *endtkn = tkn;
     return node;
   }
 

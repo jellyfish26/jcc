@@ -109,3 +109,4 @@ assert 2 "int main() { int a; int b; a = 2; b = --a; return a + b; }"
 assert 240 "int main() { char a; a = 240; return a; }"
 
 assert 5 "int main() { int *a; int b; b = 5; a = &b; return *a; }"
+assert 8 "int main() { int a; a = ({int a; int b; a = 3; b = 5; a + b;}); return a; }"
