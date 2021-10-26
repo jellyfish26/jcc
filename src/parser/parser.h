@@ -77,8 +77,14 @@ typedef enum {
 struct Type {
   TypeKind kind;
   int size;
+  char *name;
 
-  Type *base; // pointer
+  Type *base;    // pointer
+
+  // Function
+  Type *ret_ty;
+  Type *params;
+  Type *next;
 };
 
 extern Type *ty_i8;
@@ -97,7 +103,7 @@ struct Obj {
   int offset;
 };
 
-Obj *new_obj(char *name, int len);
+Obj *new_obj(Type *ty, char *name);
 void enter_scope();
 void leave_scope();
 

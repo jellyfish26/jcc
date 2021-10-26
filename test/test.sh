@@ -27,7 +27,7 @@ assert() {
   ./tmp
   actual="$?"
 
-  # rm tmp tmp.s tmp.c
+  rm tmp tmp.s tmp.c
   if [ "$actual" = "$expected" ]; then
     echo -e "\e[32m[ OK ]\e[m $input => $actual"
   else

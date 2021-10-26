@@ -115,7 +115,7 @@ static Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
 
 static Node *compound_stmt(Token *tkn, Token **endtkn);
 static Node *stmt(Token *tkn, Token **endtkn);
-static Obj *declarator(Token *tkn, Token **endtkn, Type *ty);
+static Type *declarator(Token *tkn, Token **endtkn, Type *ty);
 static Type *declspec(Token *tkn, Token **endtkn);
 static Node *declaration(Token *tkn, Token **endtkn);
 static Node *expr(Token *tkn, Token **endtkn);
@@ -141,16 +141,16 @@ static Node *primary(Token *tkn, Token **endtkn);
 //   declaration-specifiers declarator compound-statement
 static Node *funcdef(Token *tkn, Token **endtkn) {
   Type *ty = declspec(tkn, &tkn);
-  Obj *obj = declarator(tkn, &tkn, ty);
+  ty = declarator(tkn, &tkn, ty);
   if (ty->kind != TY_FUNC) {
     errorf_tkn(ER_ERROR, tkn, "Unexpected function definition");
   }
 
   Node *node = new_node(ND_FUNC, tkn);
-  node->obj = obj;
+  node->obj = new_obj(ty, ty->name);
 
   node->lhs = compound_stmt(tkn, endtkn);
-  obj->offset = init_offset();
+  node->obj->offset = init_offset();
 
   return node;
 }
@@ -244,27 +244,54 @@ static Type *pointer(Token *tkn, Token **endtkn, Type *ty) {
   return ty;
 }
 
-// declarator:
-//   pointer? direct-declarator
-// direct-declarator:
-//   identifier ("()")?
-static Obj *declarator(Token *tkn, Token **endtkn, Type *ty) {
-  ty = pointer(tkn, &tkn, ty);
-
-  if (tkn->kind != TK_IDENT) {
-    errorf_tkn(ER_ERROR, tkn, "Unexpected identifier");
+// direct-delclarator:
+//   identifier |
+//   identifier "(" parameter-type-list? ")"
+// parameter-type-list:
+//   parameter-list
+// parameter-list:
+//   parameter-declaration ("," parameter-declaration)*
+// parameter-declaration:
+//   declaration-specifiers declarator
+static Type *direct_decl(Token *tkn, Token **endtkn, Type *ty) {
+  if (tkn->kind == TK_IDENT) {
+    ty->name = strndup(tkn->loc, tkn->len);
   }
 
-  Obj *obj = new_obj(tkn->loc, tkn->len);
-  obj->ty = ty;
-
-  if (consume(tkn->next, &tkn, "(")) {
-    ty->kind = TY_FUNC;
-    tkn = skip(tkn, ")");
+  if (!consume(tkn->next, &tkn, "(")) {
+    *endtkn = tkn;
+    return ty;
   }
+
+  Type head = {};
+  Type *cur = &head;
+  while (!consume(tkn, &tkn, ")")) {
+    if (cur != &head) {
+      tkn = skip(tkn, ",");
+    }
+
+    Type *param = declspec(tkn, &tkn);
+    param = declarator(tkn, &tkn, param);
+    cur = cur->next = param;
+  }
+
+  Type *ret_ty = ty;
+  ty = new_type(TY_FUNC, 8);
+  ty->ret_ty = ret_ty;
+  ty->name = ret_ty->name;
+  ret_ty->name = NULL;
+
+  ty->next = head.next;
 
   *endtkn = tkn;
-  return obj;
+  return ty;
+}
+
+// declarator:
+//   pointer? direct-declarator
+static Type *declarator(Token *tkn, Token **endtkn, Type *ty) {
+  ty = pointer(tkn, &tkn, ty);
+  return direct_decl(tkn, endtkn, ty);
 }
 
 static bool is_typespec(Token *tkn) {
@@ -337,7 +364,9 @@ static Node *declaration(Token *tkn, Token **endtkn) {
   }
 
   Type *ty = declspec(tkn, &tkn);
-  Obj *obj = declarator(tkn, &tkn, ty);
+  ty = declarator(tkn, &tkn, ty);
+
+  Obj *obj = new_obj(ty, ty->name);
   if (!add_var(obj, true)) {
     errorf_tkn(ER_ERROR, tkn, "Variable '%s' has already declared", obj->name);
   }

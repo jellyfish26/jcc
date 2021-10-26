@@ -29,9 +29,10 @@ void init_type() {
   ty_i64 = new_type(TY_LONG, 8);
 }
 
-Obj *new_obj(char *name, int len) {
+Obj *new_obj(Type *ty, char *name) {
   Obj *obj = calloc(1, sizeof(Obj));
-  obj->name = strndup(name, len);
+  obj->ty = ty;
+  obj->name = name;
   return obj;
 }
 
