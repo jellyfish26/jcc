@@ -7,6 +7,8 @@
 static FILE *target_file;
 static int num_labels = 0;
 
+static char *argregs64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8",  "%r9"};
+
 static void println(char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -24,7 +26,11 @@ static void gen_pop(const char *reg) {
 }
 
 static void gen_addr(Obj *obj) {
-  println("  lea -%d(%%rbp), %%rax", obj->offset);
+  if (obj->ty->kind == TY_FUNC) {
+    println("  mov $%s, %%rax", obj->name);
+  } else {
+    println("  lea -%d(%%rbp), %%rax", obj->offset);
+  }
 }
 
 // The value must be placed on the stack before calling this function.
@@ -102,6 +108,17 @@ static void gen_expr(Node *node) {
     gen_stmt(node->lhs);
     gen_load(node->ty);
     return;
+  case ND_FUNCCALL: {
+    gen_stmt(node->lhs);
+    println("  mov %%rax, %%r10");
+    int idx = 0;
+    for (Node *stmt = node->rhs; stmt != NULL; stmt = stmt->next) {
+      gen_stmt(stmt);
+      println("  mov %%rax, %s", argregs64[idx++]);
+    }
+    println("  call *%%r10");
+    return;
+  }
   default:
     break;
   }
@@ -218,23 +235,36 @@ void gen_stmt(Node *node) {
 
 void asmgen(Node *node, char *filename) {
   target_file = fopen(filename, "w");
-  Obj *func = node->obj;
 
-  println(".globl main");
-  println(".text");
-  println(".type %s, @function", func->name);
-  println("%s:", func->name);
+  while (node != NULL) {
+    Obj *func = node->obj;
 
-  // Prologue
-  gen_push("rbp");
-  println("  mov %%rsp, %%rbp");
-  println("  sub $%d, %%rsp", func->offset);
+    println(".globl main");
+    println(".text");
+    println(".type %s, @function", func->name);
+    println("%s:", func->name);
 
-  gen_stmt(node->lhs);
+    // Prologue
+    gen_push("rbp");
+    println("  mov %%rsp, %%rbp");
+    println("  sub $%d, %%rsp", func->offset);
 
-  println("  mov %%rbp, %%rsp");
-  gen_pop("rbp");
-  println("  ret");
+    int idx = 0;
+    for (Obj *param = func->params; param != NULL; param = param->next) {
+      println("  push %s", argregs64[idx++]);
+      gen_addr(param);
+      println("  mov %%rax, %%rdi");
+      gen_store(param->ty);
+    }
+
+    gen_stmt(node->lhs);
+
+    println("  mov %%rbp, %%rsp");
+    gen_pop("rbp");
+    println("  ret");
+
+    node = node->next;
+  }
 
   fclose(target_file);
 }

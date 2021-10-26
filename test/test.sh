@@ -27,7 +27,7 @@ assert() {
   ./tmp
   actual="$?"
 
-  rm tmp tmp.s tmp.c
+  # rm tmp tmp.s tmp.c
   if [ "$actual" = "$expected" ]; then
     echo -e "\e[32m[ OK ]\e[m $input => $actual"
   else
@@ -118,3 +118,12 @@ assert 2 "int main() { int a; a = 2; return -(-(a)); }"
 assert 1 "int main() { return ~254; }"
 assert 1 "int main() { return !0; }"
 assert 0 "int main() { return !1; }"
+assert 3 "
+int add2(int a, int b) {
+  return a + b;
+}
+
+int main() {
+  return add2(1, 2);
+}
+"

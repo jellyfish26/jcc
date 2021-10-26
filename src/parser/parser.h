@@ -38,6 +38,7 @@ typedef enum {
   ND_BLOCK,     // {...}
   ND_GNU_STMT,  // ({...})
   ND_FUNC,      // int hoge(...) {...}
+  ND_FUNCCALL,  // function call
   ND_RETURN,    // "return"
   ND_VAR,       // variable
   ND_NUM,       // number
@@ -101,6 +102,10 @@ struct Obj {
 
   char *name;
   int offset;
+
+  // Function
+  Obj *params;
+  Obj *next;
 };
 
 Obj *new_obj(Type *ty, char *name);

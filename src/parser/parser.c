@@ -113,7 +113,7 @@ static Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
 }
 
 
-static Node *compound_stmt(Token *tkn, Token **endtkn);
+static Node *compound_stmt(Token *tkn, Token **endtkn, bool has_newscope);
 static Node *stmt(Token *tkn, Token **endtkn);
 static Type *declarator(Token *tkn, Token **endtkn, Type *ty);
 static Type *declspec(Token *tkn, Token **endtkn);
@@ -148,9 +148,28 @@ static Node *funcdef(Token *tkn, Token **endtkn) {
 
   Node *node = new_node(ND_FUNC, tkn);
   node->obj = new_obj(ty, ty->name);
+  add_var(node->obj, false);
 
-  node->lhs = compound_stmt(tkn, endtkn);
+
+  Obj head = {};
+  Obj *cur = &head;
+  enter_scope();
+
+  for (Type *param = ty->params; param != NULL; param = param->next) {
+    if (param->name == NULL) {
+      continue;
+    }
+
+    cur = cur->next = new_obj(param, param->name);
+    if (!add_var(cur, true)) {
+      errorf_tkn(ER_ERROR, tkn, "Variable '%s' has already declared", ty->name);
+    }
+  }
+
+  node->lhs = compound_stmt(tkn, endtkn, false);
+  node->obj->params = head.next;
   node->obj->offset = init_offset();
+  leave_scope();
 
   return node;
 }
@@ -192,8 +211,10 @@ static Node *jump_stmt(Token *tkn, Token **endtkn) {
 // block-item:
 //   declaration
 //   statement
-static Node *compound_stmt(Token *tkn, Token **endtkn) {
-  enter_scope();
+static Node *compound_stmt(Token *tkn, Token **endtkn, bool has_newscope) {
+  if (has_newscope) {
+    enter_scope();
+  }
 
   Node *node = new_node(ND_BLOCK, tkn);
 
@@ -211,7 +232,10 @@ static Node *compound_stmt(Token *tkn, Token **endtkn) {
   }
   node->lhs = head.next;
 
-  leave_scope();
+  if (has_newscope) {
+    leave_scope();
+  }
+
   *endtkn = tkn;
   return node;
 }
@@ -222,7 +246,7 @@ static Node *compound_stmt(Token *tkn, Token **endtkn) {
 //   jump-statement
 static Node *stmt(Token *tkn, Token **endtkn) {
   if (equal(tkn, "{")) {
-    return compound_stmt(tkn, endtkn);
+    return compound_stmt(tkn, endtkn, true);
   }
 
   if (equal(tkn, "return")) {
@@ -281,7 +305,7 @@ static Type *direct_decl(Token *tkn, Token **endtkn, Type *ty) {
   ty->name = ret_ty->name;
   ret_ty->name = NULL;
 
-  ty->next = head.next;
+  ty->params = head.next;
 
   *endtkn = tkn;
   return ty;
@@ -486,7 +510,7 @@ static Node *logand(Token *tkn, Token **endtkn) {
 
 // inclusive-OR-expression
 //   exclusive-OR-expression ("|" exclusive-OR-expression)*
-static Node * bitor (Token * tkn, Token **endtkn) {
+static Node *bitor(Token * tkn, Token **endtkn) {
   Node *node = bitxor(tkn, &tkn);
 
   while (equal(tkn, "|")) {
@@ -689,9 +713,33 @@ static Node *unary(Token *tkn, Token **endtkn) {
 
 // postfix-expression:
 //   primary-expression |
+//   primary-expression "(" argument-expression-list? ")" |
 //   primary-expression ("++" | "--")
+// argument-expression-list:
+//   assignment-expression ("," assignment-expression)*
 static Node *postfix(Token *tkn, Token **endtkn) {
   Node *node = primary(tkn, &tkn);
+
+  if (equal(tkn, "(")) {
+    node = new_side(ND_FUNCCALL, tkn, node, NULL);
+    node->lhs = new_side(ND_ADDR, tkn, node->lhs, NULL);
+
+    Node head = {};
+    Node *cur = &head;
+    tkn = tkn->next;
+
+    while (!consume(tkn, &tkn, ")")) {
+      if (cur != &head) {
+        tkn = skip(tkn, ",");
+      }
+
+      cur = cur->next = assign(tkn, &tkn);
+    }
+    node->rhs = head.next;
+
+    *endtkn = tkn;
+    return node;
+  }
 
   if (equal(tkn, "++")) {
     Node *num = new_node(ND_NUM, tkn);
@@ -754,7 +802,7 @@ static Node *primary(Token *tkn, Token **endtkn) {
 
   if (equal(tkn, "(") && equal(tkn->next, "{")) {
     Node *node = new_node(ND_GNU_STMT, tkn);
-    node->lhs = compound_stmt(tkn->next, &tkn);
+    node->lhs = compound_stmt(tkn->next, &tkn, true);
     tkn = skip(tkn, ")");
 
     *endtkn = tkn;
@@ -773,5 +821,12 @@ static Node *primary(Token *tkn, Token **endtkn) {
 }
 
 Node *parser(Token *tkn) {
-  return funcdef(tkn, &tkn);
+  Node head = {};
+  Node *cur = &head;
+
+  while (!is_eof(tkn)) {
+    cur = cur->next = funcdef(tkn, &tkn);
+  }
+
+  return head.next;
 }
