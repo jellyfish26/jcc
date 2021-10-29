@@ -112,7 +112,6 @@ static Node *new_assign(Token *tkn, Node *lhs, Node *rhs) {
   return node;
 }
 
-
 static Node *compound_stmt(Token *tkn, Token **endtkn, bool has_newscope);
 static Node *stmt(Token *tkn, Token **endtkn);
 static Type *declarator(Token *tkn, Token **endtkn, Type *ty);
@@ -136,6 +135,29 @@ static Node *cast(Token *tkn, Token **endtkn);
 static Node *unary(Token *tkn, Token **endtkn);
 static Node *postfix(Token *tkn, Token **endtkn);
 static Node *primary(Token *tkn, Token **endtkn);
+
+static Node *gnodes;
+
+static void add_gnode(Node *node) {
+  static Node *tail = NULL;
+
+  if (gnodes == NULL) {
+    tail = NULL;
+  }
+
+  if (tail == NULL) {
+    gnodes = tail = node;
+  } else {
+    tail = tail->next = node;
+  }
+}
+
+static char *new_unique_label() {
+  static int cnt = 0;
+  char *str = calloc(10, sizeof(char));
+  sprintf(str, ".Luni%d", cnt++);
+  return str;
+}
 
 // function-definition:
 //   declaration-specifiers declarator compound-statement
@@ -784,6 +806,7 @@ static Node *constant(Token *tkn, Token **endtkn) {
 // primary-expression:
 //   identifier |
 //   constant   |
+//   string-literal |
 //   "(" expression ")" |
 //   "(" compound-statement ")" | -> GNU extension
 static Node *primary(Token *tkn, Token **endtkn) {
@@ -795,6 +818,21 @@ static Node *primary(Token *tkn, Token **endtkn) {
       errorf_tkn(ER_ERROR, tkn, "Identifier '%s' is not found", name);
     }
     free(name);
+
+    *endtkn = tkn->next;
+    return node;
+  }
+
+  if (tkn->kind == TK_STR) {
+    Obj *obj = new_obj(new_type(TY_STR, 0), new_unique_label());
+
+    Node *node = new_node(ND_STR, tkn);
+    node->strlit = tkn->strlit;
+    node->obj = obj;
+    add_gnode(node);
+
+    node = new_node(ND_STR, tkn);
+    node->obj = obj;
 
     *endtkn = tkn->next;
     return node;
@@ -825,7 +863,13 @@ Node *parser(Token *tkn) {
   Node *cur = &head;
 
   while (!is_eof(tkn)) {
-    cur = cur->next = funcdef(tkn, &tkn);
+    Node *now = funcdef(tkn, &tkn);
+    cur->next = gnodes;
+
+    while (cur->next != NULL) {
+      cur = cur->next;
+    }
+    cur = cur->next = now;
   }
 
   return head.next;

@@ -149,6 +149,64 @@ static bool isident(char c) {
   return isalpha(c) | isdigit(c) | c == '_';
 }
 
+static char read_escaped_char(char *ptr, char **endptr) {
+  if (*ptr != '\\') {
+    *endptr = ptr + 1;
+    return *ptr;
+  }
+
+  switch (*(ptr + 1)) {
+  case 'a':
+    return '\a';
+  case 'b':
+    return '\b';
+  case 'e':
+    return '\e';
+  case 'f':
+    return '\f';
+  case 'n':
+    return '\n';
+  case 'r':
+    return '\r';
+  case '\\':
+    return '\\';
+  case '\'':
+    return '\'';
+  case '\"':
+    return '\"';
+  case '?':
+    return '\?';
+  default:
+    return 0;
+  }
+}
+
+static char *end_strlit(char *ptr) {
+  while (*ptr != '\"') {
+    if (*ptr == '\n' || *ptr == '\0') {
+      errorf_at(ER_ERROR, cur_tokenize_file, ptr, 1, "String must be closed with double quotation makrs");
+    }
+
+    ptr++;
+  }
+  return ptr;
+}
+
+static Token *read_strlit(char *ptr, char **endptr) {
+  char *end = end_strlit(ptr + 1);
+  Token *tkn = new_token(TK_STR, ptr, end - ptr + 1);
+  tkn->strlit = calloc(tkn->len, sizeof(char));
+
+  int idx = 0;
+  ptr++;
+  while (ptr != end) {
+    tkn->strlit[idx++] = read_escaped_char(ptr, &ptr);
+  }
+
+  *endptr = ptr + 1;
+  return tkn;
+}
+
 static Token *tokenize_str(char *str) {
   Token head = {};
   Token *cur = &head;
@@ -156,6 +214,11 @@ static Token *tokenize_str(char *str) {
   while (*str != '\0') {
     if (isspace(*str)) {
       str++;
+      continue;
+    }
+
+    if (*str == '\"') {
+      cur = cur->next = read_strlit(str, &str);
       continue;
     }
 

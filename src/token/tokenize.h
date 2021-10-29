@@ -10,6 +10,7 @@ typedef enum {
   TK_PANCT,
   TK_KEYWORD,
   TK_IDENT,
+  TK_STR,
   TK_EOF,
 } TokenKind;
 
@@ -23,6 +24,7 @@ struct Token {
   int len;
 
   int64_t val;
+  char *strlit;
 };
 
 bool is_eof(Token *tkn);

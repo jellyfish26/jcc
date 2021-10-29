@@ -127,3 +127,11 @@ int main() {
   return add2(1, 2);
 }
 "
+
+assert 97 "
+int main() {
+  char *c;
+  c = \"abc\";
+  return *c;
+}
+"

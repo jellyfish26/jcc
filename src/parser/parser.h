@@ -39,6 +39,7 @@ typedef enum {
   ND_GNU_STMT,  // ({...})
   ND_FUNC,      // int hoge(...) {...}
   ND_FUNCCALL,  // function call
+  ND_STR,       // String literal
   ND_RETURN,    // "return"
   ND_VAR,       // variable
   ND_NUM,       // number
@@ -58,6 +59,7 @@ struct Node {
   Obj *obj;  // Variable or Function
 
   int64_t val;
+  char *strlit;
 };
 
 Node *parser(Token *tkn);
@@ -72,6 +74,7 @@ typedef enum {
   TY_INT,
   TY_LONG,
   TY_PTR,
+  TY_STR,
   TY_FUNC,
 } TypeKind;
 

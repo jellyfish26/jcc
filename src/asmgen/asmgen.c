@@ -119,6 +119,9 @@ static void gen_expr(Node *node) {
     println("  call *%%r10");
     return;
   }
+  case ND_STR:
+    println("  mov $%s, %%rax", node->obj->name);
+    return;
   default:
     break;
   }
@@ -233,10 +236,24 @@ void gen_stmt(Node *node) {
   }
 }
 
+void gen_strlit(Node *node) {
+  println(".data");
+  println("%s:", node->obj->name);
+  for (char *ptr = node->strlit; *ptr != '\0'; ptr++) {
+    println("  .byte %d", *ptr);
+  }
+}
+
 void asmgen(Node *node, char *filename) {
   target_file = fopen(filename, "w");
 
   while (node != NULL) {
+    if (node->kind == ND_STR) {
+      gen_strlit(node);
+      node = node->next;
+      continue;
+    }
+
     Obj *func = node->obj;
 
     println(".globl main");
