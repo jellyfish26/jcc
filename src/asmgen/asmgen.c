@@ -114,8 +114,15 @@ static void gen_expr(Node *node) {
     int idx = 0;
     for (Node *stmt = node->rhs; stmt != NULL; stmt = stmt->next) {
       gen_stmt(stmt);
-      println("  mov %%rax, %s", argregs64[idx++]);
+      gen_push("rax");
+      idx++;
     }
+
+    while (idx > 0) {
+      gen_pop("rax");
+      println("  mov %%rax, %s", argregs64[--idx]);
+    }
+
     println("  call *%%r10");
     return;
   }
@@ -242,6 +249,7 @@ void gen_strlit(Node *node) {
   for (char *ptr = node->strlit; *ptr != '\0'; ptr++) {
     println("  .byte %d", *ptr);
   }
+  println("  .byte 0");
 }
 
 void asmgen(Node *node, char *filename) {
@@ -250,6 +258,11 @@ void asmgen(Node *node, char *filename) {
   while (node != NULL) {
     if (node->kind == ND_STR) {
       gen_strlit(node);
+      node = node->next;
+      continue;
+    }
+
+    if (node->kind == ND_NONE) {
       node = node->next;
       continue;
     }

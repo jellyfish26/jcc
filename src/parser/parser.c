@@ -158,20 +158,18 @@ static char *new_unique_label() {
   sprintf(str, ".Luni%d", cnt++);
   return str;
 }
-
+// 
 // function-definition:
 //   declaration-specifiers declarator compound-statement
 static Node *funcdef(Token *tkn, Token **endtkn) {
   Type *ty = declspec(tkn, &tkn);
   ty = declarator(tkn, &tkn, ty);
   if (ty->kind != TY_FUNC) {
-    errorf_tkn(ER_ERROR, tkn, "Unexpected function definition");
+    return NULL;
   }
 
   Node *node = new_node(ND_FUNC, tkn);
   node->obj = new_obj(ty, ty->name);
-  add_var(node->obj, false);
-
 
   Obj head = {};
   Obj *cur = &head;
@@ -187,6 +185,13 @@ static Node *funcdef(Token *tkn, Token **endtkn) {
       errorf_tkn(ER_ERROR, tkn, "Variable '%s' has already declared", ty->name);
     }
   }
+
+  if (!equal(tkn, "{")) {
+    leave_scope();
+    init_offset();
+    return NULL;
+  }
+  add_var(node->obj, false);
 
   node->lhs = compound_stmt(tkn, endtkn, false);
   node->obj->params = head.next;
@@ -341,7 +346,18 @@ static Type *declarator(Token *tkn, Token **endtkn, Type *ty) {
 }
 
 static bool is_typespec(Token *tkn) {
-  return equal(tkn, "char") | equal(tkn, "short") | equal(tkn, "int") | equal(tkn, "long");
+  static char *keywords[] = {
+    "void", "char", "short", "int", "long"
+  };
+
+  int sz = sizeof(keywords) / sizeof(char *), idx = 0;
+  for (;idx < sz; idx++) {
+    if (equal(tkn, keywords[idx])) {
+      break;
+    }
+  }
+
+  return idx < sz;
 }
 
 // declaration-specifiers:
@@ -352,17 +368,20 @@ static Type *declspec(Token *tkn, Token **endtkn) {
   // We replace the type with a number and count it,
   // which makes it easier to detect duplicates and types.
   enum {
-    CHAR   = 1,
-    SHORT  = 1 << 2,
-    INT    = 1 << 4,
-    LONG   = 1 << 6,
+    VOID   = 1,
+    CHAR   = 1 << 2,
+    SHORT  = 1 << 4,
+    INT    = 1 << 6,
+    LONG   = 1 << 8,
   };
 
   int ty_cnt = 0;
   Type *ty;
 
   while (is_typespec(tkn)) {
-    if (equal(tkn, "char")) {
+    if (equal(tkn, "void")) {
+      ty_cnt += VOID;
+    } else if (equal(tkn, "char")) {
       ty_cnt += CHAR;
     } else if (equal(tkn, "short")) {
       ty_cnt += SHORT;
@@ -373,6 +392,9 @@ static Type *declspec(Token *tkn, Token **endtkn) {
     }
 
     switch (ty_cnt) {
+    case VOID:
+      ty = new_type(TY_VOID, 0);
+      break;
     case CHAR:
       ty = ty_i8;
       break;
@@ -594,7 +616,7 @@ static Node *relational(Token *tkn, Token **endtkn) {
 
   while (equal(tkn, "<") | equal(tkn, ">") | equal(tkn, "<=") |
          equal(tkn, ">=")) {
-    NodeKind kind = ND_LECMP;
+    NodeKind kind = ND_LCMP;
     if (equal(tkn, "<=") | equal(tkn, ">=")) {
       kind = ND_LECMP;
     }
@@ -858,12 +880,20 @@ static Node *primary(Token *tkn, Token **endtkn) {
   return constant(tkn, endtkn);
 }
 
+// translation-unit:
+//   external-declaration (external-declaration)*
+// external-declaration:
+//   function-definition | 
+//   declaration
 Node *parser(Token *tkn) {
   Node head = {};
   Node *cur = &head;
 
   while (!is_eof(tkn)) {
     Node *now = funcdef(tkn, &tkn);
+    if (now == NULL) {
+      now = declaration(tkn, &tkn);
+    }
     cur->next = gnodes;
 
     while (cur->next != NULL) {

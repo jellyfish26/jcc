@@ -69,6 +69,7 @@ Node *parser(Token *tkn);
 //
 
 typedef enum {
+  TY_VOID,
   TY_CHAR,
   TY_SHORT,
   TY_INT,

@@ -257,7 +257,7 @@ static Token *tokenize_str(char *str) {
         ";", "{", "}", "=", "~", "!", ",",
       };
 
-      int sz = sizeof(pancts) / sizeof(char *), idx = 0;
+      int sz = sizeof(pancts) / sizeof(char *), idx = 1;
       for (; idx < sz; idx++) {
         if (strncmp(str, pancts[idx], strlen(pancts[idx])) == 0) {
           break;
@@ -275,7 +275,7 @@ static Token *tokenize_str(char *str) {
 
     if (isalpha(*str)) {
       static char *keywords[] = {
-        "char", "short", "int", "long", "return"
+        "void", "char", "short", "int", "long", "return"
       };
 
       int sz = sizeof(keywords) / sizeof(char *), idx = 0;
