@@ -212,6 +212,21 @@ static Token *tokenize_str(char *str) {
   Token *cur = &head;
 
   while (*str != '\0') {
+    if (strncmp(str, "//", 2) == 0) {
+      while (*str != '\n') {
+        str++;
+      }
+      continue;
+    }
+
+    if (strncmp(str, "/*", 2) == 0) {
+      while (strncmp(str, "*/", 2) != 0) {
+        str++;
+      }
+      str += 2;
+      continue;
+    }
+
     if (isspace(*str)) {
       str++;
       continue;
