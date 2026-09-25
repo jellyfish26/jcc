@@ -937,11 +937,12 @@ void compile_node(Node *node) {
       return;
     }
     case ND_FOR: {
+      int cond_label = branch_label++;
       if (node->init != NULL) {
         compile_node(node->init);
       }
 
-      println("%s:", node->conti_label);
+      println(".Lfor_cond%d:", cond_label);
 
       // judege expr
       if (node->cond != NULL) {
@@ -953,22 +954,25 @@ void compile_node(Node *node) {
       compile_node(node->then);
 
       // repeat expr
+      println("%s:", node->conti_label);
       if (node->loop != NULL) {
         compile_node(node->loop);
       }
 
       // finally
-      println("  jmp %s", node->conti_label);
+      println("  jmp .Lfor_cond%d", cond_label);
       println("%s:", node->break_label);
       return;
     }
     case ND_DO: {
-      println("%s:", node->conti_label);
+      int body_label = branch_label++;
+      println(".Ldo_body%d:", body_label);
       compile_node(node->then);
 
+      println("%s:", node->conti_label);
       compile_node(node->cond);
       println("  cmp $0, %%rax");
-      println("  jne %s", node->conti_label);
+      println("  jne .Ldo_body%d", body_label);
 
       println("%s:", node->break_label);
       return;

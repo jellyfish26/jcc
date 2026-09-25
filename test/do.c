@@ -19,5 +19,14 @@ int main() {
     ans;
   }));
 
+  CHECK(1, ({
+    int i = 0, checks = 0;
+    do {
+      i++;
+      if (i == 1) continue;
+    } while (++checks < 1);
+    i;
+  }));
+
   return 0;
 }

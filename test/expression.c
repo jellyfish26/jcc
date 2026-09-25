@@ -28,6 +28,14 @@ int main() {
   CHECK(3,({int hoge = 0; while (1) { hoge = hoge + 1; if (hoge == 3) break; } hoge; }));
   CHECK(8,({int hoge = 0; while (1) { hoge = hoge + 1; if (hoge <= 5) continue; hoge = hoge + 2; break; } hoge; }));
   CHECK(6,({int hoge = 0; for (int i = 0; i < 5; i = i + 1) { hoge = hoge + 2; if (i >= 2) break; } hoge; }));
+  CHECK(3, ({
+    int i = 0, updates = 0;
+    for (; i < 3; updates++) {
+      i++;
+      if (i == 2) continue;
+    }
+    updates;
+  }));
   CHECK(100, ({
     int ans = 0;
     for (int i = 0; i < 5; ++i) {
