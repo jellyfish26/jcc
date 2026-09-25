@@ -772,12 +772,18 @@ static Token *expand_preprocess(Token *head) {
     if (tkn->next->kind == TK_IDENT && find_macro(tkn->next) != NULL) {
       Macro *macro = find_macro(tkn->next);
       Token *ref_tkn = tkn->next;
+      Token *next = ref_tkn->next;
 
-      if (!macro->is_objlike && !equal(tkn->next->next, "(")) {
-        tkn = tkn->next;
-        continue;
+      if (!macro->is_objlike) {
+        while (next != NULL && next->kind == TK_PP) {
+          next = next->next;
+        }
+        if (next == NULL || is_eof(next) || !equal(next, "(")) {
+          tkn = ref_tkn;
+          continue;
+        }
       }
-      tkn->next = tkn->next->next;
+      tkn->next = next;
 
       if (!macro->is_objlike) {
         set_macro_args(macro, tkn->next, &(tkn->next));
@@ -800,17 +806,30 @@ static Token *expand_preprocess(Token *head) {
       tkn->next = tail->next;
       tail->next = NULL;
 
+      Token *name_tkn = expand_tkn;
+      while (name_tkn != NULL && name_tkn->kind == TK_PP) {
+        name_tkn = name_tkn->next;
+      }
+
+      bool is_objlike = true;
+      Token *next = name_tkn == NULL ? NULL : name_tkn->next;
+      if (next != NULL && next->kind == TK_PUNCT && equal(next, "(")) {
+        char *gap = erase_bslash_str(name_tkn->loc + name_tkn->len,
+                                     next->loc - name_tkn->loc - name_tkn->len);
+        is_objlike = *gap != '\0';
+        free(gap);
+      }
+
       expand_tkn = delete_pp_token(expand_tkn);
 
       char *name = get_ident(expand_tkn);
-      bool is_objlike = true;
       expand_tkn = expand_tkn->next;
 
       MacroArg head = {};
       MacroArg *cur = &head;
 
-      if (consume(expand_tkn, &expand_tkn, "(")) {
-        is_objlike = false;
+      if (!is_objlike) {
+        expand_tkn = skip(expand_tkn, "(");
 
         while (!consume(expand_tkn, &expand_tkn, ")")) {
           if (cur != &head) {

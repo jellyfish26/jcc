@@ -186,6 +186,18 @@ int main() {
   CHECK(1, __COUNTER__);
   CHECK(2, __COUNTER__);
 
+  CHECK(10, FOO ());
+  CHECK(2, MIN (2, 3));
+  CHECK(2, MIN
+    (2, 3));
+#define PAREN_OBJECT (3)
+  CHECK(3, PAREN_OBJECT);
+#define COMMENT_OBJECT/**/(4)
+  CHECK(4, COMMENT_OBJECT);
+#define SPLICE_FUNC\
+(x) (x)
+  CHECK(5, SPLICE_FUNC (5));
+
   CHECK(5, ({
     int TMP = 3;
 #define TMP 2
