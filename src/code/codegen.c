@@ -1265,7 +1265,7 @@ void compile_node(Node *node) {
     case ND_DIV:
     case ND_REMAINDER:
       if (node->ty->is_unsigned) {
-        println("  mov $0. %%rdx");
+        println("  xor %s, %s", rdx, rdx);
         println("  div %s", rdi);
       } else {
         if (node->lhs->ty->var_size == 8) {
