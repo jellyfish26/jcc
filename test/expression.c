@@ -92,6 +92,13 @@ int main() {
     a | b;
   }));
 
+  CHECK(0, ({ int x = 0; 0 && (x = 1); x; }));
+  CHECK(0, ({ int x = 0; 1 || (x = 1); x; }));
+  CHECK(1, ({ int x = 0; 1 && (x = 1); x; }));
+  CHECK(1, ({ int x = 0; 0 || (x = 1); x; }));
+  CHECK(2, ({ int x = 0; 0 && (x = 1) || (x = 2); x; }));
+  CHECK(0, ({ int x = 0; 0.0 && (x = 1); x; }));
+
   CHECK(5, ({
     int ans = 0;
     int a = 2;

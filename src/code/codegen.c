@@ -1026,6 +1026,24 @@ void compile_node(Node *node) {
       compile_node(node->lhs);
       println("  not %%rax");
       return;
+    case ND_LOGICALAND:
+    case ND_LOGICALOR: {
+      int label = branch_label++;
+      compile_node(node->lhs);
+      println("  cmp $0, %%rax");
+      println("  %s .Llogical_short%d", node->kind == ND_LOGICALAND ? "je" : "jne", label);
+
+      compile_node(node->rhs);
+      println("  cmp $0, %%rax");
+      println("  setne %%al");
+      println("  movzx %%al, %%rax");
+      println("  jmp .Llogical_end%d", label);
+
+      println(".Llogical_short%d:", label);
+      println("  mov $%d, %%rax", node->kind == ND_LOGICALOR);
+      println(".Llogical_end%d:", label);
+      return;
+    }
     default:
       break;
   }
@@ -1326,29 +1344,6 @@ void compile_node(Node *node) {
       break;
     case ND_BITWISEOR:
       println("  or %s, %s", rdi, rax);
-      break;
-    case ND_LOGICALAND:
-      println("  cmp $0, %s", rax);
-      println("  je 1f");
-      println("  cmp $0, %s", rdi);
-      println("  je 1f");
-      println("  mov $1, %%rax");
-      println("  jmp 2f");
-      println("1:");
-      println("  mov $0, %%rax");
-      println("2:");
-      break;
-    case ND_LOGICALOR:
-      println("  cmp $0, %s", rax);
-      println("  jne 1f");
-      println("  cmp $0, %s", rdi);
-      println("  je 2f");
-      println("1:");
-      println("  mov $1, %%rax");
-      println("  jmp 3f");
-      println("2:");
-      println("  mov $0, %%rax");
-      println("3:");
       break;
     default:
       break;
