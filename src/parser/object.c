@@ -56,6 +56,39 @@ void init_type() {
   ty_f32 = new_type(TY_FLOAT, false, 4);
   ty_f64 = new_type(TY_DOUBLE, false, 8);
   ty_f80 = new_type(TY_LDOUBLE, false, 16);
+
+  // Model GCC's __builtin_va_list as a predefined typedef name.
+  // The x86-64 System V ABI (3.5.7) defines va_list as a one-element array of
+  // this four-member structure.
+  Type *va_tag = new_type(TY_STRUCT, false, 24);
+  va_tag->align = 8;
+  va_tag->num_members = 4;
+
+  Member *gp_offset = calloc(1, sizeof(Member));
+  Member *fp_offset = calloc(1, sizeof(Member));
+  Member *overflow_arg_area = calloc(1, sizeof(Member));
+  Member *reg_save_area = calloc(1, sizeof(Member));
+
+  gp_offset->name = "gp_offset";
+  gp_offset->ty = ty_u32;
+  gp_offset->next = fp_offset;
+
+  fp_offset->name = "fp_offset";
+  fp_offset->ty = ty_u32;
+  fp_offset->offset = 4;
+  fp_offset->next = overflow_arg_area;
+
+  overflow_arg_area->name = "overflow_arg_area";
+  overflow_arg_area->ty = pointer_to(ty_void);
+  overflow_arg_area->offset = 8;
+  overflow_arg_area->next = reg_save_area;
+
+  reg_save_area->name = "reg_save_area";
+  reg_save_area->ty = pointer_to(ty_void);
+  reg_save_area->offset = 16;
+
+  va_tag->members = gp_offset;
+  add_type_def(array_to(va_tag, 1), "__builtin_va_list");
 }
 
 // In the case of functions, we need to look at the type of the return type.

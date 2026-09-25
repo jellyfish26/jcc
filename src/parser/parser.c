@@ -588,13 +588,14 @@ static Type *stunspec(Token *tkn, Token **end_tkn) {
   return ty;
 }
 
+// Supported subset of C11 declaration specifiers (6.7):
 // declaration-specifiers = type-specifier declaration-specifiers?
 //                          type-qualifier declaration-specifiers?
 //                          storage-class-specifier declaration-specifiers?
 //
-// type-specifier = "void" | "_Bool | "char" | "short" | "int" | "long" | "double" | "signed" | "unsigned" |
-//                  enum-specifier |
-//                  struct-or-union-specifier
+// type-specifier = "void" | "_Bool" | "char" | "short" | "int" | "long" |
+//                  "float" | "double" | "signed" | "unsigned" |
+//                  enum-specifier | struct-or-union-specifier | typedef-name
 // type-qualifier = "const"
 // storage-class-specifier = "typedef" | "static" | "auto"
 static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
@@ -651,6 +652,7 @@ static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
       continue;
     }
 
+    // This includes predefined typedef names such as __builtin_va_list.
     Type *type_def = find_type_def(strndup(tkn->loc, tkn->len));
     if (type_def != NULL) {
       ty = type_def;
@@ -753,6 +755,9 @@ static Type *declspec(Token *tkn, Token **end_tkn, VarAttr *attr) {
         errorf_tkn(ER_COMPILE, tkn, "Invalid type");
     }
     tkn = tkn->next;
+  }
+  if (ty == NULL) {
+    errorf_tkn(ER_COMPILE, tkn, "Type name expected");
   }
   ty->is_const = is_const;
 
