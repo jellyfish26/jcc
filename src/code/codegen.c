@@ -431,9 +431,37 @@ static void gen_cast(Node *node) {
 
 int branch_label = 0;
 
-void expand_ternary(Node *node, int label) {
-  compile_node(node->cond);
+static void gen_condition(Node *node) {
+  compile_node(node);
+
+  switch (node->ty->kind) {
+    case TY_FLOAT:
+      println("  xorps %%xmm1, %%xmm1");
+      println("  ucomiss %%xmm1, %%xmm0");
+      break;
+    case TY_DOUBLE:
+      println("  xorps %%xmm1, %%xmm1");
+      println("  ucomisd %%xmm1, %%xmm0");
+      break;
+    case TY_LDOUBLE:
+      println("  fldz");
+      println("  fucomip");
+      println("  fstp %%st(0)");
+      break;
+    default:
+      println("  cmp $0, %%rax");
+      return;
+  }
+
+  println("  setne %%al");
+  println("  setp %%dl");
+  println("  or %%dl, %%al");
+  println("  movzx %%al, %%rax");
   println("  cmp $0, %%rax");
+}
+
+void expand_ternary(Node *node, int label) {
+  gen_condition(node->cond);
   println("  je .Lfalse%d", label);
 
   compile_node(node->lhs);
@@ -913,8 +941,7 @@ void compile_node(Node *node) {
       return;
     case ND_IF: {
       int now_label = branch_label++;
-      compile_node(node->cond);
-      println("  cmp $0, %rax");
+      gen_condition(node->cond);
       println("  je .Lelse%d", now_label);
 
       // "true"
@@ -946,8 +973,7 @@ void compile_node(Node *node) {
 
       // judege expr
       if (node->cond != NULL) {
-        compile_node(node->cond);
-        println("  cmp $0, %%rax");
+        gen_condition(node->cond);
         println("  je %s", node->break_label);
       }
 
@@ -970,8 +996,7 @@ void compile_node(Node *node) {
       compile_node(node->then);
 
       println("%s:", node->conti_label);
-      compile_node(node->cond);
-      println("  cmp $0, %%rax");
+      gen_condition(node->cond);
       println("  jne .Ldo_body%d", body_label);
 
       println("%s:", node->break_label);
