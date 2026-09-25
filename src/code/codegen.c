@@ -1507,5 +1507,6 @@ void codegen(Node *head, char *filename) {
     gen_pop("rbp");
     println("  ret");
   }
+  println(".section .note.GNU-stack,\"\",@progbits");
   fclose(output_file);
 }
